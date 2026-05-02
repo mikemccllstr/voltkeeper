@@ -640,3 +640,106 @@ POST /api/blusmartprod/device/upgrade/record/v1/broadcastSave   # for broadcast 
 ```
 
 Payload includes: `deviceSn`, `model`, `firmwareType`, `oldVer`, `upgradeVer`, `upgradeStatus`, `connMode`, `remark`, `soc` (battery state of charge at time of upgrade), `mobileModel`, `os`, `osVer`.
+
+---
+
+## Section 12 — BLE Encryption Key Retrieval
+
+### 12.1 Overview
+
+The app uses two distinct BLE security protocols depending on device firmware generation. Neither protocol fetches a session key from the cloud at runtime — all cryptographic material is either hardcoded in the APK or derived on-device from a challenge-response exchange.
+
+### 12.2 Path 1 — Legacy Challenge-Response (Protocol v1)
+
+Applies to older devices where `protocolVer < 2000`.
+
+**Flow:**
+
+1. Device sends a BLE "hello" packet containing a 4-byte random value at bytes 4–7.
+2. App reverses the 4 random bytes, computes MD5 → stores as `randomMd5`.
+3. App responds with a challenge packet: `"2A2A0204" + randomMd5.substring(16, 24)` + 1-byte checksum.
+4. Session AES key is derived as:
+
+```
+bleConnAESKey = XOR(randomMd5, LOCAL_AES_KEY)
+```
+
+**Hardcoded key** (`ConnConstantsV2.LOCAL_AES_KEY`):
+```
+459FC535808941F17091E0993EE3E93D
+```
+
+5. All subsequent BLE data is encrypted/decrypted with `AES-CBC` using `bleConnAESKey`.
+
+**Key source files:**
+- `ConnectManager.java:1909–1925` — challenge-response derivation
+- `ConnConstantsV2.java:98` — `LOCAL_AES_KEY` constant
+- `ProtocolParse.java:1424` — `buildAESCBCCmd(cmd, aesKey, iv)`
+
+### 12.3 Path 2 — ECDH + ECDSA Mutual Authentication (Protocol v2)
+
+Applies to newer devices (protocol v2+, e.g., EPAD, PLP025, and other 2nd-gen IoT modules). This path adds ECDSA-based device identity verification and ECDH-based forward-secret session key derivation.
+
+**Flow:**
+
+1. **Challenge-response** (same as Path 1, establishes `bleConnAESKey` as a temporary transport key).
+2. **Device sends ECDH public key + ECDSA signature** (encrypted with `bleConnAESKey`):
+   - Response type `0x04`: payload contains `iotPkHexStr` (64-byte uncompressed SECP-256R1 public key) + `signature` (64-byte raw ECDSA-SHA256 signature over `iotPublicKey || randomMd5`).
+3. **App verifies signature** using hardcoded ECDSA verification key `PUBLIC_KEY_K2`:
+
+```
+PUBLIC_KEY_K2 =
+"3059301306072a8648ce3d020106082a8648ce3d03010703420004
+ A73ABF5D2232C8C1C72E68304343C272495E3A8FD6F30EA96DE2F4B3CE60B251
+ EE21AC667CF8A71E18B46B664EAEFFE3C489F24F695B6411DB7E22CCC85A8594"
+```
+
+This is an X.509-encoded SECP-256R1 (P-256) public key.
+
+4. **App generates ephemeral ECDH keypair** (SECP-256R1), then **signs** `(appPublicKey || randomMd5)` with hardcoded private key `PRIVATE_KEY_L1`:
+
+```
+PRIVATE_KEY_L1 = "4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337"
+```
+
+5. **App sends** its ephemeral public key + own ECDSA signature to the device (`0x2A2A0580` packet).
+6. **Device responds** with response type `0x06` confirming acceptance.
+7. **Session key derived** via ECDH:
+
+```
+bleConnShareKey = ECDH_SharedSecret(appEphemeralPrivKey, deviceIoTPublicKey)
+```
+
+`bleConnAESKey` is discarded; all subsequent BLE traffic is encrypted with `bleConnShareKey` using AES-CBC.
+
+**Key source files:**
+- `ConnectManager.java:1934–1961` — ECDH key exchange logic
+- `ConnectManager$bleEncryptedHandle$2$1.java:67–154` — ECDSA verify + ECDH keypair generation
+- `SignatureCrypt.java:32–33` — hardcoded `PUBLIC_KEY_K2` and `PRIVATE_KEY_L1`
+- `ECDHUtils.java:29–33` — SECP-256R1 ASN.1 DER prefixes
+
+### 12.4 "Server BLE Key" (Register 13603)
+
+A separate per-device key (`serverBLEKey`) is stored in the IoT module at **Modbus register 13603**. This is not a session key; it is a long-lived key provisioned into the device by the server during manufacturing or cloud registration.
+
+**Usage:** When pairing a Fingerprint Screen (FPS) accessory to a main device, the app:
+1. Reads the main device's server BLE key over BLE (`getReadTask(13603)`).
+2. Broadcasts the key via `LiveEventBus` event `"IOT_SERVER_KEY"`.
+3. Passes it as Intent extra `"serverBLEKey"` to `DeviceBluetoothScanActivity` for the screen pairing flow.
+
+This key is not fetched from a cloud REST API by the app at runtime; it is read directly from the device register over BLE.
+
+**Key source files:**
+- `ConnectManager.java:2266–2267` — register 13603 → `ACTION_IOT_SERVER_KEY` event
+- `DeviceFPSResetActivity.java:198–221` — subscribes to event, stores `serverBLEKey`
+- `DeviceFPSResetActivity.java:161–170` — passes key as Intent extra to scan activity
+
+### 12.5 Security Observations
+
+| Issue | Detail |
+|-------|--------|
+| **Hardcoded local AES key** | `LOCAL_AES_KEY = 459FC535808941F17091E0993EE3E93D` is identical across all app installations. Any attacker who captures a BLE session can decrypt it given the `randomMd5` (derivable from the challenge packet). |
+| **Hardcoded ECDSA private key** | `PRIVATE_KEY_L1` is embedded in the APK. An attacker can extract it, sign arbitrary ECDH public keys, and impersonate the official Bluetti app to any device. |
+| **Hardcoded ECDSA verification key** | `PUBLIC_KEY_K2` is the only device-authenticity anchor. All Bluetti devices share the same IoT identity signing key. |
+| **No cloud key fetch for sessions** | BLE session keys are fully self-contained; revocation or re-keying without an app update is not possible. |
+| **getQrCodeEncrypt endpoint** | `GET /api/blusmartprod/device/basic/v1/getQrCodeEncrypt` exists in the API list but is not used in the BLE session key flow — it appears to be related to QR-code-based device pairing, not BLE encryption. |
