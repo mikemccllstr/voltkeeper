@@ -62,6 +62,7 @@ The app contains a fully functional three-environment architecture controlled by
 | IoT/MQTT Broker | `ssl://iot.bluettipower.com:18760` |
 | File (by ID) | `https://gw.bluettipower.com/api/midpfilec/file/v1/getFile?id=<id>` |
 | App Download | `https://download.bluetti.app?sn=<sn>` |
+| App Download (alternate) | `https://download.poweroak.ltd?sn=<sn>` |
 
 ### 2.3 Test / Dev Service URLs (also embedded in binary)
 
@@ -170,6 +171,7 @@ GET  /api/blusmartprod/device/basic/v1/findDeviceByBluetooth
 GET  /api/blusmartprod/device/basic/v1/deviceRemoteSearch
 POST /api/blusmartprod/device/basic/v1/updateUserDeviceInfo
 POST /api/blusmartprod/device/basic/v1/updateEmissionRate
+POST /api/blusmartprod/device/group/v1/updateDeviceSortData
 GET  /api/blusmartprod/device/basic/v1/shareGroupMemberList
 DELETE /api/blusmartprod/device/basic/v1/delShareMember
 GET  /api/blusmartprod/device/basic/v1/getQrCodeEncrypt
@@ -419,6 +421,8 @@ mTLS with PKCS#12 client certificates obtained from the PKI service.
 | Firebase Project ID | `bluettiapp` | PROD | `strings.xml` |
 | Firebase Storage Bucket | `bluettiapp.appspot.com` | PROD | `strings.xml` |
 | GCM Sender ID | `658750132944` | PROD | `strings.xml` |
+| Facebook App ID | `6441153849337992` | PROD | `strings.xml` |
+| Facebook Login Scheme | `fb6441153849337992` | PROD | `strings.xml` |
 
 ---
 
@@ -427,11 +431,13 @@ mTLS with PKCS#12 client certificates obtained from the PKI service.
 ### 8.1 Dev/Test Infrastructure Exposed
 All three environment URLs (dev, test, production) are compiled into the release APK. The dev SSO and after-sales endpoints use **plain HTTP** (`http://dev-sso.poweroak.ltd:18888`), meaning credentials would be transmitted unencrypted if the dev environment were reachable.
 
+Furthermore, the `network_security_config.xml` declares `cleartextTrafficPermitted="true"` globally on `<base-config>`. This means all traffic — not just dev/test — is permitted to use plain HTTP, widening the MITM attack surface if a network attacker forces an HTTPS downgrade.
+
 ### 8.2 `DevModeActivity` Present
 `net.poweroak.bluetticloud.ui.common.DevModeActivity` is registered in the manifest. This activity likely exposes a developer/debug UI with environment switching and internal diagnostics. It should be verified that it is not accessible without appropriate authentication.
+### 8.3 Unusual API Path — Device Location Update
 
-### 8.3 Unusual API Path
-`/api/blusmartprod/device/basic/v1/188a37b9033f791157564c2ed8a` — a hardcoded hash-like string appears as a Retrofit endpoint path. Its purpose is unclear from static analysis.
+The endpoint `PUT /api/blusmartprod/device/basic/v1/188a37b9033f791157564c2ed8a` is the `updateLocation()` method. It accepts `gwcredentials` as a query parameter and sends encrypted device location data.
 
 ### 8.4 `READ_LOGS` and `READ_PRIVILEGED_PHONE_STATE` Permissions
 These are unusually privileged permissions for a consumer app. `READ_PRIVILEGED_PHONE_STATE` is typically only granted to system or carrier apps; it is unlikely to be granted on non-rooted devices but its presence is worth noting.
@@ -445,6 +451,14 @@ Keys for the following SDKs are embedded:
 - **Google Sign-In / OAuth**
 - **Facebook** (App registration for OAuth)
 - **Google Play Integrity** (app attestation)
+
+### 8.7 Passwords Stored in SharedPreferences
+
+When the user enables "Remember Password", the login credentials are stored as plaintext in Android SharedPreferences:
+- Email login: `SP_LAST_LOGIN_PASSWORD`
+- Phone login: `SP_LAST_LOGIN_PHONE_PASSWORD`
+
+These are stored in the same `SharedPreferences` file as the auth token (`SP_USER_TOKEN`), making them accessible to any process with root access or via Android backup/restore extraction.
 
 ---
 
@@ -491,6 +505,8 @@ Microservices: midpauthc, midpfilec, midpmdata, midpnc,
                bluas, bludistc, blufic, bluinstp,
                bluuc, bluelearn, bluomsfcc, bluwmsc
 ```
+
+> **Note:** `bluomsfcc` (OMS — Order Management System) and `bluwmsc` (WMS — Warehouse Management System) are referenced in the app architecture but their Retrofit service interfaces were not identified among the decompiled sources. They likely support partner/distributor order fulfillment and warehouse inventory flows, respectively.
 
 ---
 
