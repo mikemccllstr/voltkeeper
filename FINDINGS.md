@@ -734,9 +734,9 @@ bleConnShareKey = ECDH_SharedSecret(appEphemeralPrivKey, deviceIoTPublicKey)
 - `SignatureCrypt.java:32–33` — hardcoded `PUBLIC_KEY_K2` and `PRIVATE_KEY_L1`
 - `ECDHUtils.java:29–33` — SECP-256R1 ASN.1 DER prefixes
 
-### 12.4 "Server BLE Key" (Register 13603)
+### 12.4 "Server BLE Key" and Related Device Registers
 
-A separate per-device key (`serverBLEKey`) is stored in the IoT module at **Modbus register 13603**. This is not a session key; it is a long-lived key provisioned into the device by the server during manufacturing or cloud registration.
+A separate per-device key (`serverBLEKey`) is stored in the IoT module at **Modbus register 13603** (`ProtocolAddrV2.IOT_BLE_SERVER_KEY`). This is not a session key; it is a long-lived key provisioned into the device by the server during manufacturing or cloud registration.
 
 **Usage:** When pairing a Fingerprint Screen (FPS) accessory to a main device, the app:
 1. Reads the main device's server BLE key over BLE (`getReadTask(13603)`).
@@ -744,6 +744,14 @@ A separate per-device key (`serverBLEKey`) is stored in the IoT module at **Modb
 3. Passes it as Intent extra `"serverBLEKey"` to `DeviceBluetoothScanActivity` for the screen pairing flow.
 
 This key is not fetched from a cloud REST API by the app at runtime; it is read directly from the device register over BLE.
+
+**Related registers (not used for general BLE device control):**
+
+| Register | Address | Name | Purpose |
+|----------|---------|------|---------|
+| 13603 | `IOT_BLE_SERVER_KEY` | Server BLE Key | FPS/screen accessory pairing key |
+| 12185 | `IOT_BLE_SERVER_SET` | Server BLE Set | Write register for provisioning the server BLE key |
+| 13776 | `BLE_CLIENT_PAIR_SN` | BLE Client Pair SN | Sub-device/accessory pairing serial number |
 
 **Key source files:**
 - `ConnectManager.java:2266–2267` — register 13603 → `ACTION_IOT_SERVER_KEY` event
@@ -759,3 +767,185 @@ This key is not fetched from a cloud REST API by the app at runtime; it is read 
 | **Hardcoded ECDSA verification key** | `PUBLIC_KEY_K2` is the only device-authenticity anchor. All Bluetti devices share the same IoT identity signing key. |
 | **No cloud key fetch for sessions** | BLE session keys are fully self-contained; revocation or re-keying without an app update is not possible. |
 | **getQrCodeEncrypt endpoint** | `GET /api/blusmartprod/device/basic/v1/getQrCodeEncrypt` exists in the API list but is not used in the BLE session key flow — it appears to be related to QR-code-based device pairing, not BLE encryption. |
+| **BLE password checked client-side only** | The 6-digit PIN is read from the device over BLE, then compared against user input in the app. An attacker who completes the BLE handshake can read the register holding the PIN and bypass the check. |
+| **BLE password stored on device, readable over BLE** | Once the encrypted session is established, the PIN value is transmitted in the clear (encrypted at the transport layer by the global session key). |
+
+### 12.6 Bluetooth Password — Per-Device PIN Authorization
+
+Separate from session encryption, the app supports an **optional per-device 6-digit BLE password** that gates access after a successful BLE connection and handshake. This is not an encryption key — it is an authorization PIN.
+
+**Config flags** (stored in `DeviceBaseConfigBean`):
+- `btPswEnable` (int): Whether a BLE password is active on this device
+- `btLoginPsw` (String): The 6-digit PIN value
+
+**How the password is read:** Both fields are parsed from the base config response at `ProtocolParse.java:97-99`:
+```java
+// btPswEnable from bits 0-1 of hex positions 10+11
+deviceBaseConfigBean.setBtPswEnable(Integer.parseInt(
+    list.get(1) + list.get(0), 2));
+// btLoginPsw from hex positions 12-17 (6 ASCII bytes)
+deviceBaseConfigBean.setBtLoginPsw(
+    getASCIIStr(dataRes.subList(12, 18), true));
+```
+
+**How the password is checked:** After BLE connect succeeds, `DeviceBluetoothScanActivity.java:961-986` checks `btPswEnable == 1`. If active, it shows `DeviceBluetoothPswCheckDialog` (`DeviceBluetoothPswCheckDialog.java`) — a 6-digit PIN entry popup. The check at line 96 is a simple string comparison:
+```java
+if (Intrinsics.areEqual(strUserInput, this.bluetoothPassword)) {
+    successHandle();  // proceed to device home
+} else {
+    // show error toast, retry count, disconnect on timeout
+}
+```
+If the user closes the dialog or fails the check, `ConnectManager.disconnectDevice()` is called — the BLE connection is terminated. The dialog has a 60-second countdown timer.
+
+**How the password is set:** The device owner sets it from the device settings screen via `DeviceBluetoothPswSetupDialog` (`DeviceBluetoothPswSetupDialog.java`), which calls `ProtocolParse.bluetoothPswSetupData(password)` (`ProtocolParse.java:1164-1196`). This encodes a 6-character password as a 12-byte hex string and writes it to the `BLUETOOTH_PASSWORD` register (address 7 in `ProtocolAddr.java:16`).
+
+**To remove the password:** The `negativeClick` handler in `DeviceBluetoothPswSetupDialog.java:242` sends the "no password" message and writes zeroes (6 × "00" bytes) to clear the stored PIN, setting `btPswEnable` back to 0.
+
+**Key source files:**
+- `ProtocolParse.java:97-99` — `btPswEnable` and `btLoginPsw` parsing from base config
+- `ProtocolParse.java:1164-1196` — `bluetoothPswSetupData()` password encoding
+- `ProtocolAddr.java:16` — `BLUETOOTH_PASSWORD` register address (7)
+- `DeviceBluetoothScanActivity.java:961-986` — password check trigger after BLE connect
+- `DeviceBluetoothPswCheckDialog.java:89-106` — PIN comparison and success/failure handling
+- `DeviceBluetoothPswSetupDialog.java:46-58, 204-242` — password setup and clear dialogs
+
+---
+
+## Section 13 — Offline BLE Operations
+
+### 13.1 Overview
+
+The app supports a fully offline Bluetooth-direct mode that allows scanning for, connecting to, and reading data from Bluetti devices **without logging in and without internet connectivity**. Write access (device control) is gated behind a separate Guest/Visitor Mode flag (see Section 14).
+
+### 13.2 Entry Points
+
+Offline BLE mode can be entered from two locations:
+
+1. **Start screen** (`StartActivity.java:235`): A button on the initial app screen directly launches `DeviceBluetoothScanActivity` with `PAGE_SCENE_CONN`, requiring no login.
+2. **Home Fragment** (`HomeFragment.java:332, 414`): From the device list, a "Bluetooth Connect" action launches the BLE scan with `PAGE_SCENE_CONN`.
+
+### 13.3 BLE Scan (Offline)
+
+`DeviceBluetoothScanActivity` uses standard Android BLE APIs to scan for advertising devices. No cloud calls are made during scanning. When `BluettiUtils.isLogin()` returns `false`:
+
+- The screen title changes to the localized string `R.string.device_offline_mode` ("Offline Mode")
+- The search animation switches to `add_device_searching_offline` (`DeviceBluetoothScanActivity.java:547-550, 583`)
+- Analytics tracks the screen as `"offline_mode"` (`DeviceBluetoothScanActivity.java:1579`)
+
+### 13.4 BLE Connect (Offline)
+
+After selecting a device from the scan list, `extractedConnect()` and `startConnect()` initiate the BLE GATT connection. The session key derivation (Section 12) is entirely self-contained — all cryptographic material is hardcoded or derived from the BLE handshake. No cloud API call is required to establish an encrypted BLE session.
+
+Once connected, `startDeviceConnectionActivity()` (`DeviceBluetoothScanActivity.java:1546-1554`) navigates to the device home activity:
+```java
+setConnMode(ConnMode.BLUETOOTH);
+startActivity(new Intent(this,
+    DeviceConnUtil.getHomeActivityByModel(getConnMgr().getDeviceModel(), ...)));
+```
+
+### 13.5 Reading Device Data (Offline)
+
+After connecting, the device home activity reads Modbus registers over BLE via `ConnectManager.getReadTask()`. All read operations — real-time power, battery SOC, temperatures, faults, etc. — work entirely over the local BLE link with no internet dependency.
+
+### 13.6 Device Control (Offline) — Conditional
+
+| Scenario | Read Data | Write/Control |
+|----------|-----------|---------------|
+| Not logged in, Guest Mode **disabled** | Yes | **No** — "only viewing access is allowed" |
+| Not logged in, Guest Mode **enabled** | Yes | **Yes** — full control |
+
+The app string at `R.string.device_guest_mode_msg1` states: *"In Offline/Bluetooth Mode, only viewing access is allowed. Log in, bind the device, and enable Visitor Access in settings to take control."*
+
+### 13.7 Offline Options Dialog
+
+When a cloud-connected device goes offline (MQTT disconnect), `DeviceOfflineOptionDialog` (`DeviceOfflineOptionDialog.java`) presents two options:
+- **"Change Network"** — re-configure Wi-Fi settings (requires device ownership)
+- **"Bluetooth Direct Connection"** — switch to local BLE control
+
+This dialog is triggered from the device list when a device's MQTT connection drops and BLE is available as a fallback.
+
+### 13.8 Security Implications
+
+| Issue | Detail |
+|-------|--------|
+| **No auth gate for BLE scan/connect** | Anyone with the app can discover and connect to nearby Bluetti devices via BLE without any account or login. |
+| **Read access without credentials** | Device telemetry (power, SOC, temperatures, fault codes) is readable without authentication. |
+| **Write access gated by device-side flag only** | Guest mode enforcement relies solely on a flag stored on the device — there is no server-side authorization check. |
+| **Offline bar displayed** | The `DeviceTopAdvertiseBar` (`device_offline_mode_advertise_bar.xml`) displays a banner when operating in offline mode, informing the user that data may not be synced. |
+
+---
+
+## Section 14 — Guest / Visitor Mode
+
+### 14.1 Overview
+
+Guest Mode (also labeled "Visitor Access") is a device-side flag that allows **unauthenticated users** to control a device over BLE without logging into the app, binding the device to an account, or having internet connectivity.
+
+### 14.2 Flag Location
+
+The flag is stored on the **device**, not in the cloud. It is a 2-bit field (`guestModeEnable`) embedded in the device's base configuration block.
+
+### 14.3 Reading the Flag
+
+When the device settings screen opens (`BaseConnSettingsActivityUI2`), the app sets `TimerScene.BASE_SETTINGS` which triggers a BLE read of the base config registers. The response is parsed in `ProtocolParse.parseBaseConfig()` at `ProtocolParse.java:82-116`:
+
+```java
+// ProtocolParse.java:97-99
+List list = hexStrToBinaryList(dataRes.get(10) + dataRes.get(11));
+// ...
+deviceBaseConfigBean.setGuestModeEnable(
+    Integer.parseInt(list.get(3) + list.get(2), 2));
+```
+
+The parsed value flows into `ConnectManager.guestMode` at `ConnectManager.java:776`:
+```java
+this.guestMode = value.getGuestModeEnable();
+```
+
+Multiple device home activities (`DeviceConnHomeActivityV2.java:1560`, `SmartPlugHomeActivity.java:758`, `PanelHomeActivity.java:168`, etc.) check `getConnMgr().getGuestMode() == 1` to determine if they should display a guest-mode-active warning dialog.
+
+### 14.4 Writing the Flag
+
+The device owner enables/disables Guest Mode from the device settings screen. The UI binds `itemGuestMode` in `DeviceConnSettingsUi2Binding`. Tapping the toggle triggers the write at `BaseConnSettingsActivityUI2.java:792-801`:
+
+**Enable** (value `4` → register address `6`):
+```java
+addTaskItem(getConnMgr(),
+    ConnectManager.getSetTask(connMgr, 6, 4, null), ...);
+connMgr.setGuestMode(1);
+```
+
+**Disable** (value `8` → register address `6`):
+```java
+addTaskItem(getConnMgr(),
+    ConnectManager.getSetTask(connMgr, 6, 8, null), ...);
+connMgr.setGuestMode(2);
+```
+
+The BLE write task uses `ConnectManager.getSetTask(int regAddr, int value, Integer modbusSlave)` which constructs a standard Modbus write command over BLE GATT. See `ConnectManager.java:4150`.
+
+### 14.5 UI Confirmation Dialog
+
+Before the write commits, `DeviceGuestModeDialog` (`DeviceGuestModeDialog.java`) displays a confirmation with the Chinese-language warning:
+
+> "Are you sure you want to authorize visitors to control this device? After confirmation, visitors can directly control this device through offline mode/Bluetooth direct connection without logging in to the app or binding the device. Please operate carefully!"
+
+The dialog has Authorize/Confirm/Cancel buttons and a close icon. Source: `device_dialog_guest_mode.xml` layout, bound in `DeviceGuestModeDialog.java:32`.
+
+### 14.6 Effect When Enabled
+
+When `guestMode == 1` and the app is connected via BLE (`ConnMode.BLUETOOTH`) without a bound device (`deviceBean == null`):
+
+1. The device home activities show a guest mode notification dialog
+2. The "settings" gear icon remains accessible — the user can still open settings
+3. Write operations (settings changes, switch toggles, mode changes) are allowed over BLE
+
+### 14.7 Security Observations
+
+| Issue | Detail |
+|-------|--------|
+| **No server-side enforcement** | Guest mode is purely a device-local flag. The cloud API is not consulted for authorization. |
+| **Flag persists on device** | Once set, guest mode remains active until explicitly disabled — across app restarts and across different phones. |
+| **Any nearby phone can control device** | If guest mode is enabled, any phone with the Bluetti app can connect via BLE and control the device without any authentication. |
+| **Write is local BLE only** | The `guestModeEnable` flag can only be set by a device owner who has already authenticated and connected to the device (either via cloud or a prior BLE session with full credentials). |
