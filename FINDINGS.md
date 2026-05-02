@@ -491,3 +491,152 @@ Microservices: midpauthc, midpfilec, midpmdata, midpnc,
                bluas, bludistc, blufic, bluinstp,
                bluuc, bluelearn, bluomsfcc, bluwmsc
 ```
+
+---
+
+## 11. Firmware Update Flow
+
+Source files: `DeviceUpgradeBaseActivity.java`, `DeviceVersionModel.java`, `FirmwareDownloadViewModel.java`, `FirmwareDownloadRepository.java`, `FirmwareUpgradeConfig.java`, `DeviceFmVer.java`, `FirmwareVerReq.java`, `DeviceFirmware.java`
+
+### 11.1 Step 1 — Version Check
+
+The app sends the device's current firmware state to the server, which responds with available updates. Four API versions exist, growing in capability:
+
+```
+POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList          # single device (legacy)
+POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList/batch    # multi-device
+POST /api/blusmartprod/device/firmware/v2/latest/firmwareVerList/batch
+POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList
+```
+
+**Request body** (`FirmwareVerReq`):
+```json
+{
+  "sn": "<device serial number>",
+  "model": "<model code, e.g. AC2A>",
+  "iotVer": 0,
+  "armVer": 0,
+  "dspVer": 0,
+  "bmsVer": 0,
+  "mobileId": "<phone ID>",
+  "firmwareVers": [
+    { "firmwareId": 0, "ver": 1234 }
+  ]
+}
+```
+
+`firmwareId` integers map to the `DeviceFirmware` enum. For a device like the AC2A, the request reports current versions for all applicable components (IOT, ARM, DSP, BMS, etc.).
+
+### 11.2 Firmware Component Types (`DeviceFirmware` enum)
+
+| ID | Name | ID | Name |
+|---|---|---|---|
+| 0 | IOT | 13 | RF |
+| 1 | ARM | 14 | DC_HUB |
+| 2 | DSP | 15 | AC_HUB |
+| 3 | BMS | 16 | DC_DC |
+| 4 | BA | 17 | ATS |
+| 5 | PACK_BCU | 18 | PANEL |
+| 6 | PACK_BMU | 19 | PARALLEL_BOX |
+| 7 | PACK_BMS | 20 | INV_DSP2 |
+| 8 | PACK_M1 | 11 | HMI1 / HMI_BOOT / HMI_KERNEL / HMI_FILE_SYS / HMI_APP_UI / HMI_APP_BASE |
+| 9 | PACK_SAFETY | 253 | PPS |
+| 10 | PACK_HIGH_VOLTAGE | 254 | BOOT |
+| 12 | HMI2 | 255 | SYSTEM |
+
+### 11.3 Step 2 — Server Response (`DeviceFmVer`)
+
+The server returns one `DeviceFmVer` object per firmware component. Key fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `firmwareType` | int | Component ID (from enum above) |
+| `version` | String | Target version string |
+| `currVersion` | long | Device's current version (echoed back) |
+| `hasNewVersion` | bool | `true` if an update is available |
+| `downloadUrl` | String | Direct URL to download the binary |
+| `fileMd5` | String | MD5 checksum for post-download integrity check |
+| `fileSize` | int | File size in bytes |
+| `encrypted` | bool | Whether the firmware file is encrypted |
+| `signature` | String | Firmware signature |
+| `checkSum` | String | Additional checksum |
+| `shardSize` | int | Chunk size for BLE transfer |
+| `supportBroadcastUpgrade` | bool | Can be pushed to multiple sub-devices at once |
+| `needToReconnect` | bool | Device requires BLE reconnect after flashing |
+| `versionList` | List | Sub-components (e.g. HMI has BOOT/KERNEL/APP parts) |
+| `otaCmd` | String | OTA start command bytes (built locally before BLE transfer) |
+
+### 11.4 Step 3 — Download
+
+**Unencrypted firmware** is downloaded from the `downloadUrl` field returned by the API response. Files are saved to the app's cache directory:
+
+```
+<cacheDir>/<modelCode>_<firmwareTypeName>_<version>[_<firmwareId>]
+```
+
+**Encrypted firmware** uses a URL constructed by the app with a **hardcoded credential token** (`DeviceUpgradeBaseActivity.java:667`):
+
+```
+/api/blusmartprod/device/firmware/encrypted/v1/download
+    ?sn=<deviceSn>
+    &fm=<firmwareId>
+    &gwcredentials=7plHLMKU7rc92SATG1brZp2WOKG/MVcwDP0jDucHdG9fYoM1ZNjGlCpCtENCnlYuCJWRZ0wiwB0E5hg4W525F5mBTDiZKrCBqjg6L5vLmeM=
+```
+
+This `gwcredentials` value is hardcoded in the app binary, using the same credential scheme as the APK distribution URL.
+
+After download, the app verifies the file's MD5 against `fileMd5` before proceeding (`FirmwareDownloadViewModel.isFirmwareFileExits`). If the cached file already exists and passes the MD5 check it is reused without re-downloading.
+
+### 11.5 Step 4 — Delivery to Device
+
+Two delivery paths exist and are selected based on connection mode:
+
+**Path A — BLE (local, direct)**
+
+`ProtocolParse.otaStartCmd()` builds the OTA start command, including shard size, protocol version, and broadcast flag. The `lib_ble` library handles chunked transfer. A 15-second OTA status countdown timer retries up to 3 times before declaring a timeout failure.
+
+**Path B — Cloud / Remote OTA**
+
+```
+POST /api/blusmartprod/device/firmware/v1/appSentDeviceRemoteUpgrade
+Body: { "masterSn": "...", "model": "...", "request": [ { "sn": "...", "model": "...",
+        "firmwareVers": [ { "firmwareId": <type>, "ver": <currVersion> } ] } ] }
+```
+
+The cloud instructs the device over **MQTT** to fetch and apply the firmware autonomously. The app polls for status with a 15-second countdown and retries up to 3×.
+
+AECC (AC Coupling Energy Controller) devices use a separate remote upgrade endpoint:
+```
+POST /api/blusmartprod/device/firmware/v1/aeccSentDeviceRemoteUpgrade
+```
+
+### 11.6 Step 5 — Upgrade Order and Strategy
+
+Multiple firmware components are flashed **sequentially** in a device-model-specific order (`FirmwareUpgradeConfig`, `FmUpgradeStrategy`):
+
+**Default order (inverters, including AC2A):**
+```
+IOT (0) → ARM (1) → DSP (2) → BMS (3) → DC_DC (16)
+```
+
+**Pack/battery order:**
+```
+PACK_SAFETY (9) → PACK_BMU (6) → PACK_HIGH_VOLTAGE (10) → DC_DC (16) → PACK_BCU (5) → PACK_BMS (7)
+```
+
+**POWER5 exception** (`ARM_LAST` strategy):
+```
+IOT (0) → DSP (2) → BMS (3) → ARM (1)
+```
+ARM is flashed last on the POWER5, presumably because other components must be stable before the main processor firmware is replaced.
+
+### 11.7 Step 6 — Upgrade Record
+
+After each upgrade attempt the app reports back to the server:
+
+```
+POST /api/blusmartprod/device/upgrade/record/v1/save
+POST /api/blusmartprod/device/upgrade/record/v1/broadcastSave   # for broadcast upgrades
+```
+
+Payload includes: `deviceSn`, `model`, `firmwareType`, `oldVer`, `upgradeVer`, `upgradeStatus`, `connMode`, `remark`, `soc` (battery state of charge at time of upgrade), `mobileModel`, `os`, `osVer`.
