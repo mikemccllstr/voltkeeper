@@ -197,14 +197,9 @@ class BluettiAC2A:
         # asyncio queue for notification bytes
         self._notifications = asyncio.Queue()
 
-        # Crypto state
-        self.ble_conn_aes_key = None    # 32 hex → AES-128
-        self.ble_conn_share_key = None  # 64 hex → AES-256 (ECDH)
-        self.random_md5 = None          # 32 hex (lowercase)
-        self.ecdh_keypair = None        # ec.EllipticCurvePrivateKey
-
     # ── BLE callbacks ────────────────────────────────────────────────
     def _on_notification(self, _sender, data: bytes):
+        print(f"  [NOTIFY] received {len(data)} bytes: {data.hex()}")
         self._notifications.put_nowait(data)
 
     # ── Public API ───────────────────────────────────────────────────
@@ -215,140 +210,28 @@ class BluettiAC2A:
         print("BLE connected.")
 
         await self.client.start_notify(NOTIFY_UUID, self._on_notification)
-        await asyncio.sleep(0.5)          # emulate the app's 500 ms delay
-
-        await self._handshake_challenge()
-        await self._handshake_ecdh()
-
         print("Session established.\n")
 
     async def read_home_data(self) -> dict:
-        """Read V2 home‑page data (register 100, 92 registers) and parse."""
-        return await self._read_modbus_register(100, 92)
+        """Read home data (register 100, 6 registers) and parse."""
+        return await self._read_modbus_register(100, 6)
 
     async def disconnect(self) -> None:
         if self.client and self.client.is_connected:
             await self.client.disconnect()
 
-    # ── Handshake step 1: challenge‑response ─────────────────────────
-    async def _handshake_challenge(self) -> None:
-        print("Waiting for device challenge …")
-        data = await asyncio.wait_for(self._notifications.get(), timeout=15.0)
-
-        if len(data) < 5 or data[:2] != b"\x2a\x2a" or data[2] != 0x01:
-            raise RuntimeError(
-                f"Expected 2A2A01… challenge, received: {data.hex()}"
-            )
-
-        # raw bytes: [2A, 2A, 01, 04, r0, r1, r2, r3, cksum]
-        rand4 = data[4:8]                                   # 4 random bytes
-        self.random_md5 = md5_hex(rand4[::-1])              # reverse → MD5
-
-        # response packet: 2A 2A 02 04  <partial_md5>  <checksum>
-        partial = self.random_md5[16:24].upper()             # positions 16‑23
-        csum = sum_hex("0204" + partial)
-        resp = bytes.fromhex(f"2A2A0204{partial}{csum}")
-
-        # derive temporary AES‑128 key
-        self.ble_conn_aes_key = xor_hex(self.random_md5.upper(), LOCAL_AES_KEY)
-
-        await self.client.write_gatt_char(WRITE_UUID, resp, response=False)
-        print("  Challenge response sent.")
-
-    # ── Handshake step 2: ECDH key exchange ──────────────────────────
-    async def _handshake_ecdh(self) -> None:
-        # --- receive device's encrypted ECDH public key ---
-        enc_data = await asyncio.wait_for(self._notifications.get(), timeout=15.0)
-        iv = bytes.fromhex(self.random_md5)                  # fixed handshake IV
-
-        dec_hex = parse_aes_cbc_data(enc_data.hex(), self.ble_conn_aes_key, iv)
-        if not dec_hex.startswith("2A2A04"):
-            raise RuntimeError(f"Expected 2A2A04, got: {dec_hex[:12]}")
-
-        dec = bytes.fromhex(dec_hex)                         # 2A2A04|pubkey(64)|sig(64)|cksum
-
-        # extract IoT public key (raw X+Y, 64 B) and ECDSA signature (64 B)
-        iot_pk_bytes = dec[4:68]                             # bytes 4‑67
-        sig_raw      = dec[68:-2]                            # bytes 68 … end‑2
-        iot_pk_hex   = iot_pk_bytes.hex().upper()
-
-        # verify device's signature over (iot_pk_hex || randomMd5)
-        r = int.from_bytes(sig_raw[:32], "big")
-        s = int.from_bytes(sig_raw[32:], "big")
-        _public_key_k2.verify(
-            encode_dss_signature(r, s),
-            bytes.fromhex(iot_pk_hex + self.random_md5),
-            ec.ECDSA(hashes.SHA256()),
-        )
-        print("  Device ECDSA signature verified.")
-
-        # reconstruct device's ECDH public key (04 || X || Y)
-        device_pub = ec.EllipticCurvePublicKey.from_encoded_point(
-            ec.SECP256R1(), b"\x04" + iot_pk_bytes
-        )
-
-        # generate ephemeral keypair
-        self.ecdh_keypair = ec.generate_private_key(ec.SECP256R1())
-        app_pub = self.ecdh_keypair.public_key()
-
-        # app public key as raw X+Y (64 B, strip 04 marker)
-        app_pk_hex = app_pub.public_bytes(
-            Encoding.X962, PublicFormat.UncompressedPoint
-        )[1:].hex().upper()
-
-        # sign (app_pk_hex || randomMd5) with PRIVATE_KEY_L1
-        app_sig_der = _private_key_l1.sign(
-            bytes.fromhex(app_pk_hex + self.random_md5),
-            ec.ECDSA(hashes.SHA256()),
-        )
-        r2, s2 = decode_dss_signature(app_sig_der)
-        sig_hex = (r2.to_bytes(32, "big") + s2.to_bytes(32, "big")).hex().upper()
-
-        # build & encrypt ECDH response (2A2A0580 + app_pk + sig + cksum)
-        csum = sum_hex("0580" + app_pk_hex + sig_hex)
-        resp_hex = "2A2A0580" + app_pk_hex + sig_hex + csum
-        enc_resp_hex = build_aes_cbc_cmd(resp_hex, self.ble_conn_aes_key, iv)
-
-        await self.client.write_gatt_char(
-            WRITE_UUID, bytes.fromhex(enc_resp_hex), response=False
-        )
-        print("  ECDH response sent.")
-
-        # wait for acknowledgment (2A2A0600)
-        ack = await asyncio.wait_for(self._notifications.get(), timeout=15.0)
-        ack_dec_hex = parse_aes_cbc_data(ack.hex(), self.ble_conn_aes_key, iv)
-        ack_dec = bytes.fromhex(ack_dec_hex)
-
-        if len(ack_dec) < 5 or ack_dec[:3] != b"\x2a\x2a\x06" or ack_dec[4] != 0:
-            raise RuntimeError(
-                f"ECDH not acknowledged: {ack_dec_hex[:12]}"
-            )
-
-        # derive session key (AES‑256) from ECDH shared secret
-        shared = self.ecdh_keypair.exchange(ec.ECDH(), device_pub)   # 32 B
-        self.ble_conn_share_key = shared.hex().upper()               # 64 hex
-        self.ble_conn_aes_key = None                                  # discard temp key
-
-        print("  ECDH key exchange complete.")
-
     # ── Modbus read helper ───────────────────────────────────────────
     async def _read_modbus_register(self, addr: int, count: int) -> dict:
-        """Build, encrypt, send and parse a single Modbus read."""
-        # Modbus-RTU: slave=1, func=0x03 (read holding registers)
+        """Send a plain Modbus RTU read request and parse the response."""
         frame = b"\x01\x03" + struct.pack(">H", addr) + struct.pack(">H", count)
         frame += crc16_modbus(frame)
 
-        enc = build_aes_cbc_cmd(frame.hex().upper(), self.ble_conn_share_key)
-
-        await self.client.write_gatt_char(
-            WRITE_UUID, bytes.fromhex(enc), response=False
-        )
+        await self.client.write_gatt_char(WRITE_UUID, frame, response=False)
 
         resp = await asyncio.wait_for(self._notifications.get(), timeout=15.0)
-        dec = parse_aes_cbc_data(resp.hex(), self.ble_conn_share_key)
-        resp_bytes = bytes.fromhex(dec)
+        resp_bytes = bytes(resp)
 
-        # Modbus response: [slave][func][data/count …][crc]
+        # Modbus response: [slave][func][byte_count][data…][crc]
         func = resp_bytes[1]
         if func & 0x80:
             raise RuntimeError(

@@ -1005,14 +1005,14 @@ For devices where `isESP32Encrypted == true` or `isBLEEncrypted == true`:
 **3a. Challenge-Response:**
 1. Device sends: `2A 2A 01` followed by 4 random bytes (position 4-7)
 2. App reverses the 4 random bytes, computes MD5 → `randomMd5`
-3. App responds: `2A 2A 02 04` + `randomMd5.substring(16, 24)` + 1-byte checksum
+3. App responds: `2A 2A 02 04` + `randomMd5.substring(16, 24)` + 2-byte checksum
 4. App derives temporary key: `bleConnAESKey = XOR(randomMd5, LOCAL_AES_KEY)`
 
 **3b. ECDH Key Exchange (protocol v2+):**
 1. Device sends `2A 2A 04 ...` (AES-CBC encrypted with `bleConnAESKey`, IV=MD5(randomMd5))
-   - Bytes 4-67: reserved/header
-   - Bytes 68 to (end-2): device's SECP-256R1 public key (64 bytes)
-   - Last 64 bytes: ECDSA signature over `(devicePublicKey || randomMd5)`
+   - Bytes 4-67: device's SECP-256R1 public key (64 bytes, raw X+Y, no 04 prefix)
+   - Bytes 68 to (end-2): raw ECDSA signature (r||s, 64 bytes) over `(devicePublicKey || randomMd5)`
+   - Last 2 bytes: checksum (little-endian sum of preceding bytes)
 2. App verifies ECDSA signature using hardcoded `PUBLIC_KEY_K2`
 3. App generates ephemeral SECP-256R1 keypair
 4. App signs `(appPublicKey || randomMd5)` with hardcoded `PRIVATE_KEY_L1`
