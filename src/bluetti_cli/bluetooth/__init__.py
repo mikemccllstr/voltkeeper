@@ -48,7 +48,7 @@ async def scan_devices(timeout: float = 10.0) -> list[tuple[str, str]]:
     return sorted(found, key=lambda x: x[0])
 
 
-async def pick_address_after_scan() -> str:
+async def pick_address_after_scan() -> tuple[str, str]:
     devices = await scan_devices()
 
     if not devices:
@@ -59,7 +59,7 @@ async def pick_address_after_scan() -> str:
     if len(devices) == 1:
         address, name = devices[0]
         click.echo(f"\nFound 1 device \u2192 auto-selecting: {address} ({name})")
-        return address
+        return address, name
 
     click.echo(f"\nFound {len(devices)} Bluetti devices:\n")
     for i, (addr, name) in enumerate(devices, 1):
@@ -74,7 +74,7 @@ async def pick_address_after_scan() -> str:
             choice = input(f"Select device (1-{len(devices)}): ").strip()
             idx = int(choice) - 1
             if 0 <= idx < len(devices):
-                return devices[idx][0]
+                return devices[idx]
         except (ValueError, EOFError, KeyboardInterrupt):
             click.echo()
             sys.exit(1)

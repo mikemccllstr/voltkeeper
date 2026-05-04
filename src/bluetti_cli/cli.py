@@ -130,22 +130,19 @@ def status(address, timeout, verbose):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            address = loop.run_until_complete(pick_address_after_scan())
+            address, device_name = loop.run_until_complete(pick_address_after_scan())
         finally:
             loop.close()
         cmd = click.style(f"bluetti-cli status {address}", bold=True)
         click.echo(f"\nTip: next time, run directly with:\n  {cmd}")
-        device_name = address
     else:
         address = address.upper()
-        device_name = address
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        device_name = loop.run_until_complete(lookup_device_name(address))
-    finally:
-        loop.close()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            device_name = loop.run_until_complete(lookup_device_name(address))
+        finally:
+            loop.close()
 
     device = build_device(address, device_name)
     client = BluetoothClient(address)
