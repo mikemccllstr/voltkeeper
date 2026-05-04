@@ -15,7 +15,8 @@ from src.bluetti_cli.core.utils import (
     _u32,
     crc16_modbus,
 )
-from src.bluetti_cli.core.devices.ac2a import AC2A
+from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
+from src.bluetti_cli.core.commands import WriteSingleRegister, WriteMultipleRegisters
 
 
 @pytest.fixture
@@ -361,6 +362,158 @@ class TestParseInvInvInfo:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  Write command classes — frame construction, CRC, response sizes
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestWriteCommands:
+    def test_write_single_frame(self):
+        cmd = WriteSingleRegister(0x07DB, 1)
+        frame = bytes(cmd)
+        assert len(frame) == 8
+        assert frame[:4] == b"\x01\x06\x07\xdb"
+        assert frame[4:6] == b"\x00\x01"
+        assert crc16_modbus(frame[:-2]) == frame[-2:]
+
+    def test_write_single_zero_value(self):
+        cmd = WriteSingleRegister(0x07DC, 0)
+        frame = bytes(cmd)
+        assert len(frame) == 8
+        assert frame[:4] == b"\x01\x06\x07\xdc"
+        assert frame[4:6] == b"\x00\x00"
+
+    def test_write_single_response_size(self):
+        cmd = WriteSingleRegister(2011, 1)
+        assert cmd.response_size() == 8
+
+    def test_write_single_exception_detection(self):
+        cmd = WriteSingleRegister(2011, 1)
+        exception = bytes([0x01, 0x86, 0x02])
+        exception += crc16_modbus(exception)
+        assert cmd.is_exception_response(exception)
+
+    def test_write_multiple_frame(self):
+        cmd = WriteMultipleRegisters(0x02BC, bytes([0x00, 0x01, 0x02, 0x03]))
+        frame = bytes(cmd)
+        assert len(frame) == 13
+        assert frame[:2] == b"\x01\x10"
+        assert crc16_modbus(frame[:-2]) == frame[-2:]
+
+    def test_write_multiple_rejects_odd_length(self):
+        with pytest.raises(ValueError, match="multiple of 2"):
+            WriteMultipleRegisters(100, b"\x01\x02\x03")
+
+    def test_write_multiple_response_size(self):
+        cmd = WriteMultipleRegisters(0x02BC, bytes([0x00, 0x01]))
+        assert cmd.response_size() == 8
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  ChargingMode enum
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestChargingMode:
+    def test_values(self):
+        assert ChargingMode.STANDARD.value == 0
+        assert ChargingMode.TURBO.value == 1
+        assert ChargingMode.SILENT.value == 2
+
+    def test_name_lookup(self):
+        assert ChargingMode["STANDARD"].value == 0
+        assert ChargingMode["TURBO"].value == 1
+        assert ChargingMode["SILENT"].value == 2
+
+    def test_value_lookup(self):
+        assert ChargingMode(0) == ChargingMode.STANDARD
+        assert ChargingMode(1) == ChargingMode.TURBO
+        assert ChargingMode(2) == ChargingMode.SILENT
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  CTRL_EVENT bit decoder
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestCtrlEvent:
+    def test_all_off(self, ac2a_device):
+        caps = AC2A.decode_ctrl_event(0)
+        assert all(not v for v in caps.values())
+        assert len(caps) == 11
+
+    def test_all_on(self, ac2a_device):
+        caps = AC2A.decode_ctrl_event(0x07FF)
+        assert all(caps.values())
+
+    def test_partial_bits(self, ac2a_device):
+        caps = AC2A.decode_ctrl_event(0x0407)
+        assert caps["power_control"]
+        assert caps["ac_control"]
+        assert caps["dc_control"]
+        assert not caps["inv_control"]
+        assert caps["super_power"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  AC2A writable field model — field detection and command building
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestAC2AWritableFields:
+    def test_writable_fields_known(self, ac2a_device):
+        for field in AC2A.WRITABLE_FIELD_NAMES:
+            assert ac2a_device.has_field_setter(field), f"{field} should be writable"
+
+    def test_readonly_fields_not_writable(self, ac2a_device):
+        assert not ac2a_device.has_field_setter("packTotalSoc")
+        assert not ac2a_device.has_field_setter("deviceModel")
+        assert not ac2a_device.has_field_setter("totalDCPower")
+
+    def test_unknown_field_rejected(self, ac2a_device):
+        with pytest.raises(ValueError, match="Unknown writable field"):
+            ac2a_device.build_setter_command("nonexistent", "on")
+
+    def test_bool_true_string(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("ac_output", "on")
+        assert cmd.address == 2011
+        assert cmd.value == 1
+
+    def test_bool_false_string(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("dc_output", "off")
+        assert cmd.address == 2012
+        assert cmd.value == 0
+
+    def test_bool_true_bool(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("power_lifting", True)
+        assert cmd.address == 2021
+        assert cmd.value == 1
+
+    def test_bool_false_bool(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("power_lifting", False)
+        assert cmd.value == 0
+
+    def test_enum_string(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("charging_mode", "turbo")
+        assert cmd.address == 2020
+        assert cmd.value == ChargingMode.TURBO.value
+
+    def test_enum_string_case_insensitive(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("charging_mode", "SILENT")
+        assert cmd.value == ChargingMode.SILENT.value
+
+    def test_uint_value(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("battery_range_start", 50)
+        assert cmd.address == 2022
+        assert cmd.value == 50
+
+    def test_control_struct_has_ctrl_event(self, ac2a_device):
+        names = [f.name for f in ac2a_device.control_struct.fields]
+        assert "ctrl_event" in names
+        assert "ac_output" in names
+        assert "charging_mode" in names
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  CLI unit tests (Click CliRunner)
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -373,6 +526,7 @@ class TestCli:
         assert "Bluetti power station CLI" in result.output
         assert "status" in result.output
         assert "scan" in result.output
+        assert "write" in result.output
 
     def test_help_flag(self):
         runner = CliRunner()
@@ -399,3 +553,11 @@ class TestCli:
         result = runner.invoke(cli, ["scan", "--help"])
         assert result.exit_code == 0
         assert "--timeout" in result.output
+
+    def test_write_help(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["write", "--help"])
+        assert result.exit_code == 0
+        assert "ADDRESS" in result.output
+        assert "FIELD" in result.output
+        assert "VALUE" in result.output
