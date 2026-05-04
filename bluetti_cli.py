@@ -279,30 +279,24 @@ def status(address, timeout):
 
     device = BluettiAC2A(address)
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    home = None
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(device.connect())
-            home = loop.run_until_complete(device.read_home_data())
-        finally:
-            loop.close()
+        loop.run_until_complete(device.connect())
+        home = loop.run_until_complete(device.read_home_data())
     except KeyboardInterrupt:
         click.echo("\nInterrupted.")
         sys.exit(0)
     except Exception as exc:
         click.secho(f"\nError: {exc}", fg="red")
         sys.exit(1)
+    finally:
+        loop.run_until_complete(device.disconnect())
+        loop.close()
+        click.echo("Disconnected.")
 
     _print_status(home)
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(device.disconnect())
-    finally:
-        loop.close()
-    click.echo("Disconnected.")
 
 
 if __name__ == "__main__":
