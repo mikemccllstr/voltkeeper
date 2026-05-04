@@ -221,7 +221,9 @@ def _print_status(home: dict) -> None:
     click.echo(f"  Battery SOC:       {home['packTotalSoc']:>5.0f} %")
     click.echo(f"  Pack Voltage:      {home['packTotalVoltage']:>5.1f} V")
     click.echo(f"  Pack Current:      {home['packTotalCurrent']:>5.1f} A")
-    click.echo(f"  Charging Status:   {home['packChargingStatus']:>5.0f}")
+    status_map = {0: "Idle", 1: "Charging", 2: "Discharging", 3: "Floating"}
+    cs = home.get("packChargingStatus", 0)
+    click.echo(f"  Charging Status:   {status_map.get(cs, str(cs))} ({cs})")
     click.echo(f"  Time to Full:      {home['packChgFullTime']:>5.0f} min")
     click.echo(f"  Time to Empty:     {home['packDsgEmptyTime']:>5.0f} min")
     click.echo(sep)
