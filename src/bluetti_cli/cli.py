@@ -8,6 +8,7 @@ import click
 from .bluetooth import build_device, pick_address_after_scan
 from .bluetooth.client import BluetoothClient
 from .core.commands import ReadHoldingRegisters
+from .bluetooth.exc import ModbusError
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 
@@ -131,6 +132,7 @@ def status(address, timeout, verbose):
     grid = {}
     load = {}
     inv_info = {}
+    controls = {}
     try:
         loop.run_until_complete(client.connect())
 
@@ -150,6 +152,15 @@ def status(address, timeout, verbose):
                     inv_info = parsed
                 else:
                     home = parsed
+
+            for cmd_obj in device.control_commands:
+                try:
+                    raw = loop.run_until_complete(client.execute(cmd_obj))
+                    controls.update(device.parse(cmd_obj.starting_address, raw))
+                except ModbusError:
+                    pass
+                except Exception:
+                    pass
         else:
             cmd = ReadHoldingRegisters(100, 6)
             raw = loop.run_until_complete(client.execute(cmd))
@@ -171,7 +182,7 @@ def status(address, timeout, verbose):
         sys.exit(1)
 
     if verbose:
-        _print_verbose(home, inv_base, pv, grid, load, inv_info)
+        _print_verbose(home, inv_base, pv, grid, load, inv_info, controls)
     else:
         _print_status(home)
 
@@ -194,7 +205,8 @@ def _print_status(home: dict) -> None:
 
 
 def _print_verbose(
-    home: dict, inv_base: dict, pv: dict, grid: dict, load: dict, inv_info: dict
+    home: dict, inv_base: dict, pv: dict, grid: dict, load: dict, inv_info: dict,
+    controls: dict = None,
 ) -> None:
     sep = "\u2500" * 56
     click.echo(sep)
@@ -403,7 +415,84 @@ def _print_verbose(
         for k in sorted(current_fields):
             click.echo(f"    {k}: {inv_base[k] / 10.0:.1f}A")
 
+    # ── Controls (writable fields) ──
+    if controls:
+        click.echo(f"\n  {click.style('CONTROLS (writable)', bold=True, fg='cyan')}")
+        for name, val in sorted(controls.items()):
+            if name == "ctrl_event":
+                continue
+            if isinstance(val, bool):
+                display = "on" if val else "off"
+            elif hasattr(val, "name"):
+                display = val.name.lower()
+            else:
+                display = str(val)
+            click.echo(f"    {name:<20s}  {display}")
+
+        if "ctrl_event" in controls:
+            from .core.devices.ac2a import AC2A
+            caps = AC2A.decode_ctrl_event(controls["ctrl_event"])
+            raw_bits = controls["ctrl_event"]
+            click.echo(
+                f"\n  {click.style(f'CAPABILITIES (CTRL_EVENT @ 2006: {raw_bits:#018b})', bold=True, fg='magenta')}"
+            )
+            for name, _ in AC2A.CTRL_EVENT_BITS:
+                if name in caps:
+                    click.echo(f"    {name:<20s}  {'yes' if caps[name] else 'no'}")
+
     click.echo(f"\n{sep}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Write command
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@cli.command()
+@click.argument("address")
+@click.argument("field")
+@click.argument("value")
+def write(address, field, value):
+    """Write a register on a Bluetti device.
+
+    \b
+    Examples:
+      bluetti-cli write AA:BB:CC:DD:EE:FF ac_output on
+      bluetti-cli write AA:BB:CC:DD:EE:FF dc_output off
+      bluetti-cli write AA:BB:CC:DD:EE:FF charging_mode turbo
+    """
+    address = address.upper()
+    device = build_device(address, address)
+
+    if not device.has_field_setter(field):
+        click.secho(f"Unknown writable field: {field}", fg="red")
+        click.echo(f"Available fields: {', '.join(device.WRITABLE_FIELD_NAMES)}")
+        sys.exit(1)
+
+    try:
+        cmd = device.build_setter_command(field, value)
+    except (ValueError, KeyError) as e:
+        click.secho(f"Invalid value for {field}: {value} ({e})", fg="red")
+        sys.exit(1)
+
+    client = BluetoothClient(address)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(client.connect())
+        click.echo(f"Writing {field} = {value} ...")
+        loop.run_until_complete(client.execute(cmd))
+        click.secho("Done.", fg="green")
+    except ModbusError as e:
+        click.secho(f"Device rejected command: {e}", fg="red")
+        sys.exit(1)
+    except Exception as exc:
+        click.secho(f"Error: {exc}", fg="red")
+        sys.exit(1)
+    finally:
+        loop.run_until_complete(client.disconnect())
+        loop.close()
+        click.echo("Disconnected.")
 
 
 if __name__ == "__main__":

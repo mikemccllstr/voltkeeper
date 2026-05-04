@@ -49,3 +49,40 @@ class ReadHoldingRegisters(DeviceCommand):
 
     def __repr__(self):
         return f"ReadHoldingRegisters(starting_address={self.starting_address}, quantity={self.quantity})"
+
+
+class WriteSingleRegister(DeviceCommand):
+    def __init__(self, address: int, value: int):
+        self.address = address
+        self.value = value
+        super().__init__(6, struct.pack("!HH", address, value))
+
+    def response_size(self):
+        return 8
+
+    def parse_response(self, response: bytes) -> bytes:
+        return bytes(response[4:6])
+
+    def __repr__(self):
+        return f"WriteSingleRegister(address={self.address}, value={self.value:#04x})"
+
+
+class WriteMultipleRegisters(DeviceCommand):
+    def __init__(self, starting_address: int, data: bytes):
+        if len(data) % 2 != 0:
+            raise ValueError("data size must be multiple of 2")
+
+        self.starting_address = starting_address
+        self.data = data
+
+        body = bytearray(len(data) + 5)
+        half_len = len(data) >> 1
+        struct.pack_into("!HHB", body, 0, starting_address, half_len, len(data))
+        body[5:] = data
+        super().__init__(16, bytes(body))
+
+    def response_size(self):
+        return 8
+
+    def __repr__(self):
+        return f"WriteMultipleRegisters(starting_address={self.starting_address}, data={self.data})"

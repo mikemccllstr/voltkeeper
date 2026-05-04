@@ -49,7 +49,20 @@ Output:
 
 Options:
 - `-t, --timeout FLOAT`  Scan timeout in seconds (default: 10.0, used only when no address given)
-- `-v, --verbose`         Display all available device information (power meters, energy totals, PV strings, grid, loads, temperatures, software versions)
+- `-v, --verbose`         Display all available device information (power meters, energy totals, PV strings, grid, loads, temperatures, software versions, writable controls, and device capabilities)
+
+### Write device settings
+
+```bash
+bluetti-cli write AA:BB:CC:DD:EE:FF ac_output on
+bluetti-cli write AA:BB:CC:DD:EE:FF dc_output off
+bluetti-cli write AA:BB:CC:DD:EE:FF charging_mode turbo
+```
+
+Writable fields (see `--verbose` output for current values):
+- **switches:** `ac_output`, `dc_output`, `power_off`, `dc_eco_mode`, `ac_eco_mode`, `power_lifting`, `alarm_sound`  — `on`/`off`
+- `charging_mode`  — `standard`/`turbo`/`silent`
+- **numeric:** `battery_range_start`, `battery_range_end`, `lcd_timeout`, `led_color`, `soc_low`, `soc_high`, `inv_voltage`, `inv_freq`, `working_mode`
 
 ### Help
 

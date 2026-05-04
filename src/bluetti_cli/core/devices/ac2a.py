@@ -1,11 +1,19 @@
 # ABOUTME: AC2A device definition — V2 register map with 6 per-block sub-structs + custom array helpers.
 
-from typing import List
+from enum import Enum, unique
+from typing import Any, List
 
-from ..commands import ReadHoldingRegisters
-from ..struct import DeviceStruct
+from ..commands import ReadHoldingRegisters, WriteSingleRegister
+from ..struct import BoolField, DeviceStruct, EnumField
 from ..utils import _format_version, _s16, _u16
 from .bluetti_device import BluettiDevice
+
+
+@unique
+class ChargingMode(Enum):
+    STANDARD = 0
+    TURBO = 1
+    SILENT = 2
 
 
 APP_HOME_DATA = 100
@@ -39,6 +47,9 @@ class AC2A(BluettiDevice):
 
         self.inv_inv_struct = DeviceStruct()
         self._build_inv_inv_struct()
+
+        self.control_struct = DeviceStruct()
+        self._build_control_struct()
 
         super().__init__(address, "AC2A", sn)
 
@@ -139,6 +150,56 @@ class AC2A(BluettiDevice):
         s.add_decimal32_field("totalEnergy", 1501, 1)
         s.add_uint8_field("sysPhaseNumber", 1508, 1, range=(0, 4))
 
+    def _build_control_struct(self):
+        s = self.control_struct
+        s.add_uint_field("ctrl_event", 2006)
+        s.add_uint_field("working_mode", 2005)
+        s.add_bool_field("ac_output", 2011)
+        s.add_bool_field("dc_output", 2012)
+        s.add_bool_field("power_off", 2013)
+        s.add_bool_field("dc_eco_mode", 2014)
+        s.add_bool_field("ac_eco_mode", 2017)
+        s.add_enum_field("charging_mode", 2020, ChargingMode)
+        s.add_bool_field("power_lifting", 2021)
+        s.add_uint_field("battery_range_start", 2022, range=(0, 100))
+        s.add_uint_field("battery_range_end", 2023, range=(0, 100))
+        s.add_bool_field("alarm_sound", 2066)
+        s.add_uint_field("lcd_timeout", 2067)
+        s.add_uint_field("soc_low", 2075, range=(0, 100))
+        s.add_uint_field("led_color", 2078)
+        s.add_uint_field("soc_high", 2083, range=(0, 100))
+        s.add_bool_field("factory_reset", 2206)
+        s.add_uint_field("inv_voltage", 2209)
+        s.add_uint_field("inv_freq", 2210)
+
+    WRITABLE_FIELD_NAMES = [
+        "ac_output", "dc_output", "power_off", "dc_eco_mode", "ac_eco_mode",
+        "charging_mode", "power_lifting", "battery_range_start", "battery_range_end",
+        "alarm_sound", "lcd_timeout", "led_color", "soc_low", "soc_high",
+        "factory_reset", "inv_voltage", "inv_freq", "working_mode",
+    ]
+
+    CTRL_EVENT_BITS = [
+        ("power_control", "power"),
+        ("ac_control", "ac"),
+        ("dc_control", "dc"),
+        ("inv_control", "inv"),
+        ("grid_control", "grid"),
+        ("pv_control", "pv"),
+        ("feedback", "feedback"),
+        ("meter", "meter"),
+        ("led", "led"),
+        ("eco", "eco"),
+        ("super_power", "super_power"),
+    ]
+
+    @classmethod
+    def decode_ctrl_event(cls, ctrl_event: int) -> dict:
+        return {
+            name: bool(ctrl_event & (1 << i))
+            for i, (name, _) in enumerate(cls.CTRL_EVENT_BITS)
+        }
+
     # ── Parse dispatch ─────────────────────────────────────────────────
 
     def parse(self, address: int, data: bytes) -> dict:
@@ -164,6 +225,10 @@ class AC2A(BluettiDevice):
             result = self.inv_inv_struct.parse(address, data)
             self._fill_inv_phases(result, data)
             return result
+        elif INV_BASE_SETTINGS <= address < INV_ADVANCE_SETTINGS:
+            return self.control_struct.parse(address, data)
+        elif INV_ADVANCE_SETTINGS <= address < 2300:
+            return self.control_struct.parse(address, data)
         return {}
 
     # ── Custom array helpers (structured data beyond simple fields) ────
@@ -246,6 +311,14 @@ class AC2A(BluettiDevice):
         ]
 
     @property
+    def control_commands(self) -> List[ReadHoldingRegisters]:
+        return [
+            ReadHoldingRegisters(INV_BASE_SETTINGS, 24),
+            ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
+            ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 12),
+        ]
+
+    @property
     def logging_commands(self) -> List[ReadHoldingRegisters]:
         return self.polling_commands
 
@@ -255,3 +328,33 @@ class AC2A(BluettiDevice):
             range(INV_BASE_SETTINGS, 2087),
             range(INV_ADVANCE_SETTINGS, 2272),
         ]
+
+    def has_field(self, field: str) -> bool:
+        return field in self.WRITABLE_FIELD_NAMES or any(
+            f.name == field for fs in (
+                self.home_struct, self.inv_base_struct, self.inv_pv_struct,
+                self.inv_grid_struct, self.inv_load_struct, self.inv_inv_struct,
+            ) for f in fs.fields
+        )
+
+    def has_field_setter(self, field: str) -> bool:
+        return field in self.WRITABLE_FIELD_NAMES
+
+    def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
+        matches = [f for f in self.control_struct.fields if f.name == field]
+        if not matches:
+            raise ValueError(f"Unknown writable field: {field}")
+        device_field = matches[0]
+
+        if isinstance(device_field, EnumField):
+            if isinstance(value, str):
+                value = device_field.enum[value.upper()].value
+            else:
+                value = device_field.enum(value).value
+        elif isinstance(device_field, BoolField):
+            if isinstance(value, str):
+                value = 1 if value.lower() in ("on", "1", "true", "yes") else 0
+            else:
+                value = 1 if value else 0
+
+        return WriteSingleRegister(device_field.address, int(value))
