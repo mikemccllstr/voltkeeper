@@ -13,6 +13,20 @@ from .bluetooth.exc import ModbusError
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 
 
+def _close_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Cancel pending tasks and cleanly close an event loop."""
+    try:
+        tasks = asyncio.all_tasks(loop)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            loop.run_until_complete(
+                asyncio.gather(*tasks, return_exceptions=True)
+            )
+    finally:
+        loop.close()
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #  CLI Entry Point
 # ═══════════════════════════════════════════════════════════════════════
@@ -59,8 +73,11 @@ def scan(timeout):
     asyncio.set_event_loop(loop)
     try:
         devices = loop.run_until_complete(do_scan(timeout=timeout))
+    except KeyboardInterrupt:
+        click.echo("\nCancelled.")
+        return
     finally:
-        loop.close()
+        _close_loop(loop)
 
     if not devices:
         click.secho("No Bluetti devices found.", fg="red")
@@ -174,7 +191,7 @@ def status(address, timeout, verbose):
         sys.exit(1)
     finally:
         loop.run_until_complete(client.disconnect())
-        loop.close()
+        _close_loop(loop)
         click.echo("Disconnected.")
 
     if home is None:
@@ -483,6 +500,9 @@ def write(address, field, value):
         click.echo(f"Writing {field} = {value} ...")
         loop.run_until_complete(client.execute(cmd))
         click.secho("Done.", fg="green")
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted.")
+        sys.exit(0)
     except ModbusError as e:
         click.secho(f"Device rejected command: {e}", fg="red")
         sys.exit(1)
@@ -491,8 +511,98 @@ def write(address, field, value):
         sys.exit(1)
     finally:
         loop.run_until_complete(client.disconnect())
-        loop.close()
+        _close_loop(loop)
         click.echo("Disconnected.")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  MQTT bridge command
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@cli.command()
+@click.argument("address")
+@click.option(
+    "--broker",
+    required=True,
+    help="MQTT broker hostname or IP address.",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=1883,
+    show_default=True,
+    help="MQTT broker port.",
+)
+@click.option(
+    "--username",
+    default=None,
+    help="MQTT broker username.",
+)
+@click.option(
+    "--password",
+    default=None,
+    help="MQTT broker password.",
+)
+@click.option(
+    "--interval",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Seconds between polling cycles (0 = as fast as possible).",
+)
+@click.option(
+    "--ha-config",
+    type=click.Choice(["normal", "none", "advanced"]),
+    default="normal",
+    show_default=True,
+    help="Home Assistant MQTT discovery mode.",
+)
+def mqtt(address, broker, port, username, password, interval, ha_config):
+    """Run MQTT bridge — continuously poll device and publish to broker.
+
+    \b
+    Example:
+      bluetti-cli mqtt AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+    """
+    import logging
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    from .bus import EventBus
+    from .device_handler import DeviceHandler
+    from .mqtt_client import MQTTClient
+
+    address = address.upper()
+    device = build_device(address, address)
+    bus = EventBus()
+    handler = DeviceHandler(address, device, interval, bus)
+    mqtt_client = MQTTClient(
+        bus=bus,
+        hostname=broker,
+        port=port,
+        username=username,
+        password=password,
+        home_assistant_mode=ha_config,
+    )
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        async def run_bridge():
+            await asyncio.gather(bus.run(), handler.run(), mqtt_client.run())
+
+        click.echo(f"Starting MQTT bridge for {address} → {broker}:{port}")
+        loop.run_until_complete(run_bridge())
+    except KeyboardInterrupt:
+        click.echo("\nShutting down...")
+    finally:
+        _close_loop(loop)
+        click.echo("Stopped.")
 
 
 if __name__ == "__main__":

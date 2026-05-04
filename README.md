@@ -64,6 +64,28 @@ Writable fields (see `--verbose` output for current values):
 - `charging_mode`  — `standard`/`turbo`/`silent`
 - **numeric:** `battery_range_start`, `battery_range_end`, `lcd_timeout`, `led_color`, `soc_low`, `soc_high`, `inv_voltage`, `inv_freq`, `working_mode`
 
+### MQTT bridge
+
+```bash
+bluetti-cli mqtt AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+```
+
+Continuously polls the device and publishes state to an MQTT broker.
+Supports Home Assistant MQTT auto-discovery (on by default).
+
+Options:
+- `--broker TEXT`         MQTT broker hostname (required)
+- `--port INTEGER`        MQTT broker port (default: 1883)
+- `--username TEXT`       MQTT broker username
+- `--password TEXT`       MQTT broker password
+- `--interval INTEGER`    Seconds between polling cycles (default: 0 = as fast as possible)
+- `--ha-config MODE`      Home Assistant discovery mode: `normal`, `none`, `advanced` (default: normal)
+
+To verify published messages in another terminal:
+```bash
+mosquitto_sub -t 'bluetti/state/#' -v
+```
+
 ### Help
 
 ```bash

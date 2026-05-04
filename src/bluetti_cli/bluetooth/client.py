@@ -26,6 +26,10 @@ class BluetoothClient:
         await self.client.connect(timeout=timeout)
         await self.client.start_notify(NOTIFY_UUID, self._on_notification)
 
+    @property
+    def is_connected(self) -> bool:
+        return self.client is not None and self.client.is_connected
+
     async def disconnect(self) -> None:
         if self.client and self.client.is_connected:
             try:
@@ -63,6 +67,9 @@ class BluetoothClient:
             if cmd.is_exception_response(resp):
                 raise ModbusError(f"Modbus exception code: {resp[2]}")
             return cmd.parse_response(resp)
+
+    async def perform_nowait(self, cmd: DeviceCommand) -> None:
+        await self.execute(cmd)
 
     def _on_notification(self, _sender: int, data: bytearray) -> None:
         if not self._notify_future or self._notify_future.done():

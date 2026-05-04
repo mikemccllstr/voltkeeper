@@ -12,6 +12,8 @@ dependencies = [
     "bleak>=3.0.2",
     "click>=8.0",
     "cryptography>=47.0.0",
+    "paho-mqtt>=2.0",
+    "aiomqtt>=2.0",
 ]
 
 [project.optional-dependencies]

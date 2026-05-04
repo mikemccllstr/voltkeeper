@@ -1,6 +1,8 @@
 # ABOUTME: Unit tests for bluetti-cli — utility functions, struct-based protocol parsers, CLI behavior.
 # ABOUTME: Uses real AC2A register data captured via BLE as test fixtures.
 
+import asyncio
+import json
 import pytest
 from click.testing import CliRunner
 
@@ -17,6 +19,15 @@ from src.bluetti_cli.core.utils import (
 )
 from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
 from src.bluetti_cli.core.commands import WriteSingleRegister, WriteMultipleRegisters
+from src.bluetti_cli.bus import EventBus, ParserMessage, CommandMessage
+from src.bluetti_cli.mqtt_client import (
+    MQTTClient,
+    MqttFieldConfig,
+    MqttFieldType,
+    NORMAL_DEVICE_FIELDS,
+    COMMAND_TOPIC_RE,
+    CHARGING_STATUS_MAP,
+)
 
 
 @pytest.fixture
@@ -511,6 +522,233 @@ class TestAC2AWritableFields:
         assert "ctrl_event" in names
         assert "ac_output" in names
         assert "charging_mode" in names
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  EventBus — message routing
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestEventBus:
+    @pytest.mark.asyncio
+    async def test_parser_message_dispatched(self, ac2a_device):
+        bus = EventBus()
+        received = []
+
+        async def listener(msg: ParserMessage):
+            received.append(msg)
+
+        bus.add_parser_listener(listener)
+        bus_task = asyncio.create_task(bus.run())
+        await bus.put(ParserMessage(ac2a_device, {"test": 1}))
+        await asyncio.sleep(0.05)
+        bus_task.cancel()
+
+        assert len(received) == 1
+        assert received[0].device is ac2a_device
+        assert received[0].parsed == {"test": 1}
+
+    @pytest.mark.asyncio
+    async def test_command_message_dispatched(self, ac2a_device):
+        bus = EventBus()
+        received = []
+
+        async def listener(msg: CommandMessage):
+            received.append(msg)
+
+        cmd = WriteSingleRegister(2011, 1)
+        bus.add_command_listener(listener)
+        bus_task = asyncio.create_task(bus.run())
+        await bus.put(CommandMessage(ac2a_device, cmd))
+        await asyncio.sleep(0.05)
+        bus_task.cancel()
+
+        assert len(received) == 1
+        assert received[0].device is ac2a_device
+        assert received[0].command.address == 2011
+
+    @pytest.mark.asyncio
+    async def test_multiple_listeners(self, ac2a_device):
+        bus = EventBus()
+        results = []
+
+        async def listener_a(msg: ParserMessage):
+            results.append("a")
+
+        async def listener_b(msg: ParserMessage):
+            results.append("b")
+
+        bus.add_parser_listener(listener_a)
+        bus.add_parser_listener(listener_b)
+        bus_task = asyncio.create_task(bus.run())
+        await bus.put(ParserMessage(ac2a_device, {}))
+        await asyncio.sleep(0.05)
+        bus_task.cancel()
+
+        assert sorted(results) == ["a", "b"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  MQTT client — topic parsing, field configs, HA payloads
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestMqttClient:
+    def test_command_topic_re_matches(self):
+        m = COMMAND_TOPIC_RE.match("bluetti/command/AC2A-12345678/ac_output")
+        assert m is not None
+        assert m[1] == "AC2A"
+        assert m[2] == "12345678"
+        assert m[3] == "ac_output"
+
+    def test_command_topic_re_non_matches(self):
+        assert COMMAND_TOPIC_RE.match("bluetti/state/AC2A-123/total_battery_percent") is None
+        assert COMMAND_TOPIC_RE.match("other/command/AC2A-123/ac_output") is None
+        assert COMMAND_TOPIC_RE.match("bluetti/command/abc") is None
+
+    def test_normal_fields_have_battery_keys(self):
+        assert "packTotalSoc" in NORMAL_DEVICE_FIELDS
+        assert "packTotalVoltage" in NORMAL_DEVICE_FIELDS
+        assert "packChargingStatus" in NORMAL_DEVICE_FIELDS
+
+    def test_normal_fields_have_power_keys(self):
+        assert "totalPVPower" in NORMAL_DEVICE_FIELDS
+        assert "totalACPower" in NORMAL_DEVICE_FIELDS
+        assert "totalDCPower" in NORMAL_DEVICE_FIELDS
+
+    def test_normal_fields_have_control_keys(self):
+        assert "ac_output" in NORMAL_DEVICE_FIELDS
+        assert "dc_output" in NORMAL_DEVICE_FIELDS
+        assert "charging_mode" in NORMAL_DEVICE_FIELDS
+        assert "power_off" in NORMAL_DEVICE_FIELDS
+
+    def test_bool_field_config(self):
+        config = NORMAL_DEVICE_FIELDS["ac_output"]
+        assert config.type == MqttFieldType.BOOL
+        assert config.setter is True
+        assert config.advanced is False
+
+    def test_enum_field_config(self):
+        config = NORMAL_DEVICE_FIELDS["charging_mode"]
+        assert config.type == MqttFieldType.ENUM
+        assert config.setter is True
+        assert "options" in config.home_assistant_extra
+
+    def test_button_field_config(self):
+        config = NORMAL_DEVICE_FIELDS["power_off"]
+        assert config.type == MqttFieldType.BUTTON
+        assert config.home_assistant_extra["payload_press"] == "ON"
+
+    def test_ha_payload_has_device_info(self, ac2a_device):
+        from unittest.mock import MagicMock
+
+        bus = MagicMock()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        config = NORMAL_DEVICE_FIELDS["packTotalSoc"]
+        payload = mqtt._ha_config_payload("packTotalSoc", ac2a_device, config)
+
+        data = json.loads(payload)
+        assert "device" in data
+        assert data["device"]["manufacturer"] == "Bluetti"
+        assert data["device"]["model"] == "AC2A"
+        assert "TEST" in data["device"]["identifiers"]
+
+    def test_ha_payload_setter_has_command_topic(self, ac2a_device):
+        from unittest.mock import MagicMock
+
+        bus = MagicMock()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        config = NORMAL_DEVICE_FIELDS["ac_output"]
+        payload = mqtt._ha_config_payload("ac_output", ac2a_device, config)
+
+        data = json.loads(payload)
+        assert "command_topic" in data
+        assert data["command_topic"] == "bluetti/command/AC2A-TEST/ac_output_on"
+
+    def test_ha_payload_nonsetter_no_command_topic(self, ac2a_device):
+        from unittest.mock import MagicMock
+
+        bus = MagicMock()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        config = NORMAL_DEVICE_FIELDS["packTotalSoc"]
+        payload = mqtt._ha_config_payload("packTotalSoc", ac2a_device, config)
+
+        data = json.loads(payload)
+        assert "command_topic" not in data
+        assert data["state_topic"] == "bluetti/state/AC2A-TEST/total_battery_percent"
+
+    def test_charging_status_map(self):
+        assert CHARGING_STATUS_MAP[0] == "IDLE"
+        assert CHARGING_STATUS_MAP[1] == "CHARGING"
+        assert CHARGING_STATUS_MAP[2] == "DISCHARGING"
+        assert CHARGING_STATUS_MAP[3] == "FLOATING"
+
+    def test_all_fields_have_topic_name(self):
+        for name, config in NORMAL_DEVICE_FIELDS.items():
+            assert config.topic_name is not None, f"{name} missing topic_name"
+
+    def test_topic_names_are_snake_case(self):
+        for name, config in NORMAL_DEVICE_FIELDS.items():
+            topic = config.topic_name
+            assert topic, f"{name} has empty topic_name"
+            assert "_" in topic or topic.islower(), f"{name} topic '{topic}' not snake_case"
+            assert topic == topic.lower(), f"{name} topic '{topic}' has uppercase"
+
+    def test_battery_fields_match_bluetti_mqtt(self):
+        assert NORMAL_DEVICE_FIELDS["packTotalSoc"].topic_name == "total_battery_percent"
+        assert NORMAL_DEVICE_FIELDS["packTotalVoltage"].topic_name == "total_battery_voltage"
+        assert NORMAL_DEVICE_FIELDS["packTotalCurrent"].topic_name == "total_battery_current"
+
+    def test_control_fields_match_bluetti_mqtt(self):
+        assert NORMAL_DEVICE_FIELDS["ac_output"].topic_name == "ac_output_on"
+        assert NORMAL_DEVICE_FIELDS["dc_output"].topic_name == "dc_output_on"
+        assert NORMAL_DEVICE_FIELDS["chargingMode"].topic_name == "charging_mode"
+        assert NORMAL_DEVICE_FIELDS["power_lifting"].topic_name == "power_lifting_on"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  DeviceHandler — polling data flow
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestDeviceHandler:
+    @pytest.mark.asyncio
+    async def test_poll_once_no_double_strip(self, ac2a_device, ac2a_home_bytes):
+        """execute() already returns stripped body; _poll_once must not strip again."""
+        from unittest.mock import MagicMock, patch
+        from src.bluetti_cli.device_handler import DeviceHandler
+        from src.bluetti_cli.bus import EventBus, ParserMessage
+
+        bus = EventBus()
+        handler = DeviceHandler("00:00:00:00:00:00", ac2a_device, 0, bus)
+
+        mock_client = MagicMock()
+        handler.client = mock_client
+        mock_client.is_connected = True
+
+        # execute() returns the already-stripped body (12 bytes for 6 regs)
+        home_body = ac2a_home_bytes[:12]
+
+        async def fake_execute(cmd):
+            return home_body
+
+        mock_client.execute = fake_execute
+
+        received = []
+        bus.add_parser_listener(lambda msg: received.append(msg))
+
+        bus_task = asyncio.create_task(bus.run())
+        await handler._poll_once()
+        await asyncio.sleep(0.1)
+        bus_task.cancel()
+
+        assert len(received) > 0, "no ParserMessage dispatched"
+        parsed = received[0].parsed
+        # These should be real-looking values, not garbled by double-strip
+        assert "packTotalSoc" in parsed
+        assert parsed["packTotalSoc"] == 100
+        assert 200 <= parsed["packTotalVoltage"] <= 350
+        assert 0 <= parsed["packTotalCurrent"] <= 100
 
 
 # ═══════════════════════════════════════════════════════════════════════

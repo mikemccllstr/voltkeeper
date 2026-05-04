@@ -62,4 +62,5 @@ async def pick_address_after_scan() -> str:
 def build_device(address: str, name: str):
     from ..core.devices.ac2a import AC2A
 
-    return AC2A(address, name)
+    sn = name.replace(":", "").replace("-", "")
+    return AC2A(address, sn)
