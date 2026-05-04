@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Remove all bluetti files"
+set -euo pipefail
+
+rm -rf bluetti-files

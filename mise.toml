@@ -2,3 +2,6 @@
 python = "3.14"
 ruff = "latest"
 uv = "latest"
+java = "latest"
+"github:skylot/jadx" = "latest"
+

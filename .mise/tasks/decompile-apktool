@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE depends=["download-apk"]
+#MISE description="Decompile APK with apktool"
+set -euo pipefail
+
+if [ -d bluetti-files/apktool_out ]; then
+  echo "apktool output already exists, skipping"
+else
+  apktool d -o bluetti-files/apktool_out -f bluetti-files/bluetti.apk
+fi

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Download the latest bluetti APK"
+set -euo pipefail
+
+node scripts/download-apk.mjs

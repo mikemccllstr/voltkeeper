@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE depends=["download-apk"]
+#MISE description="Decompile APK with jadx"
+set -euo pipefail
+
+if [ -d bluetti-files/jadx_out ]; then
+  echo "jadx output already exists, skipping"
+else
+  jadx -d bluetti-files/jadx_out bluetti-files/bluetti.apk || true
+fi
