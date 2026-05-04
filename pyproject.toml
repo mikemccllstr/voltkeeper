@@ -21,7 +21,7 @@ dev = [
 ]
 
 [project.scripts]
-bluetti-cli = "src.bluetti_cli:cli"
+bluetti-cli = "src.bluetti_cli.cli:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

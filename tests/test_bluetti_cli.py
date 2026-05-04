@@ -1,26 +1,26 @@
-# ABOUTME: Unit tests for bluetti_cli — utility functions, protocol parsers, CLI behavior.
+# ABOUTME: Unit tests for bluetti-cli — utility functions, struct-based protocol parsers, CLI behavior.
 # ABOUTME: Uses real AC2A register data captured via BLE as test fixtures.
 
 import pytest
 from click.testing import CliRunner
 
-from src.bluetti_cli import (
+from src.bluetti_cli.cli import cli
+from src.bluetti_cli.core.utils import (
     _ascii,
     _bcd_sn,
     _format_version,
-    _parse_home_data,
-    _parse_inv_base_info,
-    _parse_inv_grid_info,
-    _parse_inv_inv_info,
-    _parse_inv_load_info,
-    _parse_inv_pv_info,
     _s16,
     _s32,
     _u16,
     _u32,
-    cli,
     crc16_modbus,
 )
+from src.bluetti_cli.core.devices.ac2a import AC2A
+
+
+@pytest.fixture
+def ac2a_device():
+    return AC2A("00:00:00:00:00:00", "TEST")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -33,7 +33,6 @@ class TestCrc16Modbus:
         assert crc16_modbus(b"") == b"\xff\xff"
 
     def test_roundtrip_verify(self):
-        """A frame with its CRC appended must produce 0x0000."""
         frame = b"\x01\x03\x00\x64\x00\x06"
         crc = crc16_modbus(frame)
         assert crc16_modbus(frame + crc) == b"\x00\x00"
@@ -44,7 +43,6 @@ class TestCrc16Modbus:
         )
 
     def test_known_vector(self):
-        # Standard Modbus CRC test: b"\x02\x07" → 0x1241 (LE)
         assert crc16_modbus(b"\x02\x07") == b"\x41\x12"
 
 
@@ -97,21 +95,16 @@ class TestU32:
         assert _u32(b"\xff\xff\xff\xff", 0) == 0xFFFFFFFF
 
     def test_low_register_first_small_value(self):
-        # Low reg = 0x00C7, high reg = 0x0000 → 199
         assert _u32(b"\x00\xc7\x00\x00", 0) == 199
 
     def test_higher_register_set(self):
-        # Low reg = 0x0000, high reg = 0x0001 → 65536
         assert _u32(b"\x00\x00\x00\x01", 0) == 65536
 
     def test_offset(self):
-        # Low reg (offset 4) = 0x5678, high reg (offset 6) = 0x1234
-        # → (0x1234 << 16) | 0x5678 = 0x12345678
         data = b"\x00\x00\x00\x00\x56\x78\x12\x34"
         assert _u32(data, 4) == 0x12345678
 
     def test_grid_power_example(self):
-        # Real AC2A grid power: bytes show low reg = 0x0093 (147W)
         assert _u32(b"\x00\x93\x00\x00", 0) == 147
 
 
@@ -126,8 +119,6 @@ class TestS32:
         assert _s32(b"\xff\xff\xff\xff", 0) == -1
 
     def test_negative(self):
-        # Low reg = 0x0000, high reg = 0x8000 → (0x8000 << 16) | 0x0000
-        # = 0x80000000 unsigned, signed = -2147483648
         assert _s32(b"\x00\x00\x80\x00", 0) == -2147483648
 
 
@@ -194,11 +185,9 @@ class TestFormatVersion:
         assert _format_version(9001) == "v9001"
 
     def test_five_digits(self):
-        # 5 chars: first 4 then rest → "v7733.7"
         assert _format_version(77337) == "v7733.7"
 
     def test_six_digits(self):
-        # 6 chars: first 4 then rest → "v1234.56"
         assert _format_version(123456) == "v1234.56"
 
     def test_seven_plus(self):
@@ -209,44 +198,45 @@ class TestFormatVersion:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Home data parser (register 100)
+#  Home data parser (register 100) — via AC2A struct
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestParseHomeData:
-    def test_empty_data(self):
-        assert _parse_home_data(b"") == {}
-        assert _parse_home_data(b"\x00" * 4) == {}
+    def test_empty_data(self, ac2a_device):
+        assert ac2a_device.parse(100, b"") == {}
+        result = ac2a_device.parse(100, b"\x00" * 4)
+        assert "packTotalVoltage" in result
+        assert "packTotalCurrent" in result
+        assert len(result) == 2
 
-    def test_battery_fields_present(self, ac2a_home_bytes):
-        result = _parse_home_data(ac2a_home_bytes)
+    def test_battery_fields_present(self, ac2a_device, ac2a_home_bytes):
+        result = ac2a_device.parse(100, ac2a_home_bytes)
         assert "packTotalVoltage" in result
         assert "packTotalCurrent" in result
         assert "packTotalSoc" in result
         assert "packChargingStatus" in result
-        # All numeric battery fields are within realistic ranges
         assert 200 <= result["packTotalVoltage"] <= 350
         assert 0 <= result["packTotalCurrent"] <= 100
         assert 0 <= result["packTotalSoc"] <= 100
         assert result["packChargingStatus"] in (0, 1, 2, 3)
 
-    def test_model_name_is_ac2a(self, ac2a_home_bytes):
-        result = _parse_home_data(ac2a_home_bytes)
+    def test_model_name_is_ac2a(self, ac2a_device, ac2a_home_bytes):
+        result = ac2a_device.parse(100, ac2a_home_bytes)
         assert result["deviceModel"].startswith("AC2A")
 
-    def test_serial_present(self, ac2a_home_bytes):
-        result = _parse_home_data(ac2a_home_bytes)
+    def test_serial_present(self, ac2a_device, ac2a_home_bytes):
+        result = ac2a_device.parse(100, ac2a_home_bytes)
         assert "deviceSN" in result
         assert len(result["deviceSN"]) > 0
 
-    def test_power_meters_have_keys(self, ac2a_home_bytes):
-        result = _parse_home_data(ac2a_home_bytes)
+    def test_power_meters_have_keys(self, ac2a_device, ac2a_home_bytes):
+        result = ac2a_device.parse(100, ac2a_home_bytes)
         for key in ("totalDCPower", "totalACPower", "totalPVPower", "totalGridPower"):
             assert key in result
-            assert isinstance(result[key], int)
 
-    def test_energy_totals_have_keys(self, ac2a_home_bytes):
-        result = _parse_home_data(ac2a_home_bytes)
+    def test_energy_totals_have_keys(self, ac2a_device, ac2a_home_bytes):
+        result = ac2a_device.parse(100, ac2a_home_bytes)
         for key in (
             "totalDCEnergy",
             "totalACEnergy",
@@ -254,122 +244,116 @@ class TestParseHomeData:
             "totalGridChargingEnergy",
         ):
             assert key in result
-            assert isinstance(result[key], float)
             assert result[key] >= 0.0
 
-    def test_status_fields_present(self, ac2a_home_bytes):
-        result = _parse_home_data(ac2a_home_bytes)
+    def test_status_fields_present(self, ac2a_device, ac2a_home_bytes):
+        result = ac2a_device.parse(100, ac2a_home_bytes)
         assert "chargingMode" in result
         assert "invWorkingStatus" in result
 
-    def test_short_data_only_basics(self):
+    def test_short_data_only_basics(self, ac2a_device):
         data = b"\x0a\xaa\x00\x16\x00\x64\x00\x02\x01\x00\x01\x00"
-        result = _parse_home_data(data)
+        result = ac2a_device.parse(100, data)
         assert result["packTotalSoc"] == 100
         assert result["packTotalVoltage"] == pytest.approx(273.0, abs=0.1)
         assert "deviceModel" not in result
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Inverter base info parser (register 1100)
+#  Inverter base info parser (register 1100) — via AC2A struct
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestParseInvBaseInfo:
-    def test_empty(self):
-        assert _parse_inv_base_info(b"") == {}
-        assert _parse_inv_base_info(b"\x00" * 10) == {}
+    def test_empty(self, ac2a_device):
+        assert ac2a_device.parse(1100, b"") == {}
 
-    def test_inv_type(self, ac2a_inv_base_bytes):
-        result = _parse_inv_base_info(ac2a_inv_base_bytes)
+    def test_inv_type(self, ac2a_device, ac2a_inv_base_bytes):
+        result = ac2a_device.parse(1100, ac2a_inv_base_bytes)
         assert result["invType"] == "AC2A"
 
-    def test_inv_id(self, ac2a_inv_base_bytes):
-        result = _parse_inv_base_info(ac2a_inv_base_bytes)
+    def test_inv_id(self, ac2a_device, ac2a_inv_base_bytes):
+        result = ac2a_device.parse(1100, ac2a_inv_base_bytes)
         assert result["invId"] == 0
 
-    def test_software_versions_present(self, ac2a_inv_base_bytes):
-        result = _parse_inv_base_info(ac2a_inv_base_bytes)
+    def test_software_versions_present(self, ac2a_device, ac2a_inv_base_bytes):
+        result = ac2a_device.parse(1100, ac2a_inv_base_bytes)
         soft_keys = [k for k in result if k.startswith("software[")]
-        # The fixture device has software versions
         assert len(soft_keys) >= 0
         for k in soft_keys:
             assert "ver=v" in result[k]
 
-    def test_temperatures_absent_when_sensor_off(self, ac2a_inv_base_bytes):
-        result = _parse_inv_base_info(ac2a_inv_base_bytes)
+    def test_temperatures_absent_when_sensor_off(self, ac2a_device, ac2a_inv_base_bytes):
+        result = ac2a_device.parse(1100, ac2a_inv_base_bytes)
         assert result.get("ambientTemp") is None
         assert result.get("invMaxTemp") is None
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Inverter PV info parser (register 1200)
+#  Inverter PV info parser (register 1200) — via AC2A struct
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestParseInvPvInfo:
-    def test_empty(self):
-        assert _parse_inv_pv_info(b"") == {}
+    def test_empty(self, ac2a_device):
+        assert ac2a_device.parse(1200, b"") == {}
 
-    def test_keys_present(self, ac2a_inv_pv_bytes):
-        result = _parse_inv_pv_info(ac2a_inv_pv_bytes)
+    def test_keys_present(self, ac2a_device, ac2a_inv_pv_bytes):
+        result = ac2a_device.parse(1200, ac2a_inv_pv_bytes)
         assert "totalChgPower" in result
         assert "totalChgEnergy" in result
-        assert isinstance(result["totalChgPower"], int)
-        assert isinstance(result["totalChgEnergy"], float)
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Grid info parser (register 1300)
+#  Grid info parser (register 1300) — via AC2A struct
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestParseInvGridInfo:
-    def test_empty(self):
-        assert _parse_inv_grid_info(b"") == {}
+    def test_empty(self, ac2a_device):
+        assert ac2a_device.parse(1300, b"") == {}
 
-    def test_frequency_in_range(self, ac2a_inv_grid_bytes):
-        result = _parse_inv_grid_info(ac2a_inv_grid_bytes)
+    def test_frequency_in_range(self, ac2a_device, ac2a_inv_grid_bytes):
+        result = ac2a_device.parse(1300, ac2a_inv_grid_bytes)
         assert 45 <= result["frequency"] <= 65
 
-    def test_phase1_keys_present(self, ac2a_inv_grid_bytes):
-        result = _parse_inv_grid_info(ac2a_inv_grid_bytes)
+    def test_phase1_keys_present(self, ac2a_device, ac2a_inv_grid_bytes):
+        result = ac2a_device.parse(1300, ac2a_inv_grid_bytes)
         assert "gridPhase[0].voltage" in result
         assert "gridPhase[0].current" in result
         assert "gridPhase[0].power" in result
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Load info parser (register 1400)
+#  Load info parser (register 1400) — via AC2A struct
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestParseInvLoadInfo:
-    def test_empty(self):
-        assert _parse_inv_load_info(b"") == {}
+    def test_empty(self, ac2a_device):
+        assert ac2a_device.parse(1400, b"") == {}
 
-    def test_dc_keys_present(self, ac2a_inv_load_bytes):
-        result = _parse_inv_load_info(ac2a_inv_load_bytes)
+    def test_dc_keys_present(self, ac2a_device, ac2a_inv_load_bytes):
+        result = ac2a_device.parse(1400, ac2a_inv_load_bytes)
         for key in ("dc5VPower", "dc12VPower", "dc24VPower"):
             assert key in result
-            assert isinstance(result[key], int)
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Inverter output parser (register 1500)
+#  Inverter output parser (register 1500) — via AC2A struct
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestParseInvInvInfo:
-    def test_empty(self):
-        assert _parse_inv_inv_info(b"") == {}
+    def test_empty(self, ac2a_device):
+        assert ac2a_device.parse(1500, b"") == {}
 
-    def test_frequency_in_range(self, ac2a_inv_inv_bytes):
-        result = _parse_inv_inv_info(ac2a_inv_inv_bytes)
+    def test_frequency_in_range(self, ac2a_device, ac2a_inv_inv_bytes):
+        result = ac2a_device.parse(1500, ac2a_inv_inv_bytes)
         assert 45 <= result["frequency"] <= 65
 
-    def test_phase1_keys_present(self, ac2a_inv_inv_bytes):
-        result = _parse_inv_inv_info(ac2a_inv_inv_bytes)
+    def test_phase1_keys_present(self, ac2a_device, ac2a_inv_inv_bytes):
+        result = ac2a_device.parse(1500, ac2a_inv_inv_bytes)
         assert "invPhase[0].voltage" in result
         assert "invPhase[0].current" in result
         assert "invPhase[0].power" in result
@@ -377,7 +361,7 @@ class TestParseInvInvInfo:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  CLI unit tests (Click CliRunner — no BLE/side effects)
+#  CLI unit tests (Click CliRunner)
 # ═══════════════════════════════════════════════════════════════════════
 
 

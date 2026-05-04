@@ -75,3 +75,8 @@ Encrypted ESP32 devices are not yet supported.
 uv run pytest                 # unit tests (fast, no BLE required)
 uv run pytest -m integration  # integration tests (requires BLE adapter)
 ```
+
+## Development
+
+See [docs/FINDINGS.md](docs/FINDINGS.md) for reverse-engineering notes and protocol details helpful when enhancing this tool.
+```

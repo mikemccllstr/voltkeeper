@@ -4,7 +4,7 @@
 import pytest
 from click.testing import CliRunner
 
-from src.bluetti_cli import cli
+from src.bluetti_cli.cli import cli
 
 pytestmark = pytest.mark.integration
 
