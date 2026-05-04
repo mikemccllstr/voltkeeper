@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from .bluetooth import build_device, pick_address_after_scan
+from .bluetooth import build_device, pick_address_after_scan, lookup_device_name
 from .bluetooth.client import BluetoothClient
 from .core.commands import ReadHoldingRegisters
 from .bluetooth.exc import ModbusError
@@ -135,10 +135,19 @@ def status(address, timeout, verbose):
             loop.close()
         cmd = click.style(f"bluetti-cli status {address}", bold=True)
         click.echo(f"\nTip: next time, run directly with:\n  {cmd}")
+        device_name = address
     else:
         address = address.upper()
+        device_name = address
 
-    device = build_device(address, address)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        device_name = loop.run_until_complete(lookup_device_name(address))
+    finally:
+        loop.close()
+
+    device = build_device(address, device_name)
     client = BluetoothClient(address)
 
     loop = asyncio.new_event_loop()
@@ -479,7 +488,15 @@ def write(address, field, value):
       bluetti-cli write AA:BB:CC:DD:EE:FF charging_mode turbo
     """
     address = address.upper()
-    device = build_device(address, address)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        device_name = loop.run_until_complete(lookup_device_name(address))
+    finally:
+        loop.close()
+
+    device = build_device(address, device_name)
 
     if not device.has_field_setter(field):
         click.secho(f"Unknown writable field: {field}", fg="red")
@@ -578,7 +595,15 @@ def mqtt(address, broker, port, username, password, interval, ha_config):
     from .mqtt_client import MQTTClient
 
     address = address.upper()
-    device = build_device(address, address)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        device_name = loop.run_until_complete(lookup_device_name(address))
+    finally:
+        loop.close()
+
+    device = build_device(address, device_name)
     bus = EventBus()
     handler = DeviceHandler(address, device, interval, bus)
     mqtt_client = MQTTClient(

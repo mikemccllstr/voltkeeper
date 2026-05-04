@@ -1,12 +1,34 @@
 # ABOUTME: BLE scan utilities — service-UUID-based scan, device factory.
 
+import re
 import sys
 
 import click
 from bleak import BleakScanner
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
+_DEVICE_NAME_SN_RE = re.compile(r"^(AC2A|AC60|EP600|EP500|EB3A)(\d+)$")
 
+
+def _parse_sn(name: str) -> str:
+    m = _DEVICE_NAME_SN_RE.match(name.strip())
+    if m:
+        return m[2]
+    return name.replace(":", "").replace("-", "")
+
+
+async def lookup_device_name(address: str, timeout: float = 5.0) -> str:
+    devices = await BleakScanner.discover(
+        timeout=timeout,
+        service_uuids=[SERVICE_UUID],
+        return_adv=True,
+    )
+    for addr, (device, adv) in devices.items():
+        if addr.upper() == address.upper():
+            name = (device.name or adv.local_name or "").strip()
+            if name:
+                return name
+    return address
 
 async def scan_devices(timeout: float = 10.0) -> list[tuple[str, str]]:
     click.echo(f"Scanning for Bluetti devices (service {SERVICE_UUID}) ...")
@@ -62,5 +84,5 @@ async def pick_address_after_scan() -> str:
 def build_device(address: str, name: str):
     from ..core.devices.ac2a import AC2A
 
-    sn = name.replace(":", "").replace("-", "")
+    sn = _parse_sn(name)
     return AC2A(address, sn)
