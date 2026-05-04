@@ -224,8 +224,10 @@ def _print_status(home: dict) -> None:
     status_map = {0: "Idle", 1: "Charging", 2: "Discharging", 3: "Floating"}
     cs = home.get("packChargingStatus", 0)
     click.echo(f"  Charging Status:   {status_map.get(cs, str(cs))} ({cs})")
-    click.echo(f"  Time to Full:      {home['packChgFullTime']:>5.0f} min")
-    click.echo(f"  Time to Empty:     {home['packDsgEmptyTime']:>5.0f} min")
+    if cs == 1:
+        click.echo(f"  Time to Full:      {home.get('packChgFullTime', 0):>5.0f} min")
+    else:
+        click.echo(f"  Time to Empty:     {home.get('packDsgEmptyTime', 0):>5.0f} min")
     click.echo(sep)
 
 
@@ -259,10 +261,14 @@ def _print_verbose(
     status_map = {0: "Idle", 1: "Charging", 2: "Discharging", 3: "Floating"}
     cs = home.get("packChargingStatus", 0)
     click.echo(f"    Status:               {status_map.get(cs, str(cs))} ({cs})")
-    click.echo(f"    Time to Full:         {home.get('packChgFullTime', 0):>5.0f} min")
-    click.echo(
-        f"    Time to Empty:        {home.get('packDsgEmptyTime', 0):>5.0f} min"
-    )
+    if cs == 1:
+        click.echo(
+            f"    Time to Full:         {home.get('packChgFullTime', 0):>5.0f} min"
+        )
+    else:
+        click.echo(
+            f"    Time to Empty:        {home.get('packDsgEmptyTime', 0):>5.0f} min"
+        )
     if "packDsgEnergyTotal" in home:
         click.echo(
             f"    Total Discharged:     {home['packDsgEnergyTotal']:>8.1f} Wh"
