@@ -1,21 +1,18 @@
-# ABOUTME: BLE client for Bluetti AC2A — reads battery SOC and pack data.
+# ABOUTME: CLI tool for Bluetti power stations — scan, connect, and read data over BLE.
 # ABOUTME: Uses plain Modbus RTU over BLE (no encryption; AC2A is not ESP32Encrypted).
-# ABOUTME: If no MAC address is given, scans for local Bluetti devices automatically.
+# ABOUTME: Built with click for proper CLI affordances (help, version, subcommands).
 #!/usr/bin/env python3
 """
-Connect to a Bluetti AC2A over BLE and read battery SOC.
+CLI tool for Bluetti power stations over BLE.
 
-Usage:
-    uv run ble_read_battery.py                           # scan for devices
-    uv run ble_read_battery.py AA:BB:CC:DD:EE:FF         # connect directly
-
-Dependencies: bleak
-    pip install bleak
+Scan for nearby devices, connect, and read battery SOC and pack data.
 """
 
 import asyncio
-import sys
 import struct
+import sys
+
+import click
 from bleak import BleakClient, BleakScanner
 
 # ── BLE GATT Identifiers ────────────────────────────────────────────────
@@ -30,7 +27,9 @@ NOTIFY_UUID  = "0000ff01-0000-1000-8000-00805f9b34fb"
 
 def crc16_modbus(data: bytes) -> bytes:
     """CRC-16-Modbus (poly 0xA001, init 0xFFFF).
-    Returns 2 bytes in little-endian order (low, high)."""
+
+    Returns 2 bytes in little-endian order (low, high).
+    """
     crc = 0xFFFF
     for b in data:
         crc ^= b & 0xFF
@@ -53,17 +52,16 @@ class BluettiAC2A:
         self._notifications = asyncio.Queue()
 
     def _on_notification(self, _sender, data: bytes):
-        print(f"  [NOTIFY] received {len(data)} bytes: {data.hex()}")
         self._notifications.put_nowait(data)
 
     async def connect(self) -> None:
-        print(f"Connecting to {self.address} …")
+        click.echo(f"Connecting to {self.address} …")
         self.client = BleakClient(self.address)
         await self.client.connect(timeout=15.0)
-        print("BLE connected.")
+        click.echo("BLE connected.")
 
         await self.client.start_notify(NOTIFY_UUID, self._on_notification)
-        print("Session established.\n")
+        click.echo("Session established.\n")
 
     async def read_home_data(self) -> dict:
         """Read home data (register 100, 6 registers) and parse."""
@@ -83,7 +81,6 @@ class BluettiAC2A:
         resp = await asyncio.wait_for(self._notifications.get(), timeout=15.0)
         resp_bytes = bytes(resp)
 
-        # Modbus response: [slave][func][byte_count][data…][crc]
         func = resp_bytes[1]
         if func & 0x80:
             raise RuntimeError(
@@ -102,7 +99,7 @@ class BluettiAC2A:
         return {
             "packTotalVoltage":   (data[0]  * 256 + data[1])  / 10.0,
             "packTotalCurrent":   (data[2]  * 256 + data[3])  / 10.0,
-            "packTotalSoc":        data[4]  * 256 + data[5],           # 0‑100 %
+            "packTotalSoc":        data[4]  * 256 + data[5],
             "packChargingStatus":  data[6]  * 256 + data[7],
             "packChgFullTime":     data[8]  * 256 + data[9],
             "packDsgEmptyTime":    data[10] * 256 + data[11],
@@ -113,12 +110,12 @@ class BluettiAC2A:
 #  BLE Device Discovery
 # ═══════════════════════════════════════════════════════════════════════
 
-async def scan_for_bluetti(timeout: float = 10.0) -> list[tuple[str, str]]:
+async def _scan_for_bluetti(timeout: float = 10.0) -> list[tuple[str, str]]:
     """Scan for Bluetti devices advertising the GATT service UUID.
 
     Returns a list of (address, name) tuples.
     """
-    print(f"Scanning for Bluetti devices (service {SERVICE_UUID}) …")
+    click.echo(f"Scanning for Bluetti devices (service {SERVICE_UUID}) …")
     devices = await BleakScanner.discover(
         timeout=timeout,
         service_uuids=[SERVICE_UUID],
@@ -135,28 +132,29 @@ async def scan_for_bluetti(timeout: float = 10.0) -> list[tuple[str, str]]:
     return sorted(found, key=lambda x: x[0])
 
 
-async def pick_address() -> str:
-    """Scan for Bluetti devices and let the user pick one.
+async def _pick_address_after_scan() -> str:
+    """Scan for devices and let the user pick one interactively.
 
-    Returns the selected MAC address, or exits if none found.
+    Returns the selected MAC address. Exits if none found.
     """
-    devices = await scan_for_bluetti()
+    devices = await _scan_for_bluetti()
 
     if not devices:
-        print("\nNo Bluetti devices found.")
-        print("Make sure the device is powered on and in Bluetooth range.")
+        click.secho("\nNo Bluetti devices found.", fg="red")
+        click.echo("Make sure the device is powered on and in Bluetooth range.")
         sys.exit(1)
 
     if len(devices) == 1:
         address, name = devices[0]
-        print(f"\nFound 1 device → auto-selecting: {address} ({name})")
+        click.echo(f"\nFound 1 device → auto-selecting: {address} ({name})")
         return address
 
-    print(f"\nFound {len(devices)} Bluetti devices:\n")
+    click.echo(f"\nFound {len(devices)} Bluetti devices:\n")
     for i, (addr, name) in enumerate(devices, 1):
-        print(f"  [{i}] {addr}  —  {name}")
+        click.echo(f"  [{click.style(str(i), fg='cyan')}] "
+                   f"{click.style(addr, fg='green')}  —  {name}")
 
-    print()
+    click.echo()
     while True:
         try:
             choice = input(f"Select device (1-{len(devices)}): ").strip()
@@ -164,48 +162,148 @@ async def pick_address() -> str:
             if 0 <= idx < len(devices):
                 return devices[idx][0]
         except (ValueError, EOFError, KeyboardInterrupt):
-            print()
+            click.echo()
             sys.exit(1)
-        print(f"Enter a number between 1 and {len(devices)}.")
+        click.echo(f"Enter a number between 1 and {len(devices)}.")
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Main
+#  Output Formatting
 # ═══════════════════════════════════════════════════════════════════════
 
-async def main():
-    if len(sys.argv) >= 2:
-        address = sys.argv[1].upper()
+def _print_status(home: dict) -> None:
+    """Print battery status in a formatted table."""
+    sep = "─" * 44
+    click.echo(sep)
+    click.echo(f"  Battery SOC:       {home['packTotalSoc']:>5.0f} %")
+    click.echo(f"  Pack Voltage:      {home['packTotalVoltage']:>5.1f} V")
+    click.echo(f"  Pack Current:      {home['packTotalCurrent']:>5.1f} A")
+    click.echo(f"  Charging Status:   {home['packChargingStatus']:>5.0f}")
+    click.echo(f"  Time to Full:      {home['packChgFullTime']:>5.0f} min")
+    click.echo(f"  Time to Empty:     {home['packDsgEmptyTime']:>5.0f} min")
+    click.echo(sep)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  CLI Entry Point
+# ═══════════════════════════════════════════════════════════════════════
+
+@click.group(
+    invoke_without_command=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+@click.version_option(
+    version="0.1.0",
+    prog_name="bluetti-cli",
+    message="%(prog)s %(version)s",
+)
+@click.pass_context
+def cli(ctx: click.Context):
+    """Bluetti power station CLI — scan, connect, and read data over BLE.
+
+    \b
+    Examples:
+      bluetti-cli status              # auto-scan and read battery data
+      bluetti-cli status AA:BB:CC:DD:EE:FF  # connect directly
+      bluetti-cli scan                # scan for nearby devices
+    """
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        ctx.exit(0)
+
+
+@cli.command()
+@click.option(
+    "--timeout", "-t",
+    type=float,
+    default=10.0,
+    show_default=True,
+    help="BLE scan timeout in seconds.",
+)
+def scan(timeout):
+    """Scan for nearby Bluetti devices and display their MAC addresses."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        devices = loop.run_until_complete(_scan_for_bluetti(timeout=timeout))
+    finally:
+        loop.close()
+
+    if not devices:
+        click.secho("No Bluetti devices found.", fg="red")
+        click.echo("Make sure the device is powered on and in Bluetooth range.")
+        sys.exit(1)
+
+    label = click.style(str(len(devices)), fg="cyan", bold=True)
+    click.echo(f"\n{label} device(s) found:\n")
+    for addr, name in devices:
+        click.echo(f"  {click.style(addr, fg='green')}  —  {name}")
+
+    click.echo()
+    if len(devices) == 1:
+        click.echo("To read data from this device:")
+        click.echo(f"  {click.style(f'bluetti-cli status {devices[0][0]}', bold=True)}")
     else:
-        address = await pick_address()
-        script = sys.argv[0] if "/" in sys.argv[0] else f"./{sys.argv[0]}"
-        print(f"\nTip: next time run directly with:")
-        print(f"  uv run {script} {address}")
+        click.echo("To read data from a specific device:")
+        for addr, _ in devices:
+            cmd = click.style(f"bluetti-cli status {addr}", bold=True)
+            click.echo(f"  {cmd}")
+
+
+@cli.command()
+@click.argument("address", required=False, default=None)
+@click.option(
+    "--timeout", "-t",
+    type=float,
+    default=10.0,
+    show_default=True,
+    help="BLE scan timeout in seconds (only used when ADDRESS is not provided).",
+)
+def status(address, timeout):
+    """Read battery SOC and pack data from a Bluetti device.
+
+    If ADDRESS is not provided, scans for nearby Bluetti devices and
+    lets you pick one interactively.
+    """
+    if not address:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            address = loop.run_until_complete(_pick_address_after_scan())
+        finally:
+            loop.close()
+        cmd = click.style(f"bluetti-cli status {address}", bold=True)
+        click.echo(f"\nTip: next time, run directly with:\n  {cmd}")
+    else:
+        address = address.upper()
 
     device = BluettiAC2A(address)
 
     try:
-        await device.connect()
-        home = await device.read_home_data()
-
-        print("─" * 44)
-        print(f"  Battery SOC:       {home['packTotalSoc']:>5} %")
-        print(f"  Pack Voltage:      {home['packTotalVoltage']:>5.1f} V")
-        print(f"  Pack Current:      {home['packTotalCurrent']:>5.1f} A")
-        print(f"  Charging Status:   {home['packChargingStatus']:>5}")
-        print(f"  Time to Full:      {home['packChgFullTime']:>5} min")
-        print(f"  Time to Empty:     {home['packDsgEmptyTime']:>5} min")
-        print("─" * 44)
-
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(device.connect())
+            home = loop.run_until_complete(device.read_home_data())
+        finally:
+            loop.close()
     except KeyboardInterrupt:
-        print("\nInterrupted.")
+        click.echo("\nInterrupted.")
+        sys.exit(0)
     except Exception as exc:
-        print(f"\nError: {exc}")
-        raise
+        click.secho(f"\nError: {exc}", fg="red")
+        sys.exit(1)
+
+    _print_status(home)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(device.disconnect())
     finally:
-        await device.disconnect()
-        print("Disconnected.")
+        loop.close()
+    click.echo("Disconnected.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    cli()

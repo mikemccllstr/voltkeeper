@@ -1,1 +1,3 @@
 bluetti-files/
+__pycache__/
+*.egg-info/

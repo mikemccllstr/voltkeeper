@@ -1,10 +1,14 @@
 [project]
 name = "bluetti-apk-reverse"
 version = "0.1.0"
-description = "Add your description here"
+description = "CLI tool for Bluetti power stations — scan, connect, and read data over BLE."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "bleak>=3.0.2",
+    "click>=8.0",
     "cryptography>=47.0.0",
 ]
+
+[project.scripts]
+bluetti-cli = "bluetti_cli:cli"
