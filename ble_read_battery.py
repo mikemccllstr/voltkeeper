@@ -1,11 +1,13 @@
 # ABOUTME: BLE client for Bluetti AC2A — reads battery SOC and pack data.
 # ABOUTME: Uses plain Modbus RTU over BLE (no encryption; AC2A is not ESP32Encrypted).
+# ABOUTME: If no MAC address is given, scans for local Bluetti devices automatically.
 #!/usr/bin/env python3
 """
 Connect to a Bluetti AC2A over BLE and read battery SOC.
 
-Usage: python ble_read_battery.py <BLE_ADDRESS>
-Example: python ble_read_battery.py AA:BB:CC:DD:EE:FF
+Usage:
+    uv run ble_read_battery.py                           # scan for devices
+    uv run ble_read_battery.py AA:BB:CC:DD:EE:FF         # connect directly
 
 Dependencies: bleak
     pip install bleak
@@ -14,11 +16,12 @@ Dependencies: bleak
 import asyncio
 import sys
 import struct
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
 
 # ── BLE GATT Identifiers ────────────────────────────────────────────────
-WRITE_UUID  = "0000ff02-0000-1000-8000-00805f9b34fb"
-NOTIFY_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
+SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
+WRITE_UUID   = "0000ff02-0000-1000-8000-00805f9b34fb"
+NOTIFY_UUID  = "0000ff01-0000-1000-8000-00805f9b34fb"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -107,16 +110,78 @@ class BluettiAC2A:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  BLE Device Discovery
+# ═══════════════════════════════════════════════════════════════════════
+
+async def scan_for_bluetti(timeout: float = 10.0) -> list[tuple[str, str]]:
+    """Scan for Bluetti devices advertising the GATT service UUID.
+
+    Returns a list of (address, name) tuples.
+    """
+    print(f"Scanning for Bluetti devices (service {SERVICE_UUID}) …")
+    devices = await BleakScanner.discover(
+        timeout=timeout,
+        service_uuids=[SERVICE_UUID],
+        return_adv=True,
+    )
+
+    found: list[tuple[str, str]] = []
+    for address, (device, adv) in devices.items():
+        name = (device.name or adv.local_name or "").strip()
+        if not name:
+            name = "(unknown)"
+        found.append((address, name))
+
+    return sorted(found, key=lambda x: x[0])
+
+
+async def pick_address() -> str:
+    """Scan for Bluetti devices and let the user pick one.
+
+    Returns the selected MAC address, or exits if none found.
+    """
+    devices = await scan_for_bluetti()
+
+    if not devices:
+        print("\nNo Bluetti devices found.")
+        print("Make sure the device is powered on and in Bluetooth range.")
+        sys.exit(1)
+
+    if len(devices) == 1:
+        address, name = devices[0]
+        print(f"\nFound 1 device → auto-selecting: {address} ({name})")
+        return address
+
+    print(f"\nFound {len(devices)} Bluetti devices:\n")
+    for i, (addr, name) in enumerate(devices, 1):
+        print(f"  [{i}] {addr}  —  {name}")
+
+    print()
+    while True:
+        try:
+            choice = input(f"Select device (1-{len(devices)}): ").strip()
+            idx = int(choice) - 1
+            if 0 <= idx < len(devices):
+                return devices[idx][0]
+        except (ValueError, EOFError, KeyboardInterrupt):
+            print()
+            sys.exit(1)
+        print(f"Enter a number between 1 and {len(devices)}.")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Main
 # ═══════════════════════════════════════════════════════════════════════
 
 async def main():
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <BLE_ADDRESS>")
-        print(f"Example: {sys.argv[0]} AA:BB:CC:DD:EE:FF")
-        sys.exit(1)
+    if len(sys.argv) >= 2:
+        address = sys.argv[1].upper()
+    else:
+        address = await pick_address()
+        script = sys.argv[0] if "/" in sys.argv[0] else f"./{sys.argv[0]}"
+        print(f"\nTip: next time run directly with:")
+        print(f"  uv run {script} {address}")
 
-    address = sys.argv[1].upper()
     device = BluettiAC2A(address)
 
     try:
