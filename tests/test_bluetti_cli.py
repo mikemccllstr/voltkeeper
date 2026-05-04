@@ -4,7 +4,7 @@
 import pytest
 from click.testing import CliRunner
 
-from bluetti_cli import (
+from src.bluetti_cli import (
     _ascii,
     _bcd_sn,
     _format_version,
@@ -377,7 +377,7 @@ class TestParseInvInvInfo:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  CLI integration tests (Click CliRunner)
+#  CLI unit tests (Click CliRunner — no BLE/side effects)
 # ═══════════════════════════════════════════════════════════════════════
 
 
@@ -415,21 +415,3 @@ class TestCli:
         result = runner.invoke(cli, ["scan", "--help"])
         assert result.exit_code == 0
         assert "--timeout" in result.output
-
-    def test_status_requires_bluetooth(self):
-        """status command fails gracefully when no BLE adapter available."""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["status", "AA:BB:CC:DD:EE:FF"])
-        assert result.exit_code != 0
-        assert "Error:" in result.output or result.exception is not None
-
-    def test_status_verbose_flag_accepted(self):
-        """--verbose flag is recognized (though it will fail on connect)."""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["status", "--verbose", "AA:BB:CC:DD:EE:FF"])
-        assert result.exit_code != 0
-
-    def test_scan_no_devices(self):
-        runner = CliRunner()
-        result = runner.invoke(cli, ["scan", "--timeout", "1"])
-        assert result.exit_code in (0, 1)

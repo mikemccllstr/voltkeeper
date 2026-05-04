@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "bluetti-apk-reverse"
 version = "0.1.0"
@@ -17,11 +21,18 @@ dev = [
 ]
 
 [project.scripts]
-bluetti-cli = "bluetti_cli:cli"
+bluetti-cli = "src.bluetti_cli:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "-m 'not integration'"
+markers = [
+    "integration: tests that exercise real BLE operations (scan, connect)",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
 [dependency-groups]
 dev = [

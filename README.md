@@ -49,6 +49,7 @@ Output:
 
 Options:
 - `-t, --timeout FLOAT`  Scan timeout in seconds (default: 10.0, used only when no address given)
+- `-v, --verbose`         Display all available device information (power meters, energy totals, PV strings, grid, loads, temperatures, software versions)
 
 ### Help
 
@@ -67,3 +68,10 @@ bluetti-cli --version
 
 The tool reads plain Modbus RTU over BLE from Bluetti AC2A power stations.
 Encrypted ESP32 devices are not yet supported.
+
+## Testing
+
+```bash
+uv run pytest                 # unit tests (fast, no BLE required)
+uv run pytest -m integration  # integration tests (requires BLE adapter)
+```
