@@ -1,12 +1,34 @@
 # Bluetti Android APK — Reverse Engineering Findings
 
-**APK file:** `bluetti.apk`
+**APK file:** `bluetti-files/bluetti.apk` (retrieved and decompiled automatically — see below)
 **Package:** `net.poweroak.bluetticloud`
 **Version:** 3.0.8 (versionCode 1371)
 **Min SDK:** 26 (Android 8.0 Oreo)
 **Target SDK:** 35 (Android 15)
 **Compiled SDK:** 35
-**Decompiled with:** apktool 2.7.0, jadx 1.5.0 (38 of 23,542 classes failed to decompile)
+**Decompiled with:** apktool 2.7.0, jadx 1.5.5 (44 of 22,913 classes failed to decompile)
+
+### Automated Setup (mise tasks)
+
+The APK download and decompilation is fully automated via [mise](https://mise.en.dev) tasks. One-time setup:
+
+```
+mise install          # installs java + jadx (also runs `mise install` for existing python/ruff/uv)
+```
+
+Then use any of these tasks (all run under `bash`):
+
+| Task | Command | Description |
+|------|---------|-------------|
+| `download-apk` | `mise run download-apk` | Fetches the APK URL from the download page's JavaScript (mimicking browser behavior) and downloads the latest APK. Idempotent — skips if already current; warns if a newer version is available. |
+| `decompile-jadx` | `mise run decompile-jadx` | Decompiles the APK to Java sources with jadx. Output: `bluetti-files/jadx_out/`. Skips if output already exists. |
+| `decompile-apktool` | `mise run decompile-apktool` | Disassembles the APK with apktool (Smali, resources, manifest). Output: `bluetti-files/apktool_out/`. Skips if output already exists. |
+| `prepare-all` | `mise run prepare-all` | Runs both decompile tasks (in parallel). |
+| `cleanup` | `mise run cleanup` | Removes the entire `bluetti-files/` directory. |
+
+Typical workflow: `mise run prepare-all` to download and decompile everything, then `mise run cleanup` when you want a fresh start.
+
+The download script (`scripts/download-apk.mjs`) dynamically extracts the APK URL from the page's JavaScript, so it adapts if Bluetti changes their server URLs or credentials.
 
 ---
 
