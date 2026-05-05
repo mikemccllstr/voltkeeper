@@ -108,8 +108,10 @@ async def run_load_test(device, output_path, interval, expected_load, phase):
             await asyncio.sleep(interval)
 
     except asyncio.CancelledError:
+        # Task was cancelled — exit cleanly via finally block.
         pass
     except KeyboardInterrupt:
+        # User pressed Ctrl-C — exit cleanly via finally block.
         pass
     finally:
         click.echo()

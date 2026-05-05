@@ -8,7 +8,7 @@ import click
 from .bluetooth import build_device, pick_address_after_scan, lookup_device_name
 from .bluetooth.client import BluetoothClient
 from .core.commands import ReadHoldingRegisters
-from .bluetooth.exc import ModbusError
+from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from . import load_test
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
@@ -182,9 +182,14 @@ def status(address, timeout, verbose):
                     raw = loop.run_until_complete(client.execute(cmd_obj))
                     controls.update(device.parse(cmd_obj.starting_address, raw))
                 except ModbusError:
+                    # Control registers (2000+) are write-only on some models;
+                    # read attempts return Modbus exceptions — expected.
                     pass
-                except Exception:
-                    pass
+                except (ParseError, BadConnectionError) as exc:
+                    click.secho(
+                        f"  ⚠  control read at {cmd_obj.starting_address} "
+                        f"failed: {exc}", fg="yellow"
+                    )
         else:
             cmd = ReadHoldingRegisters(100, 6)
             raw = loop.run_until_complete(client.execute(cmd))
