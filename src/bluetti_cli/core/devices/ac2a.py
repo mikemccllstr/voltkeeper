@@ -65,6 +65,7 @@ class AC2A(BluettiDevice):
         s.add_decimal_field("packTotalCurrent", 101, 2)
         s.add_uint_field("packTotalSoc", 102)
         s.add_uint_field("packChargingStatus", 103)
+        # Time fields are in 0.1-hour units (raw × 0.1 = hours, raw × 6 = minutes).
         s.add_uint_field("packChgFullTime", 104)
         s.add_uint_field("packDsgEmptyTime", 105)
         s.add_uint_field("packAgingInfo", 106)

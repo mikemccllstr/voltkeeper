@@ -554,7 +554,10 @@ class MQTTClient:
 
             field = NORMAL_DEVICE_FIELDS[name]
             if field.type == MqttFieldType.NUMERIC:
-                payload = str(value)
+                if name in ("packChgFullTime", "packDsgEmptyTime"):
+                    payload = str(value * 6)
+                else:
+                    payload = str(value)
             elif field.type in (MqttFieldType.BOOL, MqttFieldType.BUTTON):
                 payload = "ON" if value else "OFF"
             elif field.type == MqttFieldType.ENUM:

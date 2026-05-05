@@ -151,6 +151,12 @@ def _build_sample(home, elapsed_seconds, phase=""):
     grid_power = abs(home.get("totalGridPower", 0) or 0)
     pv_power = home.get("totalPVPower", 0) or 0
 
+    raw_time = home.get("packDsgEmptyTime")
+    if raw_time is None or raw_time == "":
+        est_min = ""
+    else:
+        est_min = raw_time * 6
+
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "elapsed_s": round(elapsed_seconds, 1),
@@ -163,7 +169,7 @@ def _build_sample(home, elapsed_seconds, phase=""):
         "pv_power_w": pv_power if pv_power is not None else "",
         "grid_power_w": grid_power if grid_power is not None else "",
         "charging_status": STATUS_MAP.get(home.get("packChargingStatus"), ""),
-        "est_remaining_min": home.get("packDsgEmptyTime", ""),
+        "est_remaining_min": est_min,
         "ambient_temp_c": home.get("ambientTemp", ""),
         "inv_temp_c": home.get("invMaxTemp", ""),
         "energy_computed_wh": 0.0,

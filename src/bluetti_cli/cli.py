@@ -228,9 +228,9 @@ def _print_status(home: dict) -> None:
     cs = home.get("packChargingStatus", 0)
     click.echo(f"  Charging Status:   {status_map.get(cs, str(cs))} ({cs})")
     if cs == 1:
-        click.echo(f"  Time to Full:      {home.get('packChgFullTime', 0):>5.0f} min")
+        click.echo(f"  Time to Full:      {home.get('packChgFullTime', 0) * 6:>5.0f} min")
     else:
-        click.echo(f"  Time to Empty:     {home.get('packDsgEmptyTime', 0):>5.0f} min")
+        click.echo(f"  Time to Empty:     {home.get('packDsgEmptyTime', 0) * 6:>5.0f} min")
     dc_load = home.get("totalDCPower", 0)
     ac_load = abs(home.get("totalACPower", 0))
     total_load = dc_load + ac_load
@@ -273,11 +273,11 @@ def _print_verbose(
     click.echo(f"    Status:               {status_map.get(cs, str(cs))} ({cs})")
     if cs == 1:
         click.echo(
-            f"    Time to Full:         {home.get('packChgFullTime', 0):>5.0f} min"
+            f"    Time to Full:         {home.get('packChgFullTime', 0) * 6:>5.0f} min"
         )
     else:
         click.echo(
-            f"    Time to Empty:        {home.get('packDsgEmptyTime', 0):>5.0f} min"
+            f"    Time to Empty:        {home.get('packDsgEmptyTime', 0) * 6:>5.0f} min"
         )
     if "packDsgEnergyTotal" in home:
         click.echo(
