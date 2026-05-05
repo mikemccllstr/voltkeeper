@@ -539,8 +539,17 @@ class MQTTClient:
         topic_prefix = f"bluetti/state/{msg.device.type}-{msg.device.sn}/"
         published = 0
 
+        skip_field = None
+        if "packChargingStatus" in msg.parsed:
+            if msg.parsed["packChargingStatus"] == 1:
+                skip_field = "packDsgEmptyTime"
+            else:
+                skip_field = "packChgFullTime"
+
         for name, value in msg.parsed.items():
             if name not in NORMAL_DEVICE_FIELDS:
+                continue
+            if name == skip_field:
                 continue
 
             field = NORMAL_DEVICE_FIELDS[name]
