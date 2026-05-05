@@ -57,8 +57,12 @@ class AC2A(BluettiDevice):
 
     def _build_home_struct(self):
         s = self.home_struct
+        # Scale 2 (÷100) — AC2A is newer than the APK we decompiled;
+        # the generic V2 parser uses ÷10 for high-voltage packs (EP500/EP600),
+        # but AC2A's 8S LiFePO4 architecture (~25.6 V nominal) requires ÷100.
+        # Verify against a multimeter if readings look off.
         s.add_decimal_field("packTotalVoltage", 100, 2)
-        s.add_decimal_field("packTotalCurrent", 101, 1)
+        s.add_decimal_field("packTotalCurrent", 101, 2)
         s.add_uint_field("packTotalSoc", 102)
         s.add_uint_field("packChargingStatus", 103)
         s.add_uint_field("packChgFullTime", 104)
