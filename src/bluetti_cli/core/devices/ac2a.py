@@ -57,7 +57,7 @@ class AC2A(BluettiDevice):
 
     def _build_home_struct(self):
         s = self.home_struct
-        s.add_decimal_field("packTotalVoltage", 100, 1)
+        s.add_decimal_field("packTotalVoltage", 100, 2)
         s.add_decimal_field("packTotalCurrent", 101, 1)
         s.add_uint_field("packTotalSoc", 102)
         s.add_uint_field("packChargingStatus", 103)

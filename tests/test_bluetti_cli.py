@@ -3,6 +3,8 @@
 
 import asyncio
 import json
+from decimal import Decimal
+
 import pytest
 from click.testing import CliRunner
 
@@ -228,7 +230,7 @@ class TestParseHomeData:
         assert "packTotalCurrent" in result
         assert "packTotalSoc" in result
         assert "packChargingStatus" in result
-        assert 200 <= result["packTotalVoltage"] <= 350
+        assert 20 <= result["packTotalVoltage"] <= 40
         assert 0 <= result["packTotalCurrent"] <= 100
         assert 0 <= result["packTotalSoc"] <= 100
         assert result["packChargingStatus"] in (0, 1, 2, 3)
@@ -267,7 +269,7 @@ class TestParseHomeData:
         data = b"\x0a\xaa\x00\x16\x00\x64\x00\x02\x01\x00\x01\x00"
         result = ac2a_device.parse(100, data)
         assert result["packTotalSoc"] == 100
-        assert result["packTotalVoltage"] == pytest.approx(273.0, abs=0.1)
+        assert result["packTotalVoltage"] == Decimal("27.3")
         assert "deviceModel" not in result
 
 
@@ -747,7 +749,7 @@ class TestDeviceHandler:
         # These should be real-looking values, not garbled by double-strip
         assert "packTotalSoc" in parsed
         assert parsed["packTotalSoc"] == 100
-        assert 200 <= parsed["packTotalVoltage"] <= 350
+        assert 20 <= parsed["packTotalVoltage"] <= 40
         assert 0 <= parsed["packTotalCurrent"] <= 100
 
 

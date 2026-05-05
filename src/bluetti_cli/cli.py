@@ -188,6 +188,9 @@ def status(address, timeout, verbose):
             cmd = ReadHoldingRegisters(100, 6)
             raw = loop.run_until_complete(client.execute(cmd))
             home = device.parse(100, raw)
+            pwr_cmd = ReadHoldingRegisters(140, 10)
+            pwr_raw = loop.run_until_complete(client.execute(pwr_cmd))
+            home.update(device.parse(140, pwr_raw))
 
     except KeyboardInterrupt:
         click.echo("\nInterrupted.")
@@ -220,7 +223,6 @@ def _print_status(home: dict) -> None:
     click.echo(sep)
     click.echo(f"  Battery SOC:       {home['packTotalSoc']:>5.0f} %")
     click.echo(f"  Pack Voltage:      {home['packTotalVoltage']:>5.1f} V")
-    click.echo(f"  Pack Current:      {home['packTotalCurrent']:>5.1f} A")
     status_map = {0: "Idle", 1: "Charging", 2: "Discharging", 3: "Floating"}
     cs = home.get("packChargingStatus", 0)
     click.echo(f"  Charging Status:   {status_map.get(cs, str(cs))} ({cs})")
@@ -228,6 +230,13 @@ def _print_status(home: dict) -> None:
         click.echo(f"  Time to Full:      {home.get('packChgFullTime', 0):>5.0f} min")
     else:
         click.echo(f"  Time to Empty:     {home.get('packDsgEmptyTime', 0):>5.0f} min")
+    dc_load = home.get("totalDCPower", 0)
+    ac_load = abs(home.get("totalACPower", 0))
+    total_load = dc_load + ac_load
+    if total_load > 0:
+        click.echo(f"  DC Load:           {dc_load:>5.0f} W")
+        click.echo(f"  AC Load:           {ac_load:>5.0f} W")
+        click.echo(f"  Total Load:        {total_load:>5.0f} W")
     click.echo(sep)
 
 
