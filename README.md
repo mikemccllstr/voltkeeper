@@ -43,9 +43,10 @@ bluetti-cli status AA:BB:CC:DD:EE:FF  # connect directly
 
 Output:
 - Battery SOC (%)
-- Pack voltage and current
+- Pack voltage
 - Charging status
-- Time to full / time to empty
+- Time to full / time to empty (context-dependent)
+- DC load, AC load, and total load (watts)
 
 Options:
 - `-t, --timeout FLOAT`  Scan timeout in seconds (default: 10.0, used only when no address given)
@@ -86,12 +87,48 @@ To verify published messages in another terminal:
 mosquitto_sub -t 'bluetti/state/#' -v
 ```
 
+### Load test
+
+```bash
+bluetti-cli load-test [OPTIONS] ADDRESS
+```
+
+Runs a controlled battery discharge test. Coaches you through setup,
+then logs device stats every N seconds to a CSV file until the battery
+reaches 0%.
+
+Options:
+- `-o, --output PATH`        CSV output file (default: `ac2a_load_test_YYYYMMDD_HHMMSS.csv`)
+- `-i, --interval SECONDS`   Sample interval, minimum 15s (default: 60)
+- `-l, --expected-load W`    Known load wattage for analysis reference
+- `-p, --phase TEXT`         Label for this test phase (useful for multi-phase testing)
+
+Example:
+```bash
+bluetti-cli load-test AA:BB:CC:DD:EE:FF -l 500 -p "500W heater on AC"
+```
+
+The test will:
+1. Prompt you to fully charge, connect a load, and disconnect charging
+2. Verify prerequisites (SOC ≥ 95%, no grid/PV input)
+3. Poll every N seconds — logging SOC, voltage, current, AC/DC/PV/grid power,
+   temperatures, device time estimate, and two energy measurements:
+   - **Computed** — trapezoidal integration of measured power × time
+   - **Register** — the device's own `totalDCEnergy` register (for validation)
+4. Warn if grid or PV charging is detected (> 10 W)
+5. End when SOC reaches 0%, BLE connection drops, or you press Ctrl-C
+6. Print a summary with capacity, average load, min voltage, and max temp
+
+The CSV has 17 columns with a comment header block; empty cells for failed
+BLE reads are Excel-friendly.
+
 ### Help
 
 ```bash
 bluetti-cli --help
 bluetti-cli status --help
 bluetti-cli scan --help
+bluetti-cli load-test --help
 bluetti-cli --version
 ```
 

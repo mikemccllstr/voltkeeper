@@ -2,6 +2,8 @@
 # ABOUTME: Uses real AC2A register data captured via BLE as test fixtures.
 
 import asyncio
+import csv
+from io import StringIO
 import json
 from decimal import Decimal
 
@@ -801,3 +803,283 @@ class TestCli:
         assert "ADDRESS" in result.output
         assert "FIELD" in result.output
         assert "VALUE" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Load test
+# ═══════════════════════════════════════════════════════════════════════
+
+
+import src.bluetti_cli.load_test as lt
+
+
+class TestEnergyComputation:
+    def test_single_step(self):
+        result = lt._compute_energy(100, 200, 3600, 0)
+        assert result == pytest.approx(150.0)
+
+    def test_zero_delta(self):
+        result = lt._compute_energy(100, 200, 0, 50)
+        assert result == pytest.approx(50.0)
+
+    def test_accumulate_over_steps(self):
+        e = lt._compute_energy(0, 100, 1800, 0)
+        assert e == pytest.approx(25.0)
+        e = lt._compute_energy(100, 200, 1800, e)
+        assert e == pytest.approx(100.0)
+
+    def test_zero_power(self):
+        result = lt._compute_energy(0, 0, 3600, 10)
+        assert result == pytest.approx(10.0)
+
+    def test_small_delta(self):
+        result = lt._compute_energy(50, 50, 30, 0)
+        assert result == pytest.approx(50 * 30 / 3600)
+
+
+class TestSocBar:
+    def test_100_percent(self):
+        bar = lt._soc_bar(100)
+        assert "░" not in bar
+        assert len(bar) == lt.SOC_BAR_WIDTH
+
+    def test_0_percent(self):
+        bar = lt._soc_bar(0)
+        assert "█" not in bar
+        assert len(bar) == lt.SOC_BAR_WIDTH
+
+    def test_50_percent(self):
+        bar = lt._soc_bar(50)
+        assert bar.count("█") == lt.SOC_BAR_WIDTH // 2
+        assert bar.count("░") == lt.SOC_BAR_WIDTH // 2
+
+    def test_none_is_all_blank(self):
+        bar = lt._soc_bar(None)
+        assert bar == "░" * lt.SOC_BAR_WIDTH
+
+    def test_negative_clamped(self):
+        bar = lt._soc_bar(-10)
+        assert bar == "░" * lt.SOC_BAR_WIDTH
+
+    def test_over_100_clamped(self):
+        bar = lt._soc_bar(110)
+        assert bar == "█" * lt.SOC_BAR_WIDTH
+
+
+class TestBuildSample:
+    def test_all_fields_present(self):
+        home = {
+            "packTotalSoc": 85,
+            "packTotalVoltage": Decimal("26.5"),
+            "packTotalCurrent": Decimal("18.2"),
+            "totalDCPower": 50,
+            "totalACPower": 400,
+            "totalPVPower": 0,
+            "totalGridPower": 0,
+            "packChargingStatus": 2,
+            "packDsgEmptyTime": 200,
+            "ambientTemp": 30,
+            "invMaxTemp": 42,
+            "totalDCEnergy": Decimal("1250.5"),
+        }
+        sample = lt._build_sample(home, 120.0, "test phase")
+        assert sample["soc_pct"] == 85
+        assert sample["pack_v"] == Decimal("26.5")
+        assert sample["dc_power_w"] == 50
+        assert sample["ac_power_w"] == 400
+        assert sample["total_power_w"] == 450
+        assert sample["elapsed_s"] == 120.0
+        assert sample["charging_status"] == "Discharging"
+        assert sample["phase"] == "test phase"
+
+    def test_missing_fields_become_empty_strings(self):
+        sample = lt._build_sample({}, 0)
+        assert sample["soc_pct"] == ""
+        assert sample["pack_v"] == ""
+        assert sample["ambient_temp_c"] == ""
+        assert sample["inv_temp_c"] == ""
+        assert sample["est_remaining_min"] == ""
+        assert sample["energy_register_wh"] == ""
+
+    def test_power_defaults_to_zero(self):
+        sample = lt._build_sample({}, 0)
+        assert sample["dc_power_w"] == 0
+        assert sample["ac_power_w"] == 0
+        assert sample["total_power_w"] == 0
+
+    def test_negative_ac_power_abs(self):
+        sample = lt._build_sample({"totalACPower": -300}, 0)
+        assert sample["ac_power_w"] == 300
+
+    def test_phase_defaults_to_empty(self):
+        sample = lt._build_sample({}, 0)
+        assert sample["phase"] == ""
+
+
+class TestPreRequisites:
+    def test_all_clear(self):
+        warnings = lt._check_prerequisites({
+            "packTotalSoc": 100,
+            "totalGridPower": 0,
+            "totalPVPower": 0,
+        })
+        assert warnings == []
+
+    def test_soc_too_low(self):
+        warnings = lt._check_prerequisites({
+            "packTotalSoc": 50,
+            "totalGridPower": 0,
+            "totalPVPower": 0,
+        })
+        assert len(warnings) == 1
+        assert "SOC" in warnings[0]
+
+    def test_soc_missing(self):
+        warnings = lt._check_prerequisites({
+            "totalGridPower": 0,
+            "totalPVPower": 0,
+        })
+        assert len(warnings) == 1
+        assert "SOC" in warnings[0]
+
+    def test_grid_too_high(self):
+        warnings = lt._check_prerequisites({
+            "packTotalSoc": 100,
+            "totalGridPower": 200,
+            "totalPVPower": 0,
+        })
+        assert len(warnings) == 1
+        assert "Grid" in warnings[0]
+
+    def test_grid_just_under_limit(self):
+        warnings = lt._check_prerequisites({
+            "packTotalSoc": 100,
+            "totalGridPower": 5,
+            "totalPVPower": 0,
+        })
+        assert warnings == []
+
+    def test_pv_too_high(self):
+        warnings = lt._check_prerequisites({
+            "packTotalSoc": 100,
+            "totalGridPower": 0,
+            "totalPVPower": 20,
+        })
+        assert len(warnings) == 1
+        assert "PV" in warnings[0]
+
+    def test_multiple_warnings(self):
+        warnings = lt._check_prerequisites({
+            "packTotalSoc": 40,
+            "totalGridPower": 100,
+            "totalPVPower": 30,
+        })
+        assert len(warnings) == 3
+
+
+class TestRuntimeWarnings:
+    def test_no_warnings(self):
+        assert lt._check_warnings({"grid_power_w": 0, "pv_power_w": 0}) == []
+
+    def test_grid_above_threshold(self):
+        warnings = lt._check_warnings({"grid_power_w": 15, "pv_power_w": 0})
+        assert len(warnings) == 1
+        assert "Grid" in warnings[0]
+
+    def test_pv_above_threshold(self):
+        warnings = lt._check_warnings({"grid_power_w": 0, "pv_power_w": 20})
+        assert len(warnings) == 1
+        assert "PV" in warnings[0]
+
+    def test_grid_at_threshold_ok(self):
+        assert lt._check_warnings({"grid_power_w": 10, "pv_power_w": 0}) == []
+
+    def test_pv_at_threshold_ok(self):
+        assert lt._check_warnings({"grid_power_w": 0, "pv_power_w": 10}) == []
+
+    def test_both_above(self):
+        warnings = lt._check_warnings({"grid_power_w": 50, "pv_power_w": 100})
+        assert len(warnings) == 2
+
+    def test_missing_keys_no_warning(self):
+        assert lt._check_warnings({}) == []
+
+
+class TestCSVHeader:
+    def test_header_has_required_columns(self):
+        assert "timestamp" in lt.CSV_COLUMNS
+        assert "elapsed_s" in lt.CSV_COLUMNS
+        assert "soc_pct" in lt.CSV_COLUMNS
+        assert "pack_v" in lt.CSV_COLUMNS
+        assert "energy_computed_wh" in lt.CSV_COLUMNS
+        assert "energy_register_wh" in lt.CSV_COLUMNS
+        assert "phase" in lt.CSV_COLUMNS
+
+    def test_csv_columns_count(self):
+        assert len(lt.CSV_COLUMNS) == 17
+
+    def test_header_comment_block(self, ac2a_device):
+        buf = StringIO()
+        writer = csv.writer(buf)
+        lt._write_csv_header(writer, ac2a_device, "test", 100, 60)
+        content = buf.getvalue()
+        assert "# bluetti-cli load test" in content
+        assert "# Device: AC2A-TEST" in content
+        assert "# Phase: test" in content
+        assert "# Expected load: 100 W" in content
+        assert "# Interval: 60 s" in content
+        assert "timestamp,elapsed_s" in content
+
+    def test_header_without_optional_fields(self, ac2a_device):
+        buf = StringIO()
+        writer = csv.writer(buf)
+        lt._write_csv_header(writer, ac2a_device, None, None, 60)
+        content = buf.getvalue()
+        assert "# Phase" not in content
+        assert "# Expected load" not in content
+
+    def test_csv_row_writes_all_columns(self):
+        buf = StringIO()
+        writer = csv.writer(buf)
+        data = {col: f"val_{col}" for col in lt.CSV_COLUMNS}
+        lt._write_csv_row(writer, data)
+        content = buf.getvalue().strip()
+        assert content.count(",") == len(lt.CSV_COLUMNS) - 1
+
+    def test_csv_row_empty_for_missing_fields(self):
+        buf = StringIO()
+        writer = csv.writer(buf)
+        lt._write_csv_row(writer, {"timestamp": "2026-01-01T00:00:00"})
+        content = buf.getvalue().strip()
+        values = content.split(",")
+        assert values[0] == "2026-01-01T00:00:00"
+        assert all(v == "" for v in values[1:])
+
+    def test_csv_row_decimal_handling(self):
+        buf = StringIO()
+        writer = csv.writer(buf)
+        lt._write_csv_row(writer, {"pack_v": Decimal("27.3"), "timestamp": "t"})
+        content = buf.getvalue().strip()
+        values = content.split(",")
+        assert values[lt.CSV_COLUMNS.index("pack_v")] == "27.3"
+
+
+class TestLoadTestCLI:
+    def test_help(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["load-test", "--help"])
+        assert result.exit_code == 0
+        assert "load" in result.output.lower()
+        assert "--interval" in result.output
+        assert "--output" in result.output
+        assert "--expected-load" in result.output
+        assert "--phase" in result.output
+        assert "ADDRESS" in result.output
+
+    def test_rejects_short_interval(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "load-test", "AA:BB:CC:DD:EE:FF", "--interval", "5",
+        ])
+        assert result.exit_code != 0
+        assert "15" in result.output
