@@ -470,12 +470,12 @@ def _print_verbose(
                 display = str(val)
             click.echo(f"    {name:<20s}  {display}")
 
-        if "ctrl_event" in controls:
+        ctrl_event = home.get("ctrl_event") or (controls or {}).get("ctrl_event")
+        if ctrl_event is not None:
             from .core.devices.ac2a import AC2A
-            caps = AC2A.decode_ctrl_event(controls["ctrl_event"])
-            raw_bits = controls["ctrl_event"]
+            caps = AC2A.decode_ctrl_event(ctrl_event)
             click.echo(
-                f"\n  {click.style(f'CAPABILITIES (CTRL_EVENT @ 2006: {raw_bits:#018b})', bold=True, fg='magenta')}"
+                f"\n  {click.style(f'CAPABILITIES (CTRL_EVENT @ 124: {ctrl_event:#018b})', bold=True, fg='magenta')}"
             )
             for name, _ in AC2A.CTRL_EVENT_BITS:
                 if name in caps:

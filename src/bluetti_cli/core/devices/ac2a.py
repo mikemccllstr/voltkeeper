@@ -76,6 +76,7 @@ class AC2A(BluettiDevice):
         s.add_bcd_sn_field("deviceSN", 116, 4)
         s.add_uint8_field("invNumber", 120, 1)
         s.add_uint8_field("invPowerType", 122, 1)
+        s.add_uint_field("ctrl_event", 124)
         s.add_uint8_field("gridParallelSoC", 125, 1)
         s.add_uint32_field("totalDCPower", 140)
         s.add_signed32_field("totalACPower", 142)
