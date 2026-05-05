@@ -546,9 +546,16 @@ async def _read_home(client, device):
     home = device.parse(100, raw1)
 
     try:
-        cmd2 = ReadHoldingRegisters(140, 19)
+        cmd2 = ReadHoldingRegisters(140, 10)
         raw2 = await client.execute(cmd2)
         home.update(device.parse(140, raw2))
+    except ModbusError:
+        pass
+
+    try:
+        cmd2b = ReadHoldingRegisters(150, 9)
+        raw2b = await client.execute(cmd2b)
+        home.update(device.parse(150, raw2b))
     except ModbusError:
         pass
 
