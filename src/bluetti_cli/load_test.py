@@ -143,6 +143,11 @@ def _soc_bar(pct, width=SOC_BAR_WIDTH):
     return "█" * filled + "░" * (width - filled)
 
 
+def _none_to_empty(val):
+    """Convert None to empty string; pass through everything else."""
+    return "" if val is None else val
+
+
 def _build_sample(home, elapsed_seconds, phase=""):
     """Build a flat dict from parsed BLE data + elapsed time."""
     dc_power = home.get("totalDCPower", 0) or 0
@@ -170,8 +175,8 @@ def _build_sample(home, elapsed_seconds, phase=""):
         "grid_power_w": grid_power if grid_power is not None else "",
         "charging_status": STATUS_MAP.get(home.get("packChargingStatus"), ""),
         "est_remaining_min": est_min,
-        "ambient_temp_c": home.get("ambientTemp", ""),
-        "inv_temp_c": home.get("invMaxTemp", ""),
+        "ambient_temp_c": _none_to_empty(home.get("ambientTemp")),
+        "inv_temp_c": _none_to_empty(home.get("invMaxTemp")),
         "energy_computed_wh": 0.0,
         "energy_register_wh": home.get("totalDCEnergy", ""),
         "phase": phase or "",
@@ -277,8 +282,8 @@ def _display_status(data, sample_n, start_time):
     amb = data.get("ambient_temp_c", "")
     inv = data.get("inv_temp_c", "")
     click.echo(
-        f"  Temp:      {amb if amb != '' else '--'}°C amb  |  "
-        f"{inv if inv != '' else '--'}°C inv"
+        f"  Temp:      {amb if amb != '' else 'Not fitted'}  |  "
+        f"{inv if inv != '' else 'Not fitted'}"
     )
     click.echo(f"  ────────────────────────────────────────────")
     click.echo(f"  Energy (computed):    {data.get('energy_computed_wh', 0):.1f} Wh")
