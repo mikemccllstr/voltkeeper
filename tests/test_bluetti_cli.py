@@ -1083,3 +1083,114 @@ class TestLoadTestCLI:
         ])
         assert result.exit_code != 0
         assert "15" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  CSV analysis (post-test)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestCsvAnalysis:
+    _BASIC_CSV = (
+        "# bluetti-cli load test\n"
+        "# Device: AC2A-TEST\n"
+        "#\n"
+        "timestamp,elapsed_s,soc_pct,pack_v,pack_a,total_power_w,energy_computed_wh,energy_register_wh,est_remaining_min,ambient_temp_c,inv_temp_c\n"
+        "2026-01-01T00:00:00,0,100,27.0,0,0,0,1000.0,500,25,30\n"
+        "2026-01-01T00:01:00,60,99,26.9,18,500,8.3,1008.3,490,26,31\n"
+        "2026-01-01T00:02:00,120,98,26.8,18,500,16.7,1016.7,480,27,32\n"
+        "2026-01-01T00:03:00,180,97,26.7,18,500,25.0,1025.0,470,28,33\n"
+        "2026-01-01T00:04:00,240,96,26.6,18,500,33.3,1033.3,460,29,34\n"
+    )
+
+    def _write_csv(self, tmp_path, content=_BASIC_CSV):
+        path = tmp_path / "test.csv"
+        path.write_text(content)
+        return str(path)
+
+    def test_returns_none_for_short_csv(self, tmp_path):
+        path = self._write_csv(tmp_path, "a,b\n1,2\n3,4\n5,6\n")
+        assert lt._analyze_csv(path) is None
+
+    def test_capacity_is_last_energy_computed(self, tmp_path):
+        path = self._write_csv(tmp_path)
+        result = lt._analyze_csv(path)
+        assert result["capacity_wh"] == pytest.approx(33.3)
+
+    def test_register_delta(self, tmp_path):
+        path = self._write_csv(tmp_path)
+        result = lt._analyze_csv(path)
+        assert result["register_delta_wh"] == pytest.approx(1033.3 - 1000.0)
+
+    def test_avg_and_peak_load(self, tmp_path):
+        path = self._write_csv(tmp_path)
+        result = lt._analyze_csv(path)
+        assert result["avg_load_w"] == pytest.approx(400)  # (0+500+500+500+500)/5
+        assert result["peak_load_w"] == pytest.approx(500)
+
+    def test_efficiency(self, tmp_path):
+        path = self._write_csv(tmp_path)
+        result = lt._analyze_csv(path)
+        # pack power: 0*0=0, 26.9*18=484.2, 26.8*18=482.4, 26.7*18=480.6, 26.6*18=478.8
+        # avg pack = 385.2, avg out = 400, eff = 400/385.2*100 ≈ 103.8
+        assert result["efficiency_pct"] is not None
+        assert result["efficiency_pct"] > 0
+
+    def test_voltage_at_soc_milestones(self, tmp_path):
+        path = self._write_csv(tmp_path)
+        result = lt._analyze_csv(path)
+        v = result["voltage_at_soc"]
+        assert "100%" in v
+        assert v["100%"] == pytest.approx(27.0)
+        # 96% SOC is the lowest we have, should be recorded at some milestone
+        assert v.get("75%") is None  # never reached 75%
+
+    def test_bms_accuracy_at_50pct(self, tmp_path):
+        path = self._write_csv(tmp_path)
+        result = lt._analyze_csv(path)
+        # SOC never drops to 50% in this data, so no BMS accuracy
+        assert result["bms_accuracy"] is None
+
+    def test_bms_with_crossing_50(self, tmp_path):
+        content = (
+            "# test\n"
+            "timestamp,elapsed_s,soc_pct,total_power_w,est_remaining_min,energy_computed_wh\n"
+            "t0,0,100,0,600,0\n"
+            "t1,600,60,500,300,100\n"
+            "t2,1200,55,500,290,200\n"
+            "t3,1800,49,500,240,300\n"
+            "t4,2400,45,500,200,400\n"
+            "t5,3000,0,500,0,500\n"
+        )
+        path = self._write_csv(tmp_path, content)
+        result = lt._analyze_csv(path)
+        # First row with SOC ≤ 50 is t3 (49%)
+        assert result["bms_accuracy"] == pytest.approx(240)
+        # total runtime = 3000s, t3 elapsed = 1800s, remaining = 1200s = 20 min
+        assert result["actual_remaining_at_50pct"] == pytest.approx(20.0)
+
+    def test_max_temperatures(self, tmp_path):
+        path = self._write_csv(tmp_path)
+        result = lt._analyze_csv(path)
+        assert result["max_ambient_c"] == 29
+        assert result["max_inverter_c"] == 34
+
+    def test_missing_optional_columns(self, tmp_path):
+        content = (
+            "# test\n"
+            "timestamp,elapsed_s,soc_pct,total_power_w,energy_computed_wh\n"
+            "t0,0,100,0,0\n"
+            "t1,60,99,500,8.3\n"
+            "t2,120,98,500,16.7\n"
+            "t3,180,97,500,25.0\n"
+            "t4,240,96,500,33.3\n"
+            "t5,300,0,500,50.0\n"
+        )
+        path = self._write_csv(tmp_path, content)
+        result = lt._analyze_csv(path)
+        assert result["capacity_wh"] == pytest.approx(50.0)
+        assert result["register_delta_wh"] is None
+        assert result["efficiency_pct"] is None
+        assert result["voltage_at_soc"] == {}
+        assert result["bms_accuracy"] is None
+        assert result["max_ambient_c"] is None
