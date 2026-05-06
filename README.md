@@ -122,6 +122,29 @@ The test will:
 The CSV has 17 columns with a comment header block; empty cells for failed
 BLE reads are Excel-friendly.
 
+### Generate systemd service
+
+```bash
+bluetti-cli generate-service AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+```
+
+Generates a systemd unit file to run the MQTT bridge as a persistent
+service. Prints to stdout; use `-o FILE` to write directly.
+
+Options mirror the `mqtt` command: `--port`, `--username`, `--password`,
+`--interval`, `--ha-config`. Additional options:
+
+- `--user NAME`    System user to run as (default: current user)
+- `--exec PATH`    Path to `bluetti-cli` executable (default: auto-detect)
+- `-o, --output PATH`  Write to file instead of stdout
+
+Install the generated file:
+```bash
+sudo cp bluetti-mqtt-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now bluetti-mqtt-*.service
+```
+
 ### Help
 
 ```bash

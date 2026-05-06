@@ -1194,3 +1194,124 @@ class TestCsvAnalysis:
         assert result["voltage_at_soc"] == {}
         assert result["bms_accuracy"] is None
         assert result["max_ambient_c"] is None
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Systemd service generation
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestGenerateService:
+    def test_help(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["generate-service", "--help"])
+        assert result.exit_code == 0
+        assert "--broker" in result.output
+        assert "--user" in result.output
+        assert "--port" in result.output
+        assert "--output" in result.output
+        assert "ADDRESS" in result.output
+
+    def test_missing_broker_fails(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["generate-service", "AA:BB:CC:DD:EE:FF"])
+        assert result.exit_code != 0
+        assert "broker" in result.output.lower()
+
+    def test_generates_service_sections(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "192.168.1.100",
+        ])
+        assert result.exit_code == 0
+        output = result.output
+        assert "[Unit]" in output
+        assert "[Service]" in output
+        assert "[Install]" in output
+        assert "WantedBy=multi-user.target" in output
+        assert "Restart=on-failure" in output
+
+    def test_exec_start_contains_address_and_broker(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "10.0.0.1",
+        ])
+        assert result.exit_code == 0
+        assert "AA:BB:CC:DD:EE:FF" in result.output
+        assert "--broker 10.0.0.1" in result.output
+
+    def test_respects_user_option(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--user", "root",
+        ])
+        assert result.exit_code == 0
+        assert "User=root" in result.output
+
+    def test_respects_port_option(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--port", "8883",
+        ])
+        assert result.exit_code == 0
+        assert "--port 8883" in result.output
+
+    def test_respects_interval_option(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--interval", "30",
+        ])
+        assert result.exit_code == 0
+        assert "--interval 30" in result.output
+
+    def test_respects_username_password(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--username", "mqttuser", "--password", "s3cret",
+        ])
+        assert result.exit_code == 0
+        assert "--username mqttuser" in result.output
+        assert "--password 's3cret'" in result.output
+
+    def test_respects_ha_config(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--ha-config", "none",
+        ])
+        assert result.exit_code == 0
+        assert "--ha-config none" in result.output
+
+    def test_output_to_file(self, tmp_path):
+        out = tmp_path / "test.service"
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--output", str(out),
+        ])
+        assert result.exit_code == 0
+        content = out.read_text()
+        assert "[Unit]" in content
+        assert "[Service]" in content
+
+    def test_install_instructions_in_comments(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+        ])
+        assert result.exit_code == 0
+        assert "systemctl daemon-reload" in result.output
+        assert "systemctl enable" in result.output
+
+    def test_exec_override(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--exec", "/usr/local/bin/bluetti-cli",
+        ])
+        assert result.exit_code == 0
+        assert "ExecStart=/usr/local/bin/bluetti-cli" in result.output
