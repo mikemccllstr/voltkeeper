@@ -598,7 +598,13 @@ def write(address, field, value):
     show_default=True,
     help="Home Assistant MQTT discovery mode.",
 )
-def mqtt(address, broker, port, username, password, interval, ha_config):
+@click.option(
+    "--restart-on-source-change/--no-restart-on-source-change",
+    default=False,
+    show_default=True,
+    help="Exit cleanly when source code changes, so systemd restarts the process.",
+)
+def mqtt(address, broker, port, username, password, interval, ha_config, restart_on_source_change):
     """Run MQTT bridge — continuously poll device and publish to broker.
 
     \b
@@ -614,7 +620,7 @@ def mqtt(address, broker, port, username, password, interval, ha_config):
     )
 
     from .bus import EventBus
-    from .device_handler import DeviceHandler
+    from .device_handler import DeviceHandler, SourceChangeWatcher, _watch_source_changes
     from .mqtt_client import MQTTClient
 
     address = address.upper()
@@ -638,17 +644,28 @@ def mqtt(address, broker, port, username, password, interval, ha_config):
         home_assistant_mode=ha_config,
     )
 
+    watcher = None
+    if restart_on_source_change:
+        from pathlib import Path
+        watcher = SourceChangeWatcher(Path(__file__).resolve().parent)
+        watcher.start()
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
         async def run_bridge():
-            await asyncio.gather(bus.run(), handler.run(), mqtt_client.run())
+            tasks = [bus.run(), handler.run(), mqtt_client.run()]
+            if watcher:
+                tasks.append(_watch_source_changes(watcher))
+            await asyncio.gather(*tasks)
 
         click.echo(f"Starting MQTT bridge for {address} → {broker}:{port}")
         loop.run_until_complete(run_bridge())
     except KeyboardInterrupt:
         click.echo("\nShutting down...")
     finally:
+        if watcher:
+            watcher.stop()
         _close_loop(loop)
         click.echo("Stopped.")
 
@@ -794,6 +811,7 @@ def generate_service(address, broker, port, username, password, interval, ha_con
         args += f" --interval {interval}"
     if ha_config != "normal":
         args += f" --ha-config {ha_config}"
+    args += " --restart-on-source-change"
 
     service_name = f"bluetti-mqtt-{device.sn}"
 
@@ -833,7 +851,7 @@ def generate_service(address, broker, port, username, password, interval, ha_con
         "Type=simple",
         f"User={run_user}",
         f"ExecStart={exe} {args}",
-        "Restart=on-failure",
+        "Restart=always",
         "RestartSec=30",
         "Environment=PYTHONUNBUFFERED=1",
         "# AmbientCapabilities=CAP_NET_ADMIN",

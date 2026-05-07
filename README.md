@@ -81,6 +81,10 @@ Options:
 - `--password TEXT`       MQTT broker password
 - `--interval INTEGER`    Seconds between polling cycles (default: 0 = as fast as possible)
 - `--ha-config MODE`      Home Assistant discovery mode: `normal`, `none`, `advanced` (default: normal)
+- `--restart-on-source-change`  Exit cleanly when source code changes, so systemd restarts the process
+
+Use `--restart-on-source-change` when running under systemd to automatically
+pick up code changes (pairs with `Restart=always` in the generated unit file).
 
 To verify published messages in another terminal:
 ```bash

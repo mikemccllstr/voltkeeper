@@ -6,6 +6,7 @@ import csv
 from io import StringIO
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -1229,7 +1230,7 @@ class TestGenerateService:
         assert "[Service]" in output
         assert "[Install]" in output
         assert "WantedBy=multi-user.target" in output
-        assert "Restart=on-failure" in output
+        assert "Restart=always" in output
 
     def test_exec_start_contains_address_and_broker(self):
         runner = CliRunner()
@@ -1315,3 +1316,82 @@ class TestGenerateService:
         ])
         assert result.exit_code == 0
         assert "ExecStart=/usr/local/bin/bluetti-cli" in result.output
+
+    def test_restart_on_source_change_in_execstart(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+        ])
+        assert result.exit_code == 0
+        assert "--restart-on-source-change" in result.output
+
+    def test_restart_always_in_service(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+        ])
+        assert result.exit_code == 0
+        assert "Restart=always" in result.output
+
+    def test_restart_flag_in_mqtt_help(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["mqtt", "--help"])
+        assert result.exit_code == 0
+        assert "--restart-on-source-change" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Source change watcher
+# ═══════════════════════════════════════════════════════════════════════
+
+
+from src.bluetti_cli.device_handler import (
+    SourceChangeWatcher, _PyFileHandler, _watch_source_changes,
+)
+
+
+class TestSourceChangeWatcher:
+    def test_watcher_event_set_on_py_modify(self, tmp_path):
+        (tmp_path / "mod.py").touch()
+        watcher = SourceChangeWatcher(tmp_path)
+        watcher.start()
+        try:
+            (tmp_path / "mod.py").write_text("x = 1")
+            import time; time.sleep(0.3)
+            assert watcher.changed.is_set()
+        finally:
+            watcher.stop()
+
+    def test_watcher_event_not_set_on_non_py(self, tmp_path):
+        watcher = SourceChangeWatcher(tmp_path)
+        watcher.start()
+        try:
+            (tmp_path / "notes.txt").write_text("hello")
+            import time; time.sleep(0.3)
+            assert not watcher.changed.is_set()
+        finally:
+            watcher.stop()
+
+    def test_watcher_start_stop(self, tmp_path):
+        watcher = SourceChangeWatcher(tmp_path)
+        watcher.start()
+        watcher.stop()  # should not raise
+
+    def test_watch_coroutine_exits_on_event(self):
+        watcher = SourceChangeWatcher(Path("/tmp"))
+        watcher.changed.set()
+        import pytest
+        with pytest.raises(SystemExit) as exc:
+            asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
+                _watch_source_changes(watcher)
+            )
+        assert exc.value.code == 0
+
+    def test_watch_coroutine_does_not_exit_without_event(self):
+        watcher = SourceChangeWatcher(Path("/tmp"))
+        async def run():
+            try:
+                await asyncio.wait_for(_watch_source_changes(watcher), timeout=0.2)
+            except asyncio.TimeoutError:
+                pass  # expected — coroutine didn't exit
+        asyncio.get_event_loop_policy().new_event_loop().run_until_complete(run())

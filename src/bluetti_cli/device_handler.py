@@ -2,16 +2,56 @@
 
 import asyncio
 import logging
+from pathlib import Path
+import sys
+import threading
 import time
 from typing import Dict
 
 from bleak import BleakError
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .bus import CommandMessage, EventBus, ParserMessage
 from .core.devices.bluetti_device import BluettiDevice
 from .core.commands import ReadHoldingRegisters
+
+
+class SourceChangeWatcher:
+    """Watches a directory tree for .py file changes via watchdog/inotify."""
+
+    def __init__(self, watch_path: Path):
+        self.changed = threading.Event()
+        self._observer = Observer()
+        self._observer.schedule(
+            _PyFileHandler(self.changed), str(watch_path), recursive=True,
+        )
+
+    def start(self):
+        self._observer.start()
+
+    def stop(self):
+        self._observer.stop()
+        self._observer.join()
+
+
+class _PyFileHandler(FileSystemEventHandler):
+    def __init__(self, event: threading.Event):
+        self._event = event
+
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path.endswith(".py"):
+            self._event.set()
+
+
+async def _watch_source_changes(watcher: SourceChangeWatcher):
+    """Poll the threading.Event; exit cleanly when source code changes."""
+    while not watcher.changed.is_set():
+        await asyncio.sleep(1)
+    logging.info("Source code changed — exiting so systemd restarts with new code")
+    sys.exit(0)
 
 
 class DeviceHandler:
