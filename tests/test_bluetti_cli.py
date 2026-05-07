@@ -1202,10 +1202,10 @@ class TestCsvAnalysis:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestGenerateService:
+class TestMqttPublishService:
     def test_help(self):
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate-service", "--help"])
+        result = runner.invoke(cli, ["mqtt-publish-service", "--help"])
         assert result.exit_code == 0
         assert "--broker" in result.output
         assert "--user" in result.output
@@ -1215,14 +1215,14 @@ class TestGenerateService:
 
     def test_missing_broker_fails(self):
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate-service", "AA:BB:CC:DD:EE:FF"])
+        result = runner.invoke(cli, ["mqtt-publish-service", "AA:BB:CC:DD:EE:FF"])
         assert result.exit_code != 0
         assert "broker" in result.output.lower()
 
     def test_generates_service_sections(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "192.168.1.100",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "192.168.1.100",
         ])
         assert result.exit_code == 0
         output = result.output
@@ -1235,7 +1235,7 @@ class TestGenerateService:
     def test_exec_start_contains_address_and_broker(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "10.0.0.1",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "10.0.0.1",
         ])
         assert result.exit_code == 0
         assert "AA:BB:CC:DD:EE:FF" in result.output
@@ -1244,7 +1244,7 @@ class TestGenerateService:
     def test_respects_user_option(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
             "--user", "root",
         ])
         assert result.exit_code == 0
@@ -1253,7 +1253,7 @@ class TestGenerateService:
     def test_respects_port_option(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
             "--port", "8883",
         ])
         assert result.exit_code == 0
@@ -1262,7 +1262,7 @@ class TestGenerateService:
     def test_respects_interval_option(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
             "--interval", "30",
         ])
         assert result.exit_code == 0
@@ -1271,7 +1271,7 @@ class TestGenerateService:
     def test_respects_username_password(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
             "--username", "mqttuser", "--password", "s3cret",
         ])
         assert result.exit_code == 0
@@ -1281,7 +1281,7 @@ class TestGenerateService:
     def test_respects_ha_config(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
             "--ha-config", "none",
         ])
         assert result.exit_code == 0
@@ -1291,7 +1291,7 @@ class TestGenerateService:
         out = tmp_path / "test.service"
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
             "--output", str(out),
         ])
         assert result.exit_code == 0
@@ -1302,7 +1302,7 @@ class TestGenerateService:
     def test_install_instructions_in_comments(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
         ])
         assert result.exit_code == 0
         assert "systemctl daemon-reload" in result.output
@@ -1311,7 +1311,7 @@ class TestGenerateService:
     def test_exec_override(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
             "--exec", "/usr/local/bin/bluetti-cli",
         ])
         assert result.exit_code == 0
@@ -1320,7 +1320,7 @@ class TestGenerateService:
     def test_restart_on_source_change_in_execstart(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
         ])
         assert result.exit_code == 0
         assert "--restart-on-source-change" in result.output
@@ -1328,16 +1328,25 @@ class TestGenerateService:
     def test_restart_always_in_service(self):
         runner = CliRunner()
         result = runner.invoke(cli, [
-            "generate-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
         ])
         assert result.exit_code == 0
         assert "Restart=always" in result.output
 
     def test_restart_flag_in_mqtt_help(self):
         runner = CliRunner()
-        result = runner.invoke(cli, ["mqtt", "--help"])
+        result = runner.invoke(cli, ["mqtt-publish", "--help"])
         assert result.exit_code == 0
         assert "--restart-on-source-change" in result.output
+
+    def test_publish_service_includes_serial(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
+            "--serial", "MYSERIAL",
+        ])
+        assert result.exit_code == 0
+        assert "--serial MYSERIAL" in result.output
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1395,3 +1404,184 @@ class TestSourceChangeWatcher:
             except asyncio.TimeoutError:
                 pass  # expected — coroutine didn't exit
         asyncio.get_event_loop_policy().new_event_loop().run_until_complete(run())
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Shutdown watch latch logic
+# ═══════════════════════════════════════════════════════════════════════
+
+
+from src.bluetti_cli.shutdown_watch import ShutdownWatch
+
+
+class TestShutdownWatch:
+    def test_no_latch_above_threshold(self):
+        w = ShutdownWatch(threshold=10, grace=60)
+        assert w.handle_soc(50) is None
+        assert not w.latched
+
+    def test_no_latch_at_threshold(self):
+        w = ShutdownWatch(threshold=10, grace=60)
+        assert w.handle_soc(10) is None
+        assert not w.latched
+
+    def test_latch_below_threshold(self):
+        w = ShutdownWatch(threshold=10, grace=60)
+        cmd = w.handle_soc(5)
+        assert cmd is None  # grace period hasn't expired yet
+        assert w.latched
+        assert w.fire_at is not None
+        assert w.time_remaining > 0
+
+    def test_latch_stays_set_on_recovery(self):
+        w = ShutdownWatch(threshold=10, grace=60)
+        w.handle_soc(5)
+        assert w.latched
+        w.handle_soc(80)
+        assert w.latched  # still latched
+
+    def test_grace_timer_shutdown_after_expiry(self):
+        w = ShutdownWatch(threshold=10, grace=0)
+        cmd = w.handle_soc(5)
+        assert cmd == "sudo shutdown -h now"
+
+    def test_grace_timer_not_expired(self):
+        w = ShutdownWatch(threshold=10, grace=999)
+        cmd = w.handle_soc(5)
+        assert cmd is None
+        assert w.time_remaining > 0
+
+    def test_latch_triggers_recovery_log(self, caplog):
+        import logging
+        w = ShutdownWatch(threshold=10, grace=60)
+        with caplog.at_level(logging.INFO):
+            w.handle_soc(5)
+            w.handle_soc(50)
+        assert "shutdown already triggered" in caplog.text
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  mqtt-listen CLI
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestMqttListenCLI:
+    def test_help(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["mqtt-listen", "--help"])
+        assert result.exit_code == 0
+        assert "--serial" in result.output
+        assert "--broker" in result.output
+        assert "--shutdown-at" in result.output
+        assert "--grace-period" in result.output
+
+    def test_requires_broker(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["mqtt-listen", "--serial", "12345"])
+        assert result.exit_code != 0
+
+    def test_requires_address_or_serial(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["mqtt-listen", "--broker", "x"])
+        assert result.exit_code != 0
+        assert "ADDRESS" in result.output or "serial" in result.output.lower()
+
+    def test_default_shutdown_at(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["mqtt-listen", "--help"])
+        assert "10" in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  mqtt-listen-service output
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestMqttListenService:
+    def test_help(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["mqtt-listen-service", "--help"])
+        assert result.exit_code == 0
+        assert "--serial" in result.output
+        assert "--shutdown-at" in result.output
+
+    def test_generates_service_sections(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "12345", "--broker", "192.168.1.100",
+        ])
+        assert result.exit_code == 0
+        output = result.output
+        assert "[Unit]" in output
+        assert "[Service]" in output
+        assert "[Install]" in output
+        assert "Restart=always" in output
+
+    def test_execstart_has_serial_and_broker(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "SN123", "--broker", "10.0.0.1",
+        ])
+        assert result.exit_code == 0
+        assert "--serial SN123" in result.output
+        assert "--broker 10.0.0.1" in result.output
+        assert "mqtt-listen" in result.output
+
+    def test_user_is_root_by_default(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "x", "--broker", "x",
+        ])
+        assert result.exit_code == 0
+        assert "User=root" in result.output
+
+    def test_respects_shutdown_at(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "x", "--broker", "x",
+            "--shutdown-at", "20",
+        ])
+        assert result.exit_code == 0
+        assert "--shutdown-at 20" in result.output
+
+    def test_respects_grace_period(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "x", "--broker", "x",
+            "--grace-period", "120",
+        ])
+        assert result.exit_code == 0
+        assert "--grace-period 120" in result.output
+
+    def test_restart_on_source_change_in_execstart(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "x", "--broker", "x",
+        ])
+        assert result.exit_code == 0
+        assert "--restart-on-source-change" in result.output
+
+    def test_install_instructions_in_comments(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "x", "--broker", "x",
+        ])
+        assert result.exit_code == 0
+        assert "systemctl daemon-reload" in result.output
+        assert "systemctl enable" in result.output
+
+    def test_service_name_uses_serial(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--serial", "DEADBEEF", "--broker", "x",
+        ])
+        assert result.exit_code == 0
+        assert "bluetti-shutdown-DEADBEEF" in result.output
+
+    def test_no_address_argument(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            "mqtt-listen-service", "--help",
+        ])
+        assert result.exit_code == 0
+        assert "ADDRESS" not in result.output

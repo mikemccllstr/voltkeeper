@@ -560,8 +560,12 @@ def write(address, field, value):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-@cli.command()
+@cli.command("mqtt-publish")
 @click.argument("address")
+@click.option(
+    "--serial",
+    help="Device serial number (overrides BLE lookup for MQTT topic).",
+)
 @click.option(
     "--broker",
     required=True,
@@ -604,12 +608,15 @@ def write(address, field, value):
     show_default=True,
     help="Exit cleanly when source code changes, so systemd restarts the process.",
 )
-def mqtt(address, broker, port, username, password, interval, ha_config, restart_on_source_change):
-    """Run MQTT bridge — continuously poll device and publish to broker.
+def mqtt_publish(address, serial, broker, port, username, password, interval, ha_config, restart_on_source_change):
+    """Publish device state to an MQTT broker.
+
+    Continuously polls the device over BLE and publishes state to MQTT.
+    Supports Home Assistant MQTT auto-discovery (on by default).
 
     \b
     Example:
-      bluetti-cli mqtt AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+      bluetti-cli mqtt-publish AA:BB:CC:DD:EE:FF --broker 192.168.1.100
     """
     import logging
 
@@ -625,14 +632,17 @@ def mqtt(address, broker, port, username, password, interval, ha_config, restart
 
     address = address.upper()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        device_name = loop.run_until_complete(lookup_device_name(address))
-    finally:
-        loop.close()
-
-    device = build_device(address, device_name)
+    if serial:
+        device = build_device(address, address)
+        device.sn = serial
+    else:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            device_name = loop.run_until_complete(lookup_device_name(address))
+        finally:
+            loop.close()
+        device = build_device(address, device_name)
     bus = EventBus()
     handler = DeviceHandler(address, device, interval, bus)
     mqtt_client = MQTTClient(
@@ -750,8 +760,9 @@ def load_test_command(address, output, interval, expected_load, phase):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-@cli.command("generate-service")
+@cli.command("mqtt-publish-service")
 @click.argument("address")
+@click.option("--serial", help="Device serial number (pre-set for MQTT topic).")
 @click.option("--broker", required=True, help="MQTT broker hostname.")
 @click.option("--port", type=int, default=1883, show_default=True, help="MQTT broker port.")
 @click.option("--username", help="MQTT broker username.")
@@ -764,25 +775,28 @@ def load_test_command(address, output, interval, expected_load, phase):
 @click.option("--user", help="System user to run service as (default: current user).")
 @click.option("--exec", "exec_path", help="Path to bluetti-cli executable (default: auto-detect).")
 @click.option("-o", "--output", type=click.Path(writable=True), help="Write to file instead of stdout.")
-def generate_service(address, broker, port, username, password, interval, ha_config, user, exec_path, output):
-    """Generate a systemd unit file for the MQTT bridge.
+def mqtt_publish_service(address, serial, broker, port, username, password, interval, ha_config, user, exec_path, output):
+    """Generate a systemd unit file for mqtt-publish.
 
     Prints a service file to stdout (or --output). The file includes
     install instructions in comment lines at the top.
     """
     address = address.upper()
 
-    # Resolve device SN (quick BLE scan, fall back to MAC)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        device_name = loop.run_until_complete(lookup_device_name(address, timeout=1.0))
-    except Exception:
-        device_name = address
-    finally:
-        loop.close()
-
-    device = build_device(address, device_name)
+    # Resolve device SN if not provided
+    if serial:
+        device = build_device(address, address)
+        device.sn = serial
+    else:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            device_name = loop.run_until_complete(lookup_device_name(address, timeout=1.0))
+        except Exception:
+            device_name = address
+        finally:
+            loop.close()
+        device = build_device(address, device_name)
 
     # Executable path
     if exec_path:
@@ -800,7 +814,7 @@ def generate_service(address, broker, port, username, password, interval, ha_con
             run_user = "root"
 
     # Build ExecStart args
-    args = f"mqtt {address} --broker {broker}"
+    args = f"mqtt-publish {address} --serial {device.sn} --broker {broker}"
     if port != 1883:
         args += f" --port {port}"
     if username:
@@ -855,6 +869,210 @@ def generate_service(address, broker, port, username, password, interval, ha_con
         "RestartSec=30",
         "Environment=PYTHONUNBUFFERED=1",
         "# AmbientCapabilities=CAP_NET_ADMIN",
+        "",
+        "[Install]",
+        "WantedBy=multi-user.target",
+        "",
+    ]
+
+    content = "\n".join(lines)
+
+    if output:
+        with open(output, "w") as f:
+            f.write(content)
+        click.echo(f"Service file written to {output}")
+    else:
+        click.echo(content, nl=False)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  MQTT listener — shutdown watchdog
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@cli.command("mqtt-listen")
+@click.argument("address", required=False)
+@click.option(
+    "--serial",
+    help="Device serial number (required if ADDRESS not given).",
+)
+@click.option("--broker", required=True, help="MQTT broker hostname.")
+@click.option("--port", type=int, default=1883, show_default=True, help="MQTT broker port.")
+@click.option("--username", help="MQTT broker username.")
+@click.option("--password", help="MQTT broker password (visible in service file).")
+@click.option(
+    "--shutdown-at", type=int, default=10, show_default=True,
+    help="SOC %% threshold for initiating shutdown.",
+)
+@click.option(
+    "--grace-period", type=int, default=60, show_default=True,
+    help="Seconds below threshold before shutdown triggers.",
+)
+@click.option(
+    "--restart-on-source-change/--no-restart-on-source-change",
+    default=False, show_default=True,
+    help="Exit cleanly when source code changes, so systemd restarts the process.",
+)
+def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, grace_period, restart_on_source_change):
+    """Watch battery SOC via MQTT and trigger system shutdown.
+
+    Subscribes to the device's MQTT topic and watches total_battery_percent.
+    When SOC drops below --shutdown-at and stays there for --grace-period
+    seconds, runs 'sudo shutdown -h now'.
+
+    \b
+    Examples:
+      bluetti-cli mqtt-listen --serial 2409000123456 --broker 192.168.1.100
+      bluetti-cli mqtt-listen AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+    """
+    import logging
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    from .shutdown_watch import run_shutdown_listener
+    from .device_handler import SourceChangeWatcher, _watch_source_changes
+
+    if not address and not serial:
+        raise click.UsageError("Provide ADDRESS, --serial, or both.")
+
+    sn = serial
+    if sn is None:
+        address = address.upper()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            device_name = loop.run_until_complete(lookup_device_name(address))
+        finally:
+            loop.close()
+        sn = build_device(address, device_name).sn
+
+    topic = f"bluetti/state/AC2A-{sn}/total_battery_percent"
+
+    watcher = None
+    if restart_on_source_change:
+        from pathlib import Path
+        watcher = SourceChangeWatcher(Path(__file__).resolve().parent)
+        watcher.start()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        async def run():
+            tasks = [
+                run_shutdown_listener(topic, broker, port, username, password, shutdown_at, grace_period),
+            ]
+            if watcher:
+                tasks.append(_watch_source_changes(watcher))
+            await asyncio.gather(*tasks)
+
+        loop.run_until_complete(run())
+    except KeyboardInterrupt:
+        click.echo("\nShutting down...")
+    finally:
+        if watcher:
+            watcher.stop()
+        _close_loop(loop)
+        click.echo("Stopped.")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Generate mqtt-listen service
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@cli.command("mqtt-listen-service")
+@click.option("--serial", required=True, help="Device serial number.")
+@click.option("--broker", required=True, help="MQTT broker hostname.")
+@click.option("--port", type=int, default=1883, show_default=True, help="MQTT broker port.")
+@click.option("--username", help="MQTT broker username.")
+@click.option("--password", help="MQTT broker password (visible in service file).")
+@click.option(
+    "--shutdown-at", type=int, default=10, show_default=True,
+    help="SOC %% threshold for initiating shutdown.",
+)
+@click.option(
+    "--grace-period", type=int, default=60, show_default=True,
+    help="Seconds below threshold before shutdown triggers.",
+)
+@click.option("--user", help="System user to run service as (default: root).")
+@click.option("--exec", "exec_path", help="Path to bluetti-cli executable (default: auto-detect).")
+@click.option("-o", "--output", type=click.Path(writable=True), help="Write to file instead of stdout.")
+def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, grace_period, user, exec_path, output):
+    """Generate a systemd unit file for mqtt-listen.
+
+    Prints a service file to stdout (or --output). The file includes
+    install instructions in comment lines at the top.
+    """
+    # Run-as user
+    run_user = user or "root"
+
+    # Executable path
+    if exec_path:
+        exe = exec_path
+    else:
+        exe = shutil.which("bluetti-cli") or sys.argv[0]
+
+    # Build ExecStart args
+    args = f"mqtt-listen --serial {serial} --broker {broker}"
+    if port != 1883:
+        args += f" --port {port}"
+    if username:
+        args += f" --username {username}"
+    if password:
+        args += f" --password '{password}'"
+    if shutdown_at != 10:
+        args += f" --shutdown-at {shutdown_at}"
+    if grace_period != 60:
+        args += f" --grace-period {grace_period}"
+    args += " --restart-on-source-change"
+
+    service_name = f"bluetti-shutdown-{serial}"
+
+    lines = [
+        f"# Bluetti AC2A shutdown watchdog — systemd service",
+        f"# Generated by: bluetti-cli mqtt-listen-service --serial {serial} --broker {broker}",
+        "#",
+        "# To install:",
+        f"#   sudo cp {service_name}.service /etc/systemd/system/",
+        "#   sudo systemctl daemon-reload",
+        f"#   sudo systemctl enable --now {service_name}",
+        "#",
+        f"# To view logs:   journalctl -u {service_name} -f",
+        f"# To edit:        sudo systemctl edit --full {service_name}",
+        f"# To stop:        sudo systemctl stop {service_name}",
+        "#",
+        "# ⚠  This service runs as root to execute shutdown.",
+        "#    The shutdown is latched — once SOC drops below the threshold,",
+        "#    the countdown cannot be cancelled by SOC recovery.",
+        "#    Use 'systemctl stop' to abort before the grace period expires.",
+        "#",
+    ]
+
+    if password:
+        lines += [
+            "# ⚠  Password is stored in this file. Remove --password from",
+            "#    ExecStart and use a credentials file for production deployments.",
+            "#",
+        ]
+
+    lines += [
+        "",
+        "[Unit]",
+        f"Description=Bluetti AC2A shutdown watchdog ({serial})",
+        "After=network-online.target",
+        "Wants=network-online.target",
+        "",
+        "[Service]",
+        "Type=simple",
+        f"User={run_user}",
+        f"ExecStart={exe} {args}",
+        "Restart=always",
+        "RestartSec=30",
+        "Environment=PYTHONUNBUFFERED=1",
         "",
         "[Install]",
         "WantedBy=multi-user.target",

@@ -65,33 +65,50 @@ Writable fields (see `--verbose` output for current values):
 - `charging_mode`  — `standard`/`turbo`/`silent`
 - **numeric:** `battery_range_start`, `battery_range_end`, `lcd_timeout`, `led_color`, `soc_low`, `soc_high`, `inv_voltage`, `inv_freq`, `working_mode`
 
-### MQTT bridge
+### MQTT publish
 
 ```bash
-bluetti-cli mqtt AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+bluetti-cli mqtt-publish AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 ```
 
-Continuously polls the device and publishes state to an MQTT broker.
+Continuously polls the device over BLE and publishes state to an MQTT broker.
 Supports Home Assistant MQTT auto-discovery (on by default).
 
 Options:
-- `--broker TEXT`         MQTT broker hostname (required)
-- `--port INTEGER`        MQTT broker port (default: 1883)
-- `--username TEXT`       MQTT broker username
-- `--password TEXT`       MQTT broker password
-- `--interval INTEGER`    Seconds between polling cycles (default: 0 = as fast as possible)
-- `--ha-config MODE`      Home Assistant discovery mode: `normal`, `none`, `advanced` (default: normal)
+- `--serial TEXT`           Device serial number (overrides BLE lookup for MQTT topic)
+- `--broker TEXT`           MQTT broker hostname (required)
+- `--port INTEGER`          MQTT broker port (default: 1883)
+- `--username TEXT`         MQTT broker username
+- `--password TEXT`         MQTT broker password
+- `--interval INTEGER`      Seconds between polling cycles (default: 0 = as fast as possible)
+- `--ha-config MODE`        Home Assistant discovery mode: `normal`, `none`, `advanced` (default: normal)
 - `--restart-on-source-change`  Exit cleanly when source code changes, so systemd restarts the process
 
-Use `--restart-on-source-change` when running under systemd to automatically
-pick up code changes (pairs with `Restart=always` in the generated unit file).
+### MQTT listen — shutdown watchdog
 
-To verify published messages in another terminal:
 ```bash
-mosquitto_sub -t 'bluetti/state/#' -v
+bluetti-cli mqtt-listen --serial 2409000123456 --broker 192.168.1.100
 ```
 
-### Load test
+Subscribes to the device's MQTT topic and watches battery SOC. When SOC
+drops below the threshold, initiates a system shutdown after a grace period.
+The shutdown is **latched** — once triggered, it cannot be cancelled by SOC
+recovery (use `systemctl stop` to abort before the grace period expires).
+
+Options:
+- `--serial TEXT`           Device serial number (or provide ADDRESS for BLE lookup)
+- `--broker TEXT`           MQTT broker hostname (required)
+- `--port INTEGER`          MQTT broker port (default: 1883)
+- `--username TEXT`         MQTT broker username
+- `--password TEXT`         MQTT broker password
+- `--shutdown-at INTEGER`   SOC % threshold for shutdown (default: 10)
+- `--grace-period INTEGER`  Seconds below threshold before shutdown (default: 60)
+- `--restart-on-source-change`  Exit cleanly when source code changes
+
+ADDRESS may be omitted if `--serial` is provided (useful when running on a
+different machine without BLE).
+
+### Generate systemd service
 
 ```bash
 bluetti-cli load-test [OPTIONS] ADDRESS
@@ -126,20 +143,41 @@ The test will:
 The CSV has 17 columns with a comment header block; empty cells for failed
 BLE reads are Excel-friendly.
 
-### Generate systemd service
+### Generate systemd services
+
+#### MQTT publish service
 
 ```bash
-bluetti-cli generate-service AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+bluetti-cli mqtt-publish-service AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 ```
 
-Generates a systemd unit file to run the MQTT bridge as a persistent
-service. Prints to stdout; use `-o FILE` to write directly.
+Generates a systemd unit file for `mqtt-publish`.
 
-Options mirror the `mqtt` command: `--port`, `--username`, `--password`,
-`--interval`, `--ha-config`. Additional options:
-
+Options mirror the `mqtt-publish` command plus:
 - `--user NAME`    System user to run as (default: current user)
 - `--exec PATH`    Path to `bluetti-cli` executable (default: auto-detect)
+- `-o, --output PATH`  Write to file instead of stdout
+
+#### MQTT listen service
+
+```bash
+bluetti-cli mqtt-listen-service --serial 2409000123456 --broker 192.168.1.100
+```
+
+Generates a systemd unit file for `mqtt-listen`.
+
+Options mirror the `mqtt-listen` command plus:
+- `--user NAME`    System user to run as (default: root, needed for shutdown)
+- `--exec PATH`    Path to `bluetti-cli` executable (default: auto-detect)
+- `-o, --output PATH`  Write to file instead of stdout
+
+#### Installing a generated service
+
+```bash
+sudo cp bluetti-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now bluetti-*.service
+```
 - `-o, --output PATH`  Write to file instead of stdout
 
 Install the generated file:
@@ -155,6 +193,8 @@ sudo systemctl enable --now bluetti-mqtt-*.service
 bluetti-cli --help
 bluetti-cli status --help
 bluetti-cli scan --help
+bluetti-cli mqtt-publish --help
+bluetti-cli mqtt-listen --help
 bluetti-cli load-test --help
 bluetti-cli --version
 ```
