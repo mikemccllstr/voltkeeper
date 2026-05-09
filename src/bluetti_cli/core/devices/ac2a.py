@@ -2,10 +2,9 @@
 # ABOUTME: Unit 8 per IMPLEMENTATION_UNITS.md.
 
 from enum import Enum, unique
-from typing import Any, List
+from typing import List
 
-from ..commands import ReadHoldingRegisters, WriteSingleRegister
-from ..struct import BoolField, DeviceStruct, EnumField
+from ..commands import ReadHoldingRegisters
 from ..utils import _format_version, _s16, _u16
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
@@ -27,12 +26,13 @@ class ChargingMode(Enum):
 
 
 class AC2A(V2Base):
+    # AC2A is an 8S LiFePO4 pack (~25.6 V nominal); raw register × 0.01 = volts.
+    # All other documented V2 models use ÷10. If a future model also reads 10×
+    # high, follow this override pattern.
     DEFAULT_PACK_VOLTAGE_SCALE = 2
 
     def __init__(self, address: str, sn: str):
         super().__init__(address, "AC2A", sn)
-
-        self.control_struct = DeviceStruct()
         self._build_control_struct()
 
     # ── Control struct (model-specific) ─────────────────────────────────
@@ -104,11 +104,6 @@ class AC2A(V2Base):
     # ── Parse dispatch (adds array helpers on top of V2Base) ────────────
 
     def parse(self, address: int, data: bytes) -> dict:
-        if INV_BASE_SETTINGS <= address < INV_ADVANCE_SETTINGS:
-            return self.control_struct.parse(address, data)
-        elif INV_ADVANCE_SETTINGS <= address < 2300:
-            return self.control_struct.parse(address, data)
-
         result = super().parse(address, data)
         if INV_BASE_INFO <= address < INV_PV_INFO:
             self._fill_software_versions(result, data)
@@ -197,39 +192,3 @@ class AC2A(V2Base):
             ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
             ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 12),
         ]
-
-    def has_field(self, field: str) -> bool:
-        return field in self.WRITABLE_FIELD_NAMES or any(
-            f.name == field
-            for fs in (
-                self.home_struct,
-                self.inv_base_struct,
-                self.inv_pv_struct,
-                self.inv_grid_struct,
-                self.inv_load_struct,
-                self.inv_inv_struct,
-            )
-            for f in fs.fields
-        )
-
-    def has_field_setter(self, field: str) -> bool:
-        return field in self.WRITABLE_FIELD_NAMES
-
-    def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
-        matches = [f for f in self.control_struct.fields if f.name == field]
-        if not matches:
-            raise ValueError(f"Unknown writable field: {field}")
-        device_field = matches[0]
-
-        if isinstance(device_field, EnumField):
-            if isinstance(value, str):
-                value = device_field.enum[value.upper()].value
-            else:
-                value = device_field.enum(value).value
-        elif isinstance(device_field, BoolField):
-            if isinstance(value, str):
-                value = 1 if value.lower() in ("on", "1", "true", "yes") else 0
-            else:
-                value = 1 if value else 0
-
-        return WriteSingleRegister(device_field.address, int(value))

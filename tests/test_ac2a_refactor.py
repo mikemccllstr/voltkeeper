@@ -40,10 +40,18 @@ def _make_data(start: int, size: int) -> bytes:
 
 
 def test_capture_ac2a_baseline():
-    """Generate a JSON fixture representing the CURRENT AC2A parsing output.
+    """Stability snapshot for AC2A parse() output across all six register blocks.
 
-    If the fixture already exists, load it and assert the current AC2A
-    produces identical output. If it doesn't exist, create it.
+    Detects accidental drift in field names, scales, or struct dispatch when
+    refactoring V2Base or AC2A. Does NOT prove the original V2Base extraction
+    (Unit 8) was lossless — that was verified by hand-running the pre-refactor
+    AC2A code against the same all-zero input and comparing byte-for-byte.
+
+    For future refactors that touch parsing: regenerate the fixture by deleting
+    it and re-running this test BEFORE making the change, so the saved fixture
+    represents pre-change behavior.
+
+    The fixture loads if present; otherwise it's created on first run.
     """
     device = AC2A("00:00:00:00:00:00", "TEST")
 

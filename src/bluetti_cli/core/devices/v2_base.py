@@ -1,10 +1,10 @@
 # ABOUTME: Generic V2-protocol base device class — register blocks, structs, parse dispatch.
 # ABOUTME: Unit 8 per IMPLEMENTATION_UNITS.md.
 
-from typing import List
+from typing import Any, List
 
-from ..commands import ReadHoldingRegisters
-from ..struct import DeviceStruct
+from ..commands import ReadHoldingRegisters, WriteSingleRegister
+from ..struct import BoolField, DeviceStruct, EnumField
 from .bluetti_device import BluettiDevice
 
 APP_HOME_DATA = 100
@@ -18,7 +18,18 @@ INV_ADVANCE_SETTINGS = 2200
 
 
 class V2Base(BluettiDevice):
+    # Default pack-voltage scale for V2 devices. EP500/EP600 and other
+    # high-voltage packs use ÷10 (raw register value × 0.1 = volts). The AC2A
+    # is the known exception: its 8S LiFePO4 architecture (~25.6 V nominal)
+    # requires ÷100 — see AC2A.DEFAULT_PACK_VOLTAGE_SCALE. When adding a new
+    # V2 model, verify the pack voltage with a multimeter against the device
+    # LCD; if readings look 10× off, override this attribute on the subclass.
     DEFAULT_PACK_VOLTAGE_SCALE = 1
+
+    # Subclasses populate these. Empty defaults mean a model with no
+    # writable controls works correctly — `has_field_setter` returns False
+    # for everything and `build_setter_command` raises a clear error.
+    WRITABLE_FIELD_NAMES: list[str] = []
 
     def __init__(self, address: str, type: str, sn: str):
         self.home_struct = DeviceStruct()
@@ -38,6 +49,11 @@ class V2Base(BluettiDevice):
 
         self.inv_inv_struct = DeviceStruct()
         self._build_inv_inv_struct()
+
+        # Subclasses with writable controls call self._build_control_struct()
+        # themselves AFTER super().__init__ — leave it empty here so models
+        # without controls (read-only telemetry only) just work.
+        self.control_struct = DeviceStruct()
 
         super().__init__(address, type, sn)
         self.protocol_version = 2000
@@ -155,7 +171,49 @@ class V2Base(BluettiDevice):
             return self.inv_load_struct.parse(address, data)
         elif INV_INV_INFO <= address < INV_BASE_SETTINGS:
             return self.inv_inv_struct.parse(address, data)
+        elif INV_BASE_SETTINGS <= address < 2300:
+            return self.control_struct.parse(address, data)
         return {}
+
+    # ── Writable-field plumbing ────────────────────────────────────────
+
+    def _all_polling_structs(self) -> tuple[DeviceStruct, ...]:
+        return (
+            self.home_struct,
+            self.inv_base_struct,
+            self.inv_pv_struct,
+            self.inv_grid_struct,
+            self.inv_load_struct,
+            self.inv_inv_struct,
+            self.control_struct,
+        )
+
+    def has_field(self, field: str) -> bool:
+        return field in self.WRITABLE_FIELD_NAMES or any(
+            f.name == field for fs in self._all_polling_structs() for f in fs.fields
+        )
+
+    def has_field_setter(self, field: str) -> bool:
+        return field in self.WRITABLE_FIELD_NAMES
+
+    def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
+        matches = [f for f in self.control_struct.fields if f.name == field]
+        if not matches:
+            raise ValueError(f"Unknown writable field: {field}")
+        device_field = matches[0]
+
+        if isinstance(device_field, EnumField):
+            if isinstance(value, str):
+                value = device_field.enum[value.upper()].value
+            else:
+                value = device_field.enum(value).value
+        elif isinstance(device_field, BoolField):
+            if isinstance(value, str):
+                value = 1 if value.lower() in ("on", "1", "true", "yes") else 0
+            else:
+                value = 1 if value else 0
+
+        return WriteSingleRegister(device_field.address, int(value))
 
     # ── Device properties ──────────────────────────────────────────────
 

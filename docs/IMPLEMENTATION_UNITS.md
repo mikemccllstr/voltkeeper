@@ -1200,6 +1200,25 @@ following that table.
 
 The `BASE_CONFIG` block at register 1 is parsed per FINDINGS §15.7.
 
+### Mirror the V2Base writable-field design
+
+After Unit 8's follow-up, V2Base provides default `has_field`,
+`has_field_setter`, and `build_setter_command` plus a default empty
+`self.control_struct`. V1Base should do the same so V1 device classes in
+Unit 10 stay short:
+
+- V1Base.__init__ creates `self.control_struct = DeviceStruct()` (empty
+  default) and the V1 read-only struct(s).
+- V1Base.parse() dispatches the V1 control range (3000–3090) to
+  `self.control_struct`.
+- V1Base.WRITABLE_FIELD_NAMES = [] (subclasses override).
+- V1Base provides default has_field/has_field_setter/build_setter_command
+  iterating over `self._all_polling_structs()` (returning the V1 read-only
+  struct(s) plus `control_struct`).
+
+Subclasses (Unit 10) only need to define `WRITABLE_FIELD_NAMES` and a
+`_build_control_struct(self)` method called from their `__init__`.
+
 ### V1 + BLE encryption — extra investigation
 
 Unit 7b's `HandshakeSession.run` always proceeds to Path 2 (ECDH) after Path 1.
@@ -1285,12 +1304,14 @@ can wait for contributor PRs.
 
 ### Implementation shape (example `ep600.py`)
 
+A vanilla read-only V2 model is essentially empty after Unit 8's follow-up:
+
 ```python
 from .v2_base import V2Base
 
 
 class EP600(V2Base):
-    """EP600 home power station. V2 protocol, high-voltage pack."""
+    """EP600 home power station. V2 protocol, high-voltage pack (÷10)."""
 
     def __init__(self, address: str, sn: str):
         super().__init__(address, "EP600", sn)
@@ -1298,6 +1319,43 @@ class EP600(V2Base):
 
     # If/when probe data shows EP600-specific quirks, add overrides here.
 ```
+
+A V2 model **with** writable controls (e.g., AC300) is roughly:
+
+```python
+from enum import Enum, unique
+
+from ..struct import DeviceStruct
+from .v2_base import V2Base
+
+
+@unique
+class ChargingMode(Enum):
+    STANDARD = 0
+    TURBO = 1
+    SILENT = 2
+
+
+class AC300(V2Base):
+    WRITABLE_FIELD_NAMES = [
+        "ac_output", "dc_output", "charging_mode", ...
+    ]
+
+    def __init__(self, address: str, sn: str):
+        super().__init__(address, "AC300", sn)
+        self._build_control_struct()
+
+    def _build_control_struct(self):
+        s = self.control_struct
+        s.add_bool_field("ac_output", 2011)
+        s.add_enum_field("charging_mode", 2020, ChargingMode)
+        # ...
+```
+
+V2Base inherits all the heavy lifting (`parse`, `polling_commands`, `has_field`,
+`has_field_setter`, `build_setter_command`). Subclasses only need
+`WRITABLE_FIELD_NAMES` + `_build_control_struct` for writable fields, plus any
+model-specific `_fill_*` array helpers in an overridden `parse()`.
 
 For each model, leave a `# TODO(<model>): verify against hardware` comment at
 the top until a maintainer has confirmed `bluetti-cli status` works.
