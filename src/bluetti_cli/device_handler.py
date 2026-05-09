@@ -2,11 +2,10 @@
 
 import asyncio
 import logging
-from pathlib import Path
 import sys
 import threading
 import time
-from typing import Dict
+from pathlib import Path
 
 from bleak import BleakError
 from watchdog.events import FileSystemEventHandler
@@ -16,7 +15,6 @@ from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .bus import CommandMessage, EventBus, ParserMessage
 from .core.devices.bluetti_device import BluettiDevice
-from .core.commands import ReadHoldingRegisters
 
 
 class SourceChangeWatcher:
@@ -63,7 +61,6 @@ class DeviceHandler:
         self.client = BluetoothClient(address)
 
     async def run(self):
-        loop = asyncio.get_running_loop()
         self.bus.add_command_listener(self.handle_command)
 
         try:

@@ -88,3 +88,29 @@ def ac2a_inv_load_bytes():
 def ac2a_inv_inv_bytes():
     """INV_INV_INFO register block (addr 1500, 30 regs, 60 bytes)."""
     return bytes.fromhex(_INV_INV_HEX)
+
+
+# Control registers (INV_BASE_SETTINGS = 2000, 24 regs = 48 bytes).
+# Encoded state: ac_output=ON, dc_output=OFF, ac_eco_mode=ON,
+# charging_mode=TURBO, battery_range_start=20, battery_range_end=80.
+_CONTROL_HEX = (
+    "00000000000000000000"  # 2000-2004
+    "0000"                  # 2005 working_mode=0
+    "0003"                  # 2006 ctrl_event: power_control + ac_control
+    "0000000000000000"      # 2007-2010
+    "0001"                  # 2011 ac_output=True
+    "000000000000"          # 2012-2014 dc_output=0, power_off=0, dc_eco_mode=0
+    "00000000"              # 2015-2016
+    "0001"                  # 2017 ac_eco_mode=True
+    "00000000"              # 2018-2019
+    "0001"                  # 2020 charging_mode=TURBO=1
+    "0000"                  # 2021 power_lifting=False
+    "0014"                  # 2022 battery_range_start=20
+    "0050"                  # 2023 battery_range_end=80
+)
+
+
+@pytest.fixture
+def ac2a_control_bytes():
+    """INV_BASE_SETTINGS register block (addr 2000, 24 regs, 48 bytes)."""
+    return bytes.fromhex(_CONTROL_HEX)

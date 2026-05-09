@@ -52,6 +52,7 @@ class ShutdownWatch:
                 soc, self.threshold, self.grace,
             )
         elif self._latched and soc >= self.threshold:
+            assert self._fire_at is not None
             remaining = max(0.0, self._fire_at - time.monotonic())
             logging.info(
                 "SOC recovered to %d%% but shutdown already triggered — "

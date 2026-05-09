@@ -1,12 +1,12 @@
 # ABOUTME: EventBus — internal async pub/sub for parsed device data and commands.
 
 import asyncio
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Callable, List, Union
 
-from .core.devices.bluetti_device import BluettiDevice
 from .core.commands import DeviceCommand
+from .core.devices.bluetti_device import BluettiDevice
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class EventBus:
     def __init__(self):
         self.parser_listeners: List[Callable] = []
         self.command_listeners: List[Callable] = []
-        self.queue: asyncio.Queue = None
+        self.queue: asyncio.Queue = asyncio.Queue()
 
     def add_parser_listener(self, cb: Callable):
         self.parser_listeners.append(cb)
@@ -34,14 +34,9 @@ class EventBus:
         self.command_listeners.append(cb)
 
     async def put(self, msg: Union[ParserMessage, CommandMessage]):
-        if not self.queue:
-            self.queue = asyncio.Queue()
         await self.queue.put(msg)
 
     async def run(self):
-        if not self.queue:
-            self.queue = asyncio.Queue()
-
         try:
             while True:
                 msg = await self.queue.get()

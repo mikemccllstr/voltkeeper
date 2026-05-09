@@ -1,11 +1,11 @@
 # ABOUTME: MQTT client — publishes device state and handles MQTT commands with Home Assistant auto-discovery.
 
 import asyncio
-from dataclasses import dataclass
-from enum import auto, Enum, unique
 import json
 import logging
 import re
+from dataclasses import dataclass
+from enum import Enum, auto, unique
 from typing import List, Optional
 
 from aiomqtt import Client, MqttError
@@ -407,7 +407,8 @@ class MQTTClient:
         self.password = password
         self.home_assistant_mode = home_assistant_mode
         self.devices: List[BluettiDevice] = []
-        self.message_queue: asyncio.Queue = None
+        self.message_queue: asyncio.Queue = asyncio.Queue()
+        self.bus.add_parser_listener(self.handle_message)
 
     async def run(self):
         while True:
@@ -420,9 +421,6 @@ class MQTTClient:
                     password=self.password,
                 ) as client:
                     logging.info("Connected to MQTT broker")
-                    self.message_queue = asyncio.Queue()
-                    self.bus.add_parser_listener(self.handle_message)
-
                     await asyncio.gather(
                         self._handle_commands(client),
                         self._handle_messages(client),
@@ -495,8 +493,9 @@ class MQTTClient:
             "object_id": f"{device.type}_{ha_id}",
         }
         if field.setter:
+            # Use the field key (name) not topic_name: _handle_command dispatches by key.
             payload_dict["command_topic"] = (
-                f"bluetti/command/{device.type}-{device.sn}/{topic_field}"
+                f"bluetti/command/{device.type}-{device.sn}/{name}"
             )
         payload_dict.update(field.home_assistant_extra)
         return json.dumps(payload_dict, separators=(",", ":"))
@@ -520,7 +519,7 @@ class MQTTClient:
             return
 
         field = NORMAL_DEVICE_FIELDS[m[3]]
-        cmd: DeviceCommand = None
+        cmd: Optional[DeviceCommand] = None
 
         if field.type == MqttFieldType.ENUM:
             value = mqtt_message.payload.decode("ascii")

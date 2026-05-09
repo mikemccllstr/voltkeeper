@@ -3,7 +3,7 @@
 import struct
 
 
-def crc16_modbus(data: bytes) -> bytes:
+def crc16_modbus(data: bytes | bytearray) -> bytes:
     crc = 0xFFFF
     for b in data:
         crc ^= b & 0xFF

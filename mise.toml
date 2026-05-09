@@ -5,3 +5,43 @@ uv = "latest"
 java = "latest"
 "github:skylot/jadx" = "latest"
 
+[tasks.lint]
+description = "Run ruff linter"
+run = "uv run ruff check src/ tests/"
+
+[tasks.format]
+description = "Run ruff formatter (apply)"
+run = "uv run ruff format src/ tests/"
+
+[tasks.fmt]
+description = "Alias for format"
+run = "uv run ruff format src/ tests/"
+
+[tasks.format-check]
+description = "Check formatting without modifying files (for CI)"
+run = "uv run ruff format --check src/ tests/"
+
+[tasks.typecheck]
+description = "Run mypy type checker"
+run = "uv run mypy src/bluetti_cli"
+
+[tasks.test]
+description = "Run tests with coverage"
+run = "uv run pytest"
+
+[tasks.test-fast]
+description = "Run tests without coverage"
+run = "uv run pytest --no-cov"
+
+[tasks.coverage]
+description = "Run tests and open HTML coverage report"
+run = "uv run pytest && open htmlcov/index.html"
+
+[tasks.check]
+description = "Run all quality checks (lint + typecheck + test)"
+run = [
+    "uv run ruff check src/ tests/",
+    "uv run mypy src/bluetti_cli",
+    "uv run pytest",
+]
+

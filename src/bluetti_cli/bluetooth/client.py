@@ -1,6 +1,7 @@
 # ABOUTME: BLE client for Bluetti devices — connect, execute Modbus commands, disconnect. No auto-reconnect.
 
 import asyncio
+from typing import Optional
 
 from bleak import BleakClient, BleakError
 
@@ -16,15 +17,15 @@ MAX_RETRIES = 5
 class BluetoothClient:
     def __init__(self, address: str):
         self.address = address
-        self.client: BleakClient = None
+        self.client: Optional[BleakClient] = None
         self._notify_response = bytearray()
-        self._notify_future: asyncio.Future = None
-        self._current_cmd: DeviceCommand = None
+        self._notify_future: Optional[asyncio.Future] = None
+        self._current_cmd: Optional[DeviceCommand] = None
 
     async def connect(self, timeout: float = 15.0) -> None:
         self.client = BleakClient(self.address)
         await self.client.connect(timeout=timeout)
-        await self.client.start_notify(NOTIFY_UUID, self._on_notification)
+        await self.client.start_notify(NOTIFY_UUID, self._on_notification)  # type: ignore[arg-type]
 
     @property
     def is_connected(self) -> bool:
@@ -47,6 +48,7 @@ class BluetoothClient:
             self._notify_response = bytearray()
 
             try:
+                assert self.client is not None
                 await self.client.write_gatt_char(
                     WRITE_UUID, bytes(cmd), response=False
                 )
@@ -83,6 +85,7 @@ class BluetoothClient:
 
         self._notify_response.extend(data)
 
+        assert self._current_cmd is not None
         if len(self._notify_response) == self._current_cmd.response_size():
             if self._current_cmd.is_valid_response(self._notify_response):
                 self._notify_future.set_result(bytes(self._notify_response))

@@ -17,28 +17,54 @@ dependencies = [
     "watchdog>=6.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=1.0",
-]
-
 [project.scripts]
 bluetti-cli = "src.bluetti_cli.cli:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-m 'not integration'"
+addopts = "-m 'not integration' --cov=src/bluetti_cli --cov-report=term-missing:skip-covered --cov-report=html:htmlcov"
 markers = [
     "integration: tests that exercise real BLE operations (scan, connect)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/bluetti_cli"]
+omit = ["*/load_test*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["bluetti_cli"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
+    "pytest-cov>=6.0",
+    "mypy>=1.13",
 ]

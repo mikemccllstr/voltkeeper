@@ -3,15 +3,21 @@
 
 import asyncio
 import csv
-from io import StringIO
 import json
+import time
 from decimal import Decimal
+from io import StringIO
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
+import src.bluetti_cli.load_test as lt
+from src.bluetti_cli.bus import CommandMessage, EventBus, ParserMessage
 from src.bluetti_cli.cli import cli
+from src.bluetti_cli.core.commands import WriteMultipleRegisters, WriteSingleRegister
+from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
+from src.bluetti_cli.core.devices.bluetti_device import BluettiDevice
 from src.bluetti_cli.core.utils import (
     _ascii,
     _bcd_sn,
@@ -22,22 +28,26 @@ from src.bluetti_cli.core.utils import (
     _u32,
     crc16_modbus,
 )
-from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
-from src.bluetti_cli.core.commands import WriteSingleRegister, WriteMultipleRegisters
-from src.bluetti_cli.bus import EventBus, ParserMessage, CommandMessage
+from src.bluetti_cli.device_handler import SourceChangeWatcher, _watch_source_changes
 from src.bluetti_cli.mqtt_client import (
-    MQTTClient,
-    MqttFieldConfig,
-    MqttFieldType,
-    NORMAL_DEVICE_FIELDS,
-    COMMAND_TOPIC_RE,
     CHARGING_STATUS_MAP,
+    COMMAND_TOPIC_RE,
+    NORMAL_DEVICE_FIELDS,
+    MQTTClient,
+    MqttFieldType,
 )
+from src.bluetti_cli.shutdown_watch import ShutdownWatch
 
 
 @pytest.fixture
 def ac2a_device():
     return AC2A("00:00:00:00:00:00", "TEST")
+
+
+@pytest.fixture
+def ac2a_device_num():
+    """AC2A with a numeric SN so COMMAND_TOPIC_RE (requires \\d+) can match."""
+    return AC2A("00:00:00:00:00:00", "12345678")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -378,6 +388,63 @@ class TestParseInvInvInfo:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  Control register parser (register 2000) — via AC2A control_struct
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestParseControlData:
+    def test_empty(self, ac2a_device):
+        assert ac2a_device.parse(2000, b"") == {}
+
+    def test_ac_output_on(self, ac2a_device, ac2a_control_bytes):
+        result = ac2a_device.parse(2000, ac2a_control_bytes)
+        assert result["ac_output"] is True
+
+    def test_dc_output_off(self, ac2a_device, ac2a_control_bytes):
+        result = ac2a_device.parse(2000, ac2a_control_bytes)
+        assert result["dc_output"] is False
+
+    def test_ac_eco_mode_on(self, ac2a_device, ac2a_control_bytes):
+        result = ac2a_device.parse(2000, ac2a_control_bytes)
+        assert result["ac_eco_mode"] is True
+
+    def test_charging_mode_turbo(self, ac2a_device, ac2a_control_bytes):
+        from src.bluetti_cli.core.devices.ac2a import ChargingMode
+
+        result = ac2a_device.parse(2000, ac2a_control_bytes)
+        assert result["charging_mode"] == ChargingMode.TURBO
+
+    def test_battery_range(self, ac2a_device, ac2a_control_bytes):
+        result = ac2a_device.parse(2000, ac2a_control_bytes)
+        assert result["battery_range_start"] == 20
+        assert result["battery_range_end"] == 80
+
+    def test_build_setter_ac_output_on(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("ac_output", True)
+        assert cmd.address == 2011
+        assert cmd.value == 1
+
+    def test_build_setter_dc_output_off(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("dc_output", False)
+        assert cmd.address == 2012
+        assert cmd.value == 0
+
+    def test_build_setter_charging_mode_enum(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("charging_mode", "TURBO")
+        assert cmd.address == 2020
+        assert cmd.value == 1
+
+    def test_has_field_setter_writable(self, ac2a_device):
+        assert ac2a_device.has_field_setter("ac_output") is True
+        assert ac2a_device.has_field_setter("dc_output") is True
+        assert ac2a_device.has_field_setter("charging_mode") is True
+
+    def test_has_field_setter_read_only(self, ac2a_device):
+        assert ac2a_device.has_field_setter("packTotalSoc") is False
+        assert ac2a_device.has_field_setter("totalACPower") is False
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Write command classes — frame construction, CRC, response sizes
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -530,6 +597,24 @@ class TestAC2AWritableFields:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  BluettiDevice base class contract
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBluettiDeviceBase:
+    def test_parse_raises_not_implemented(self):
+        """Base parse() must raise NotImplementedError, not AttributeError."""
+        device = BluettiDevice("00:00:00:00:00:00", "TEST", "SN")
+        with pytest.raises(NotImplementedError):
+            device.parse(100, b"\x00" * 4)
+
+    def test_has_field_raises_not_implemented(self):
+        device = BluettiDevice("00:00:00:00:00:00", "TEST", "SN")
+        with pytest.raises(NotImplementedError):
+            device.has_field("packTotalSoc")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  EventBus — message routing
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -591,6 +676,26 @@ class TestEventBus:
         bus_task.cancel()
 
         assert sorted(results) == ["a", "b"]
+
+    @pytest.mark.asyncio
+    async def test_messages_put_before_run_are_not_lost(self, ac2a_device):
+        """Messages enqueued before run() starts must not be dropped."""
+        bus = EventBus()
+        received = []
+
+        async def listener(msg: ParserMessage):
+            received.append(msg)
+
+        bus.add_parser_listener(listener)
+        # put() is called BEFORE run() — the queue must be the same object
+        await bus.put(ParserMessage(ac2a_device, {"pre": True}))
+
+        bus_task = asyncio.create_task(bus.run())
+        await asyncio.sleep(0.1)
+        bus_task.cancel()
+
+        assert len(received) == 1
+        assert received[0].parsed == {"pre": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -668,7 +773,10 @@ class TestMqttClient:
 
         data = json.loads(payload)
         assert "command_topic" in data
-        assert data["command_topic"] == "bluetti/command/AC2A-TEST/ac_output_on"
+        # command_topic must use the field key ("ac_output"), not topic_name
+        # ("ac_output_on"), so that _handle_command can match it in
+        # NORMAL_DEVICE_FIELDS and dispatch the write correctly.
+        assert data["command_topic"] == "bluetti/command/AC2A-TEST/ac_output"
 
     def test_ha_payload_nonsetter_no_command_topic(self, ac2a_device):
         from unittest.mock import MagicMock
@@ -710,6 +818,225 @@ class TestMqttClient:
         assert NORMAL_DEVICE_FIELDS["chargingMode"].topic_name == "charging_mode"
         assert NORMAL_DEVICE_FIELDS["power_lifting"].topic_name == "power_lifting_on"
 
+    def test_listener_registered_exactly_once_at_init(self):
+        """MQTTClient must register its listener at construction, not inside run()."""
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        # Exactly one listener after construction — not zero (added too late)
+        # and not growing on every reconnect.
+        assert len(bus.parser_listeners) == 1
+        assert bus.parser_listeners[0] == mqtt.handle_message
+
+    # ── _handle_message publish path ─────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_handle_message_publishes_numeric(self, ac2a_device):
+        from unittest.mock import AsyncMock, MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mock_client = MagicMock()
+        mock_client.publish = AsyncMock()
+
+        await mqtt._handle_message(
+            mock_client,
+            ParserMessage(ac2a_device, {"packTotalSoc": 85}),
+        )
+
+        mock_client.publish.assert_called_once()
+        topic, = [c.args[0] for c in mock_client.publish.call_args_list]
+        assert topic == "bluetti/state/AC2A-TEST/total_battery_percent"
+        payload = mock_client.publish.call_args.kwargs["payload"]
+        assert payload == b"85"
+
+    @pytest.mark.asyncio
+    async def test_handle_message_publishes_bool_on_off(self, ac2a_device):
+        from unittest.mock import AsyncMock, MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mock_client = MagicMock()
+        mock_client.publish = AsyncMock()
+
+        await mqtt._handle_message(
+            mock_client,
+            ParserMessage(ac2a_device, {"ac_output": True}),
+        )
+        payload = mock_client.publish.call_args.kwargs["payload"]
+        assert payload == b"ON"
+
+        mock_client.publish.reset_mock()
+        await mqtt._handle_message(
+            mock_client,
+            ParserMessage(ac2a_device, {"ac_output": False}),
+        )
+        payload = mock_client.publish.call_args.kwargs["payload"]
+        assert payload == b"OFF"
+
+    @pytest.mark.asyncio
+    async def test_handle_message_time_to_full_scaled(self, ac2a_device):
+        """packChgFullTime raw value is ×6 to convert 0.1h units to minutes."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mock_client = MagicMock()
+        mock_client.publish = AsyncMock()
+
+        # charging → time_to_full should be published, time_to_empty skipped
+        await mqtt._handle_message(
+            mock_client,
+            ParserMessage(ac2a_device, {"packChargingStatus": 1, "packChgFullTime": 10}),
+        )
+        calls = {c.args[0]: c.kwargs["payload"] for c in mock_client.publish.call_args_list}
+        assert "bluetti/state/AC2A-TEST/time_to_full_minutes" in calls
+        assert calls["bluetti/state/AC2A-TEST/time_to_full_minutes"] == b"60"
+        assert "bluetti/state/AC2A-TEST/time_to_empty_minutes" not in calls
+
+    @pytest.mark.asyncio
+    async def test_handle_message_time_to_empty_skipped_when_charging(self, ac2a_device):
+        from unittest.mock import AsyncMock, MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mock_client = MagicMock()
+        mock_client.publish = AsyncMock()
+
+        # discharging → time_to_empty published, time_to_full skipped
+        await mqtt._handle_message(
+            mock_client,
+            ParserMessage(ac2a_device, {"packChargingStatus": 2, "packDsgEmptyTime": 20}),
+        )
+        calls = {c.args[0]: c.kwargs["payload"] for c in mock_client.publish.call_args_list}
+        assert "bluetti/state/AC2A-TEST/time_to_empty_minutes" in calls
+        assert calls["bluetti/state/AC2A-TEST/time_to_empty_minutes"] == b"120"
+        assert "bluetti/state/AC2A-TEST/time_to_full_minutes" not in calls
+
+    @pytest.mark.asyncio
+    async def test_handle_message_charging_status_enum(self, ac2a_device):
+        from unittest.mock import AsyncMock, MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mock_client = MagicMock()
+        mock_client.publish = AsyncMock()
+
+        await mqtt._handle_message(
+            mock_client,
+            ParserMessage(ac2a_device, {"packChargingStatus": 2}),
+        )
+        calls = {c.args[0]: c.kwargs["payload"] for c in mock_client.publish.call_args_list}
+        assert calls["bluetti/state/AC2A-TEST/pack_charging_status"] == b"DISCHARGING"
+
+    @pytest.mark.asyncio
+    async def test_handle_message_unknown_field_skipped(self, ac2a_device):
+        from unittest.mock import AsyncMock, MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mock_client = MagicMock()
+        mock_client.publish = AsyncMock()
+
+        await mqtt._handle_message(
+            mock_client,
+            ParserMessage(ac2a_device, {"notAKnownField": 99}),
+        )
+        mock_client.publish.assert_not_called()
+
+    # ── _handle_command dispatch path ────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_handle_command_bool_on_puts_write_command(self, ac2a_device_num):
+        from unittest.mock import MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mqtt.devices.append(ac2a_device_num)
+
+        received = []
+        bus.add_command_listener(lambda msg: received.append(msg))
+
+        mock_msg = MagicMock()
+        mock_msg.topic = MagicMock()
+        mock_msg.topic.__str__ = lambda self: "bluetti/command/AC2A-12345678/ac_output"
+        mock_msg.payload = b"ON"
+
+        bus_task = asyncio.create_task(bus.run())
+        await mqtt._handle_command(mock_msg)
+        await asyncio.sleep(0.05)
+        bus_task.cancel()
+
+        assert len(received) == 1
+        assert received[0].command.address == 2011
+        assert received[0].command.value == 1
+
+    @pytest.mark.asyncio
+    async def test_handle_command_bool_off(self, ac2a_device_num):
+        from unittest.mock import MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        mqtt.devices.append(ac2a_device_num)
+
+        received = []
+        bus.add_command_listener(lambda msg: received.append(msg))
+
+        mock_msg = MagicMock()
+        mock_msg.topic.__str__ = lambda self: "bluetti/command/AC2A-12345678/dc_output"
+        mock_msg.payload = b"OFF"
+
+        bus_task = asyncio.create_task(bus.run())
+        await mqtt._handle_command(mock_msg)
+        await asyncio.sleep(0.05)
+        bus_task.cancel()
+
+        assert len(received) == 1
+        assert received[0].command.address == 2012
+        assert received[0].command.value == 0
+
+    @pytest.mark.asyncio
+    async def test_handle_command_unknown_topic_ignored(self, ac2a_device_num):
+        from unittest.mock import MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+
+        received = []
+        bus.add_command_listener(lambda msg: received.append(msg))
+
+        mock_msg = MagicMock()
+        mock_msg.topic.__str__ = lambda self: "bluetti/command/bad-topic"
+        mock_msg.payload = b"ON"
+
+        bus_task = asyncio.create_task(bus.run())
+        await mqtt._handle_command(mock_msg)
+        await asyncio.sleep(0.05)
+        bus_task.cancel()
+
+        assert len(received) == 0
+
+    @pytest.mark.asyncio
+    async def test_handle_command_unknown_device_ignored(self, ac2a_device_num):
+        from unittest.mock import MagicMock
+
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        # ac2a_device_num NOT added to mqtt.devices — valid format but unknown device
+
+        received = []
+        bus.add_command_listener(lambda msg: received.append(msg))
+
+        mock_msg = MagicMock()
+        mock_msg.topic.__str__ = lambda self: "bluetti/command/AC2A-99999999/ac_output"
+        mock_msg.payload = b"ON"
+
+        bus_task = asyncio.create_task(bus.run())
+        await mqtt._handle_command(mock_msg)
+        await asyncio.sleep(0.05)
+        bus_task.cancel()
+
+        assert len(received) == 0
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  DeviceHandler — polling data flow
@@ -720,9 +1047,10 @@ class TestDeviceHandler:
     @pytest.mark.asyncio
     async def test_poll_once_no_double_strip(self, ac2a_device, ac2a_home_bytes):
         """execute() already returns stripped body; _poll_once must not strip again."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
+
+        from src.bluetti_cli.bus import EventBus
         from src.bluetti_cli.device_handler import DeviceHandler
-        from src.bluetti_cli.bus import EventBus, ParserMessage
 
         bus = EventBus()
         handler = DeviceHandler("00:00:00:00:00:00", ac2a_device, 0, bus)
@@ -810,8 +1138,6 @@ class TestCli:
 #  Load test
 # ═══════════════════════════════════════════════════════════════════════
 
-
-import src.bluetti_cli.load_test as lt
 
 
 class TestEnergyComputation:
@@ -1354,11 +1680,6 @@ class TestMqttPublishService:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-from src.bluetti_cli.device_handler import (
-    SourceChangeWatcher, _PyFileHandler, _watch_source_changes,
-)
-
-
 class TestSourceChangeWatcher:
     def test_watcher_event_set_on_py_modify(self, tmp_path):
         (tmp_path / "mod.py").touch()
@@ -1366,7 +1687,7 @@ class TestSourceChangeWatcher:
         watcher.start()
         try:
             (tmp_path / "mod.py").write_text("x = 1")
-            import time; time.sleep(0.3)
+            time.sleep(0.3)
             assert watcher.changed.is_set()
         finally:
             watcher.stop()
@@ -1376,7 +1697,7 @@ class TestSourceChangeWatcher:
         watcher.start()
         try:
             (tmp_path / "notes.txt").write_text("hello")
-            import time; time.sleep(0.3)
+            time.sleep(0.3)
             assert not watcher.changed.is_set()
         finally:
             watcher.stop()
@@ -1409,9 +1730,6 @@ class TestSourceChangeWatcher:
 # ═══════════════════════════════════════════════════════════════════════
 #  Shutdown watch latch logic
 # ═══════════════════════════════════════════════════════════════════════
-
-
-from src.bluetti_cli.shutdown_watch import ShutdownWatch
 
 
 class TestShutdownWatch:
