@@ -94,17 +94,17 @@ def scan(timeout):
 
     label = click.style(str(len(devices)), fg="cyan", bold=True)
     click.echo(f"\n{label} device(s) found:\n")
-    for addr, name in devices:
-        click.echo(f"  {click.style(addr, fg='green')}  \u2014  {name}")
+    for sr in devices:
+        click.echo(f"  {sr.display()}")
 
     click.echo()
     if len(devices) == 1:
         click.echo("To read data from this device:")
-        click.echo(f"  {click.style(f'bluetti-cli status {devices[0][0]}', bold=True)}")
+        click.echo(f"  {click.style(f'bluetti-cli status {devices[0].address}', bold=True)}")
     else:
         click.echo("To read data from a specific device:")
-        for addr, _ in devices:
-            cmd = click.style(f"bluetti-cli status {addr}", bold=True)
+        for sr in devices:
+            cmd = click.style(f"bluetti-cli status {sr.address}", bold=True)
             click.echo(f"  {cmd}")
 
 
