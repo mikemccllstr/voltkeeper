@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.bluetti_cli.bluetooth import _PREFIX_ENCRYPTED, PREFIX_PLAINTEXT, ScanResult, _classify, build_device
+from src.bluetti_cli.bluetooth import PREFIX_ENCRYPTED, PREFIX_PLAINTEXT, ScanResult, _classify, build_device
 
 
 def test_build_device_rejects_unknown():
@@ -21,12 +21,12 @@ class TestClassify:
 
     def test_encrypted_bluette(self):
         adv = MagicMock()
-        adv.manufacturer_data = {0xFFFF: _PREFIX_ENCRYPTED[0] + b"\xaa\xbb"}
+        adv.manufacturer_data = {0xFFFF: PREFIX_ENCRYPTED[0] + b"\xaa\xbb"}
         assert _classify(adv) is True
 
     def test_encrypted_bluettf(self):
         adv = MagicMock()
-        adv.manufacturer_data = {0xFFFF: _PREFIX_ENCRYPTED[1] + b"\xcc\xdd"}
+        adv.manufacturer_data = {0xFFFF: PREFIX_ENCRYPTED[1] + b"\xcc\xdd"}
         assert _classify(adv) is True
 
     def test_unknown_empty(self):

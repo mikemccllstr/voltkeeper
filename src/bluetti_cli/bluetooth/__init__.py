@@ -11,7 +11,7 @@ SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 _DEVICE_NAME_SN_RE = re.compile(r"^(AC2A|AC60|EP600|EP500|EB3A)(\d+)$")
 
 PREFIX_PLAINTEXT = bytes.fromhex("424c5545545449")
-_PREFIX_ENCRYPTED = (
+PREFIX_ENCRYPTED = (
     bytes.fromhex("424c5545545445"),
     bytes.fromhex("424c5545545446"),
 )
@@ -53,7 +53,7 @@ def _classify(adv) -> bool | None:
     for blob in adv.manufacturer_data.values():
         if blob.startswith(PREFIX_PLAINTEXT):
             return False
-        if any(blob.startswith(p) for p in _PREFIX_ENCRYPTED):
+        if any(blob.startswith(p) for p in PREFIX_ENCRYPTED):
             return True
     return None
 

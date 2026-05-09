@@ -704,14 +704,65 @@ real BLE is unavailable — Unit 7 wires it.
 ### Goal
 
 Make `BluetoothClient` optionally drive the handshake at connect-time and wrap
-every Modbus frame with `CbcSession`.
+every Modbus frame with `CbcSession`. Plumb the `encrypted` flag from scan
+results all the way through to `BluetoothClient` construction.
+
+### Plumbing the encrypted flag (read this first)
+
+Unit 3 introduced `ScanResult(address, name, encrypted)` but two existing APIs
+**discard the encrypted field on the floor**:
+
+- `pick_address_after_scan() -> tuple[str, str]` (`bluetooth/__init__.py:80`)
+  drops `encrypted` when extracting `(sr.address, sr.name)`.
+- `lookup_device_name(address) -> str` (`bluetooth/__init__.py:38`) only
+  returns the name string — it scans but never reports the manufacturer-data
+  classification.
+
+Two API changes are required as part of Unit 7:
+
+1. **Change `pick_address_after_scan` to return `ScanResult`.** One internal
+   call site at `cli.py:139` (the `status` command's interactive scan path).
+   Update that caller to unpack `sr.address`, `sr.name`, `sr.encrypted`.
+
+2. **Replace `lookup_device_name` with `lookup_scan_result`.** New signature:
+
+   ```python
+   async def lookup_scan_result(address: str, timeout: float = 5.0) -> ScanResult:
+       """Scan briefly for a specific address; return its ScanResult.
+
+       If the address is found, the returned ScanResult carries name +
+       encrypted classification. If not found (timed out), returns a
+       ScanResult with name == address and encrypted=None — caller should
+       decide how to proceed (default to plaintext or error out).
+       """
+   ```
+
+   Then update every existing call site of `lookup_device_name` in `cli.py`
+   (six of them — `grep -n 'lookup_device_name' src/`) to use
+   `lookup_scan_result` and pass `encrypted=sr.encrypted or False` into
+   `BluetoothClient`. **All commands that take an ADDRESS argument need
+   updating**: `status`, `write`, `mqtt-publish`, `mqtt-listen`,
+   `load-test`. Plus any helpers in `device_handler.py`.
+
+Default-to-plaintext when `encrypted is None`: this preserves AC2A behaviour
+when the manufacturer data wasn't observed (e.g., the device was already
+connected by the OS or the scan timed out). The plaintext path will fail
+loudly with a CRC error against an actually-encrypted device, which is the
+right signal for the user to re-run after disconnecting other clients.
 
 ### Files to modify
 
-- `src/bluetti_cli/bluetooth/client.py` — accept `encrypted: bool`, run
-  handshake on connect, wrap `execute()` I/O in cipher.
-- `src/bluetti_cli/device_handler.py` and `src/bluetti_cli/cli.py` — propagate
-  the `encrypted` flag from scan results into `BluetoothClient(...)`.
+- `src/bluetti_cli/bluetooth/__init__.py`:
+  - Change `pick_address_after_scan() -> ScanResult`.
+  - Replace `lookup_device_name(address) -> str` with
+    `lookup_scan_result(address) -> ScanResult`.
+- `src/bluetti_cli/bluetooth/client.py` — accept `encrypted: bool = False`,
+  run handshake on connect, wrap `execute()` I/O in cipher.
+- `src/bluetti_cli/cli.py` — every `BluetoothClient(address)` constructor
+  gets an `encrypted=` kwarg derived from the scan result; every
+  `lookup_device_name` call replaced with `lookup_scan_result`.
+- `src/bluetti_cli/device_handler.py` — same plumbing for any
+  `BluetoothClient(...)` it owns.
 
 ### Implementation shape
 
@@ -745,6 +796,14 @@ class BluetoothClient:
         ...
 ```
 
+Caller pattern (in every command that takes ADDRESS):
+
+```python
+sr = loop.run_until_complete(lookup_scan_result(address))
+device = build_device(address, sr.name)
+client = BluetoothClient(address, encrypted=bool(sr.encrypted))
+```
+
 **Diagnostic for SN-validation failure** (FINDINGS context — Bluetti's
 licensed `_bluetti_crypt.so` has a status-3 SN-validation step that we do not
 implement):
@@ -763,16 +822,27 @@ raise BadConnectionError(
 
 1. **Unit test:** mock `BleakClient`, feed pre-recorded handshake bytes,
    verify `connect()` produces a `CbcSession` with the expected key.
-2. **Regression:** `uv run pytest -m integration` against an AC2A — `status`,
+2. **Unit test for plumbing:** `test_lookup_scan_result_returns_encryption_flag`
+   — mock `BleakScanner.discover` to return an advertisement with
+   `PREFIX_ENCRYPTED[0]` manufacturer data; assert returned `ScanResult` has
+   `encrypted is True`. Same for plaintext and unknown.
+3. **Unit test for default-to-plaintext:** `test_pick_address_returns_scanresult`
+   — verify `pick_address_after_scan` returns a `ScanResult`, not a tuple.
+4. **Regression:** `uv run pytest -m integration` against an AC2A — `status`,
    `write ac_output on/off`, and `mqtt-publish` still all work (plaintext
    path unchanged).
-3. **Manual encrypted test:** if an encrypted device is reachable, run
+5. **Manual encrypted test:** if an encrypted device is reachable, run
    `bluetti-cli scan` (sees `[encrypted]`), then `bluetti-cli status <ADDR>` —
    expect either a populated reading or the SN-validation diagnostic above.
 
 ### Done when
 
-- AC2A behaviour identical.
+- AC2A behaviour identical (regression suite green).
+- `pick_address_after_scan` returns `ScanResult`.
+- `lookup_device_name` is gone; `lookup_scan_result` is the single source of
+  per-address scan info.
+- Every `BluetoothClient(...)` construction in `src/` passes an explicit
+  `encrypted=` keyword.
 - Encrypted-device path either works or fails with a clear, actionable error.
 - No reference to `AC2A` remains in `client.py`.
 
