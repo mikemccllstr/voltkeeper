@@ -518,16 +518,16 @@ class TestChargingMode:
 
 class TestCtrlEvent:
     def test_all_off(self, ac2a_device):
-        caps = AC2A.decode_ctrl_event(0)
+        caps = ac2a_device.decode_ctrl_event(0)
         assert all(not v for v in caps.values())
         assert len(caps) == 11
 
     def test_all_on(self, ac2a_device):
-        caps = AC2A.decode_ctrl_event(0x07FF)
+        caps = ac2a_device.decode_ctrl_event(0x07FF)
         assert all(caps.values())
 
     def test_partial_bits(self, ac2a_device):
-        caps = AC2A.decode_ctrl_event(0x0407)
+        caps = ac2a_device.decode_ctrl_event(0x0407)
         assert caps["power_control"]
         assert caps["ac_control"]
         assert caps["dc_control"]
@@ -1891,6 +1891,29 @@ class TestShutdownWatch:
 
 
 class TestMqttListenCLI:
+    def test_requires_device_type_when_no_address(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["mqtt-listen", "--serial", "1234", "--broker", "x"])
+        assert result.exit_code != 0
+        assert "device-type" in result.output.lower()
+
+    def test_validates_device_type(self):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen",
+                "--serial",
+                "1234",
+                "--broker",
+                "x",
+                "--device-type",
+                "INVALID",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "INVALID" in result.output or "Unknown" in result.output
+
     def test_help(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["mqtt-listen", "--help"])
@@ -2072,3 +2095,50 @@ class TestMqttListenService:
         )
         assert result.exit_code == 0
         assert "ADDRESS" not in result.output
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Unit 2 — base-class ctrl_event defaults and device-type resolution
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def test_decode_ctrl_event_default_returns_none():
+    from src.bluetti_cli.core.devices.bluetti_device import BluettiDevice
+
+    class MinimalDevice(BluettiDevice):
+        def parse(self, address, data):
+            return {}
+
+        def has_field(self, field):
+            return False
+
+        def has_field_setter(self, field):
+            return False
+
+        def build_setter_command(self, field, value):
+            raise NotImplementedError
+
+        @property
+        def polling_commands(self):
+            return []
+
+        @property
+        def logging_commands(self):
+            return []
+
+    d = MinimalDevice("00:00:00:00:00:00", "TEST", "123")
+    assert d.decode_ctrl_event(0) is None
+
+
+def test_device_registry_is_public():
+    from src.bluetti_cli.bluetooth import device_registry
+
+    reg = device_registry()
+    assert "AC2A" in reg
+
+
+def test_is_supported_device_type():
+    from src.bluetti_cli.bluetooth import is_supported_device_type
+
+    assert is_supported_device_type("AC2A") is True
+    assert is_supported_device_type("BOGUS") is False

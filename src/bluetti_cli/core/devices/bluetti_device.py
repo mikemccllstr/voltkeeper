@@ -39,3 +39,10 @@ class BluettiDevice:
     @property
     def writable_ranges(self) -> List[range]:
         return []
+
+    def decode_ctrl_event(self, ctrl_event: int) -> dict[str, bool] | None:
+        return None
+
+    @property
+    def ctrl_event_bits(self) -> list[tuple[str, str]]:
+        return []

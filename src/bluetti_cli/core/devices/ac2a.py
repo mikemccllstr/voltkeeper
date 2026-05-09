@@ -213,9 +213,12 @@ class AC2A(BluettiDevice):
         ("super_power", "super_power"),
     ]
 
-    @classmethod
-    def decode_ctrl_event(cls, ctrl_event: int) -> dict:
-        return {name: bool(ctrl_event & (1 << i)) for i, (name, _) in enumerate(cls.CTRL_EVENT_BITS)}
+    @property
+    def ctrl_event_bits(self) -> list[tuple[str, str]]:
+        return self.CTRL_EVENT_BITS
+
+    def decode_ctrl_event(self, ctrl_event: int) -> dict[str, bool]:
+        return {name: bool(ctrl_event & (1 << i)) for i, (name, _) in enumerate(self.CTRL_EVENT_BITS)}
 
     # ── Parse dispatch ─────────────────────────────────────────────────
 

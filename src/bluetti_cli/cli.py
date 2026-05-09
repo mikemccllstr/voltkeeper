@@ -9,7 +9,13 @@ import sys
 import click
 
 from . import load_test
-from .bluetooth import build_device, lookup_device_name, pick_address_after_scan
+from .bluetooth import (
+    build_device,
+    device_registry,
+    is_supported_device_type,
+    lookup_device_name,
+    pick_address_after_scan,
+)
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .core.commands import ReadHoldingRegisters
@@ -210,7 +216,7 @@ def status(address, timeout, verbose):
         sys.exit(1)
 
     if verbose:
-        _print_verbose(home, inv_base, pv, grid, load, inv_info, controls)
+        _print_verbose(device, home, inv_base, pv, grid, load, inv_info, controls)
     else:
         _print_status(home)
 
@@ -243,6 +249,7 @@ def _print_status(home: dict) -> None:
 
 
 def _print_verbose(
+    device,
     home: dict,
     inv_base: dict,
     pv: dict,
@@ -451,15 +458,23 @@ def _print_verbose(
 
         ctrl_event = home.get("ctrl_event") or (controls or {}).get("ctrl_event")
         if ctrl_event is not None:
-            from .core.devices.ac2a import AC2A
-
-            caps = AC2A.decode_ctrl_event(ctrl_event)
-            click.echo(
-                f"\n  {click.style(f'CAPABILITIES (CTRL_EVENT @ 124: {ctrl_event:#018b})', bold=True, fg='magenta')}"
-            )
-            for name, _ in AC2A.CTRL_EVENT_BITS:
-                if name in caps:
-                    click.echo(f"    {name:<20s}  {'yes' if caps[name] else 'no'}")
+            caps = device.decode_ctrl_event(ctrl_event)
+            if caps is None:
+                click.echo(
+                    f"\n  {click.style(f'CTRL_EVENT (register 124: {ctrl_event:#018b})', bold=True, fg='magenta')}"
+                )
+            else:
+                click.echo(
+                    "\n  "
+                    + click.style(
+                        f"CAPABILITIES (CTRL_EVENT @ 124: {ctrl_event:#018b})",
+                        bold=True,
+                        fg="magenta",
+                    )
+                )
+                for name, _ in device.ctrl_event_bits:
+                    if name in caps:
+                        click.echo(f"    {name:<20s}  {'yes' if caps[name] else 'no'}")
 
     click.echo(f"\n{sep}")
 
@@ -875,6 +890,12 @@ def mqtt_publish_service(
     "--serial",
     help="Device serial number (required if ADDRESS not given).",
 )
+@click.option(
+    "--device-type",
+    type=str,
+    default=None,
+    help="Device model (e.g. AC2A). Required when --serial is given without ADDRESS.",
+)
 @click.option("--broker", required=True, help="MQTT broker hostname.")
 @click.option("--port", type=int, default=1883, show_default=True, help="MQTT broker port.")
 @click.option("--username", help="MQTT broker username.")
@@ -899,7 +920,18 @@ def mqtt_publish_service(
     show_default=True,
     help="Exit cleanly when source code changes, so systemd restarts the process.",
 )
-def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, grace_period, restart_on_source_change):
+def mqtt_listen(
+    address,
+    serial,
+    device_type,
+    broker,
+    port,
+    username,
+    password,
+    shutdown_at,
+    grace_period,
+    restart_on_source_change,
+):
     """Watch battery SOC via MQTT and trigger system shutdown.
 
     Subscribes to the device's MQTT topic and watches total_battery_percent.
@@ -925,9 +957,7 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
     if not address and not serial:
         raise click.UsageError("Provide ADDRESS, --serial, or both.")
 
-    sn = serial
-    device_type = "AC2A"
-    if sn is None:
+    if address:
         address = address.upper()
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -937,9 +967,21 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
             loop.close()
         _device = build_device(address, device_name)
         sn = _device.sn
-        device_type = _device.type
+        device_type_resolved = _device.type
+    elif device_type:
+        if not is_supported_device_type(device_type):
+            raise click.BadParameter(
+                f"Unknown device type {device_type!r}. Known: {sorted(device_registry())}",
+                param_hint="--device-type",
+            )
+        device_type_resolved = device_type
+        sn = serial
+    else:
+        raise click.UsageError(
+            "When ADDRESS is omitted, pass --device-type so the MQTT topic is correct (e.g. --device-type AC2A)."
+        )
 
-    topic = f"bluetti/state/{device_type}-{sn}/total_battery_percent"
+    topic = f"bluetti/state/{device_type_resolved}-{sn}/total_battery_percent"
 
     watcher = None
     if restart_on_source_change:
@@ -1030,7 +1072,7 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
     service_name = f"bluetti-shutdown-{serial}"
 
     lines = [
-        "# Bluetti AC2A shutdown watchdog — systemd service",
+        "# Bluetti shutdown watchdog — systemd service",
         f"# Generated by: bluetti-cli mqtt-listen-service --serial {serial} --broker {broker}",
         "#",
         "# To install:",
@@ -1059,7 +1101,7 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
     lines += [
         "",
         "[Unit]",
-        f"Description=Bluetti AC2A shutdown watchdog ({serial})",
+        f"Description=Bluetti shutdown watchdog ({serial})",
         "After=network-online.target",
         "Wants=network-online.target",
         "",

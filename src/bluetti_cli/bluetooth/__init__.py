@@ -85,6 +85,14 @@ def _device_registry() -> dict[str, type]:
     return {"AC2A": AC2A}
 
 
+def device_registry() -> dict[str, type]:
+    return _device_registry()
+
+
+def is_supported_device_type(prefix: str) -> bool:
+    return prefix in _device_registry()
+
+
 def build_device(address: str, name: str):
     sn = _parse_sn(name)
     prefix_match = _DEVICE_NAME_SN_RE.match(name.strip())
