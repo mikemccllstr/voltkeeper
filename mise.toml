@@ -10,12 +10,16 @@ description = "Run ruff linter"
 run = "uv run ruff check src/ tests/"
 
 [tasks.format]
-description = "Run ruff formatter"
+description = "Run ruff formatter (apply)"
 run = "uv run ruff format src/ tests/"
 
 [tasks.fmt]
 description = "Alias for format"
 run = "uv run ruff format src/ tests/"
+
+[tasks.format-check]
+description = "Check formatting without modifying files (for CI)"
+run = "uv run ruff format --check src/ tests/"
 
 [tasks.typecheck]
 description = "Run mypy type checker"

@@ -18,7 +18,8 @@ This project uses [mise](https://mise.jdx.dev/) to define developer tasks. Alway
 | Task | Purpose |
 |---|---|
 | `mise run lint` | Ruff linter (`ruff check src/ tests/`) |
-| `mise run format` | Ruff formatter (`ruff format src/ tests/`) |
+| `mise run format` | Ruff formatter — applies changes |
+| `mise run format-check` | Ruff formatter — check only, no changes (used in CI) |
 | `mise run typecheck` | Mypy type checker |
 | `mise run test` | Pytest with branch coverage report |
 | `mise run test-fast` | Pytest without coverage overhead |
