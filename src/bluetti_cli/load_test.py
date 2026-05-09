@@ -49,9 +49,9 @@ SOC_BAR_WIDTH = 20
 # ═══════════════════════════════════════════════════════════════════════
 
 
-async def run_load_test(device, output_path, interval, expected_load, phase):
+async def run_load_test(device, output_path, interval, expected_load, phase, *, encrypted: bool = False):
     """Run a full load-test cycle: coach → verify → poll → CSV → summary."""
-    client = BluetoothClient(device.address)
+    client = BluetoothClient(device.address, encrypted=encrypted)
     await client.connect()
 
     try:

@@ -10,10 +10,11 @@ import click
 
 from . import load_test
 from .bluetooth import (
+    ScanResult,
     build_device,
     device_registry,
     is_supported_device_type,
-    lookup_device_name,
+    lookup_scan_result,
     pick_address_after_scan,
 )
 from .bluetooth.client import BluetoothClient
@@ -136,9 +137,12 @@ def status(address, timeout, verbose):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            address, device_name = loop.run_until_complete(pick_address_after_scan())
+            sr = loop.run_until_complete(pick_address_after_scan())
         finally:
             loop.close()
+        address = sr.address
+        device_name = sr.name
+        encrypted = sr.encrypted or False
         tip = click.style(f"bluetti-cli status {address}", bold=True)
         click.echo(f"\nTip: next time, run directly with:\n  {tip}")
     else:
@@ -146,12 +150,14 @@ def status(address, timeout, verbose):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address))
+            sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
+        device_name = sr.name
+        encrypted = sr.encrypted or False
 
     device = build_device(address, device_name)
-    client = BluetoothClient(address)
+    client = BluetoothClient(address, encrypted=encrypted)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -502,11 +508,11 @@ def write(address, field, value):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        device_name = loop.run_until_complete(lookup_device_name(address))
+        sr = loop.run_until_complete(lookup_scan_result(address))
     finally:
         loop.close()
 
-    device = build_device(address, device_name)
+    device = build_device(address, sr.name)
 
     if not device.has_field_setter(field):
         click.secho(f"Unknown writable field: {field}", fg="red")
@@ -519,7 +525,7 @@ def write(address, field, value):
         click.secho(f"Invalid value for {field}: {value} ({e})", fg="red")
         sys.exit(1)
 
-    client = BluetoothClient(address)
+    client = BluetoothClient(address, encrypted=sr.encrypted or False)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -626,12 +632,14 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address))
+            sr = loop.run_until_complete(lookup_scan_result(address, timeout=1.0))
+        except Exception:
+            sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, device_name)
+        device = build_device(address, sr.name)
     bus = EventBus()
-    handler = DeviceHandler(address, device, interval, bus)
+    handler = DeviceHandler(address, device, interval, bus, encrypted=sr.encrypted or False)
     mqtt_client = MQTTClient(
         bus=bus,
         hostname=broker,
@@ -722,11 +730,11 @@ def load_test_command(address, output, interval, expected_load, phase):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        device_name = loop.run_until_complete(lookup_device_name(address))
+        sr = loop.run_until_complete(lookup_scan_result(address))
     finally:
         loop.close()
 
-    device = build_device(address, device_name)
+    device = build_device(address, sr.name)
 
     if output is None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -735,7 +743,9 @@ def load_test_command(address, output, interval, expected_load, phase):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(load_test.run_load_test(device, output, interval, expected_load, phase))
+        loop.run_until_complete(
+            load_test.run_load_test(device, output, interval, expected_load, phase, encrypted=sr.encrypted or False)
+        )
     except KeyboardInterrupt:
         click.echo("\nInterrupted.")
     except Exception as exc:
@@ -785,12 +795,12 @@ def mqtt_publish_service(
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address, timeout=1.0))
+            sr = loop.run_until_complete(lookup_scan_result(address, timeout=1.0))
         except Exception:
-            device_name = address
+            sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, device_name)
+        device = build_device(address, sr.name)
 
     # Executable path
     if exec_path:
@@ -962,10 +972,10 @@ def mqtt_listen(
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address))
+            sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
-        _device = build_device(address, device_name)
+        _device = build_device(address, sr.name)
         sn = _device.sn
         device_type_resolved = _device.type
     elif device_type:

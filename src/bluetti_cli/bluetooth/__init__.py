@@ -37,6 +37,22 @@ def _parse_sn(name: str) -> str:
     return name.replace(":", "").replace("-", "")
 
 
+async def lookup_scan_result(address: str, timeout: float = 5.0) -> ScanResult:
+    devices = await BleakScanner.discover(
+        timeout=timeout,
+        service_uuids=[SERVICE_UUID],
+        return_adv=True,
+    )
+    for addr, (device, adv) in devices.items():
+        if addr.upper() == address.upper():
+            name = (device.name or adv.local_name or "").strip()
+            if not name:
+                name = address
+            encrypted = _classify(adv)
+            return ScanResult(address=address, name=name, encrypted=encrypted)
+    return ScanResult(address=address, name=address, encrypted=None)
+
+
 async def lookup_device_name(address: str, timeout: float = 5.0) -> str:
     devices = await BleakScanner.discover(
         timeout=timeout,
@@ -79,7 +95,7 @@ async def scan_devices(timeout: float = 10.0) -> list[ScanResult]:
     return sorted(found, key=lambda x: x.address)
 
 
-async def pick_address_after_scan() -> tuple[str, str]:
+async def pick_address_after_scan() -> ScanResult:
     devices = await scan_devices()
 
     if not devices:
@@ -90,7 +106,7 @@ async def pick_address_after_scan() -> tuple[str, str]:
     if len(devices) == 1:
         sr = devices[0]
         click.echo(f"\nFound 1 device \u2192 auto-selecting: {sr.display()}")
-        return sr.address, sr.name
+        return sr
 
     click.echo(f"\nFound {len(devices)} Bluetti devices:\n")
     for i, sr in enumerate(devices, 1):
@@ -102,8 +118,7 @@ async def pick_address_after_scan() -> tuple[str, str]:
             choice = input(f"Select device (1-{len(devices)}): ").strip()
             idx = int(choice) - 1
             if 0 <= idx < len(devices):
-                sr = devices[idx]
-                return sr.address, sr.name
+                return devices[idx]
         except (ValueError, EOFError, KeyboardInterrupt):
             click.echo()
             sys.exit(1)

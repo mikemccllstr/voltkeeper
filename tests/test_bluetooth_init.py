@@ -1,11 +1,18 @@
 # ABOUTME: Unit tests for bluetti_cli.bluetooth module — registry dispatch, build_device, scan classification.
-# ABOUTME: Units 1 and 3 per IMPLEMENTATION_UNITS.md.
+# ABOUTME: Units 1, 3, and 7 per IMPLEMENTATION_UNITS.md.
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.bluetti_cli.bluetooth import PREFIX_ENCRYPTED, PREFIX_PLAINTEXT, ScanResult, _classify, build_device
+from src.bluetti_cli.bluetooth import (
+    PREFIX_ENCRYPTED,
+    PREFIX_PLAINTEXT,
+    ScanResult,
+    _classify,
+    build_device,
+    lookup_scan_result,
+)
 
 
 def test_build_device_rejects_unknown():
@@ -52,3 +59,60 @@ class TestScanResult:
     def test_display_unknown(self):
         r = ScanResult("AA:BB:CC:DD:EE:FF", "SomeDevice", None)
         assert "[unknown]" in r.display()
+
+
+class TestLookupScanResult:
+    @pytest.mark.asyncio
+    async def test_encrypted(self):
+        name = "EP6001234567"
+        addr = "AA:BB:CC:DD:EE:FF"
+        dev = MagicMock()
+        dev.name = name
+        adv = MagicMock()
+        adv.local_name = name
+        adv.manufacturer_data = {0xFFFF: PREFIX_ENCRYPTED[0] + b"\xaa\xbb"}
+        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+            mock_discover.return_value = {addr: (dev, adv)}
+            sr = await lookup_scan_result(addr)
+            assert sr.address == addr
+            assert sr.name == name
+            assert sr.encrypted is True
+
+    @pytest.mark.asyncio
+    async def test_plaintext(self):
+        name = "AC2A1234567"
+        addr = "AA:BB:CC:DD:EE:FF"
+        dev = MagicMock()
+        dev.name = name
+        adv = MagicMock()
+        adv.local_name = name
+        adv.manufacturer_data = {0xFFFF: PREFIX_PLAINTEXT + b"\x00\x01\x02"}
+        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+            mock_discover.return_value = {addr: (dev, adv)}
+            sr = await lookup_scan_result(addr)
+            assert sr.address == addr
+            assert sr.encrypted is False
+
+    @pytest.mark.asyncio
+    async def test_unknown(self):
+        addr = "AA:BB:CC:DD:EE:FF"
+        dev = MagicMock()
+        dev.name = ""
+        adv = MagicMock()
+        adv.local_name = ""
+        adv.manufacturer_data = {}
+        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+            mock_discover.return_value = {addr: (dev, adv)}
+            sr = await lookup_scan_result(addr)
+            assert sr.address == addr
+            assert sr.encrypted is None
+
+    @pytest.mark.asyncio
+    async def test_not_found_returns_default(self):
+        addr = "AA:BB:CC:DD:EE:FF"
+        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+            mock_discover.return_value = {}
+            sr = await lookup_scan_result(addr)
+            assert sr.address == addr
+            assert sr.name == addr
+            assert sr.encrypted is None
