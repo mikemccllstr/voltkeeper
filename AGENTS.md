@@ -10,3 +10,19 @@ When writing or changing code, always follow TDD:
 ## Commit Workflow
 
 Always allow the human to review the proposed commit before committing to git. Present changes for review rather than committing directly.
+
+## Mise Tasks
+
+This project uses [mise](https://mise.jdx.dev/) to define developer tasks. Always prefer `mise run <task>` over invoking tools directly. Available tasks:
+
+| Task | Purpose |
+|---|---|
+| `mise run lint` | Ruff linter (`ruff check src/ tests/`) |
+| `mise run format` | Ruff formatter (`ruff format src/ tests/`) |
+| `mise run typecheck` | Mypy type checker |
+| `mise run test` | Pytest with branch coverage report |
+| `mise run test-fast` | Pytest without coverage overhead |
+| `mise run coverage` | Pytest + open HTML coverage report |
+| `mise run check` | Full quality gate: lint + typecheck + test |
+
+Run `mise run check` before every commit to ensure lint, types, and tests all pass.
