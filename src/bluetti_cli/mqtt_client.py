@@ -519,7 +519,7 @@ class MQTTClient:
             return
 
         field = NORMAL_DEVICE_FIELDS[m[3]]
-        cmd: DeviceCommand = None
+        cmd: Optional[DeviceCommand] = None
 
         if field.type == MqttFieldType.ENUM:
             value = mqtt_message.payload.decode("ascii")

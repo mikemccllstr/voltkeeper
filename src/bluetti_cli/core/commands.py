@@ -26,7 +26,7 @@ class DeviceCommand:
             return False
         return response[1] == self.function_code + 0x80
 
-    def is_valid_response(self, response: bytes) -> bool:
+    def is_valid_response(self, response: bytes | bytearray) -> bool:
         if len(response) < 3:
             return False
         return response[-2:] == crc16_modbus(response[:-2])
@@ -85,4 +85,4 @@ class WriteMultipleRegisters(DeviceCommand):
         return 8
 
     def __repr__(self):
-        return f"WriteMultipleRegisters(starting_address={self.starting_address}, data={self.data})"
+        return f"WriteMultipleRegisters(starting_address={self.starting_address}, data={self.data.hex()})"

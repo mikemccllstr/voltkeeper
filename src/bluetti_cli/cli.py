@@ -137,8 +137,8 @@ def status(address, timeout, verbose):
             address, device_name = loop.run_until_complete(pick_address_after_scan())
         finally:
             loop.close()
-        cmd = click.style(f"bluetti-cli status {address}", bold=True)
-        click.echo(f"\nTip: next time, run directly with:\n  {cmd}")
+        tip = click.style(f"bluetti-cli status {address}", bold=True)
+        click.echo(f"\nTip: next time, run directly with:\n  {tip}")
     else:
         address = address.upper()
         loop = asyncio.new_event_loop()
@@ -251,7 +251,7 @@ def _print_status(home: dict) -> None:
 
 def _print_verbose(
     home: dict, inv_base: dict, pv: dict, grid: dict, load: dict, inv_info: dict,
-    controls: dict = None,
+    controls: dict | None = None,
 ) -> None:
     sep = "\u2500" * 56
     click.echo(sep)
