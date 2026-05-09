@@ -1360,6 +1360,24 @@ model-specific `_fill_*` array helpers in an overridden `parse()`.
 For each model, leave a `# TODO(<model>): verify against hardware` comment at
 the top until a maintainer has confirmed `bluetti-cli status` works.
 
+### V1 model classes — alarm/fault decoding
+
+V1Base intentionally leaves `alarmInfo` (BASE_REAL_DATA registers 54-57, 4×
+16-bit) and `faultInfo` (registers 58-64, 7× 16-bit) unparsed because the
+bit-to-name map differs per device class. V1 model classes (EB3A, AC60) should
+add an `_fill_alarms` helper invoked from their overridden `parse()` that
+decodes these bitmasks using the FINDINGS §15.6 fault-name tables:
+
+- **Low-power devices** (EB3A, AC60): `lowPowerWarnNames` + `lowPowerFaultNames`
+- **High-power inverters** (none in the V1 subset, but document the mapping for
+  future contributors): `highPowerWarnNames` + `highPowerFaultNames`
+- **Battery packs**: `packHighVoltAlarmNames`, `packHighVoltErrorNames`,
+  `bmuWarnNames` (only relevant if the model exposes BMS_PACK at register 91)
+
+The helper reads register pairs from the BASE_REAL_DATA blob, walks set bits,
+and emits keys like `alarm.<name>: True` / `fault.<name>: True` so the CLI
+display surface treats them the same as any other parsed field.
+
 ### Verification
 
 1. **Registry test:** parametrised pytest over the registry —
