@@ -65,9 +65,7 @@ class TestCrc16Modbus:
         assert crc16_modbus(frame + crc) == b"\x00\x00"
 
     def test_deterministic(self):
-        assert crc16_modbus(b"\x01\x03\x00\x64\x00\x06") == crc16_modbus(
-            b"\x01\x03\x00\x64\x00\x06"
-        )
+        assert crc16_modbus(b"\x01\x03\x00\x64\x00\x06") == crc16_modbus(b"\x01\x03\x00\x64\x00\x06")
 
     def test_known_vector(self):
         assert crc16_modbus(b"\x02\x07") == b"\x41\x12"
@@ -844,7 +842,7 @@ class TestMqttClient:
         )
 
         mock_client.publish.assert_called_once()
-        topic, = [c.args[0] for c in mock_client.publish.call_args_list]
+        (topic,) = [c.args[0] for c in mock_client.publish.call_args_list]
         assert topic == "bluetti/state/AC2A-TEST/total_battery_percent"
         payload = mock_client.publish.call_args.kwargs["payload"]
         assert payload == b"85"
@@ -1139,7 +1137,6 @@ class TestCli:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-
 class TestEnergyComputation:
     def test_single_step(self):
         result = lt._compute_energy(100, 200, 3600, 0)
@@ -1245,62 +1242,76 @@ class TestBuildSample:
 
 class TestPreRequisites:
     def test_all_clear(self):
-        warnings = lt._check_prerequisites({
-            "packTotalSoc": 100,
-            "totalGridPower": 0,
-            "totalPVPower": 0,
-        })
+        warnings = lt._check_prerequisites(
+            {
+                "packTotalSoc": 100,
+                "totalGridPower": 0,
+                "totalPVPower": 0,
+            }
+        )
         assert warnings == []
 
     def test_soc_too_low(self):
-        warnings = lt._check_prerequisites({
-            "packTotalSoc": 50,
-            "totalGridPower": 0,
-            "totalPVPower": 0,
-        })
+        warnings = lt._check_prerequisites(
+            {
+                "packTotalSoc": 50,
+                "totalGridPower": 0,
+                "totalPVPower": 0,
+            }
+        )
         assert len(warnings) == 1
         assert "SOC" in warnings[0]
 
     def test_soc_missing(self):
-        warnings = lt._check_prerequisites({
-            "totalGridPower": 0,
-            "totalPVPower": 0,
-        })
+        warnings = lt._check_prerequisites(
+            {
+                "totalGridPower": 0,
+                "totalPVPower": 0,
+            }
+        )
         assert len(warnings) == 1
         assert "SOC" in warnings[0]
 
     def test_grid_too_high(self):
-        warnings = lt._check_prerequisites({
-            "packTotalSoc": 100,
-            "totalGridPower": 200,
-            "totalPVPower": 0,
-        })
+        warnings = lt._check_prerequisites(
+            {
+                "packTotalSoc": 100,
+                "totalGridPower": 200,
+                "totalPVPower": 0,
+            }
+        )
         assert len(warnings) == 1
         assert "Grid" in warnings[0]
 
     def test_grid_just_under_limit(self):
-        warnings = lt._check_prerequisites({
-            "packTotalSoc": 100,
-            "totalGridPower": 5,
-            "totalPVPower": 0,
-        })
+        warnings = lt._check_prerequisites(
+            {
+                "packTotalSoc": 100,
+                "totalGridPower": 5,
+                "totalPVPower": 0,
+            }
+        )
         assert warnings == []
 
     def test_pv_too_high(self):
-        warnings = lt._check_prerequisites({
-            "packTotalSoc": 100,
-            "totalGridPower": 0,
-            "totalPVPower": 20,
-        })
+        warnings = lt._check_prerequisites(
+            {
+                "packTotalSoc": 100,
+                "totalGridPower": 0,
+                "totalPVPower": 20,
+            }
+        )
         assert len(warnings) == 1
         assert "PV" in warnings[0]
 
     def test_multiple_warnings(self):
-        warnings = lt._check_prerequisites({
-            "packTotalSoc": 40,
-            "totalGridPower": 100,
-            "totalPVPower": 30,
-        })
+        warnings = lt._check_prerequisites(
+            {
+                "packTotalSoc": 40,
+                "totalGridPower": 100,
+                "totalPVPower": 30,
+            }
+        )
         assert len(warnings) == 3
 
 
@@ -1405,9 +1416,15 @@ class TestLoadTestCLI:
 
     def test_rejects_short_interval(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "load-test", "AA:BB:CC:DD:EE:FF", "--interval", "5",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "load-test",
+                "AA:BB:CC:DD:EE:FF",
+                "--interval",
+                "5",
+            ],
+        )
         assert result.exit_code != 0
         assert "15" in result.output
 
@@ -1541,15 +1558,21 @@ class TestMqttPublishService:
 
     def test_missing_broker_fails(self):
         runner = CliRunner()
-        result = runner.invoke(cli, ["mqtt-publish-service", "AA:BB:CC:DD:EE:FF"])
+        result = runner.invoke(cli, ["mqtt-publish-service", "AC2A0000000"])
         assert result.exit_code != 0
         assert "broker" in result.output.lower()
 
     def test_generates_service_sections(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "192.168.1.100",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "192.168.1.100",
+            ],
+        )
         assert result.exit_code == 0
         output = result.output
         assert "[Unit]" in output
@@ -1560,66 +1583,116 @@ class TestMqttPublishService:
 
     def test_exec_start_contains_address_and_broker(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "10.0.0.1",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "10.0.0.1",
+            ],
+        )
         assert result.exit_code == 0
-        assert "AA:BB:CC:DD:EE:FF" in result.output
+        assert "AC2A0000000" in result.output
         assert "--broker 10.0.0.1" in result.output
 
     def test_respects_user_option(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--user", "root",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--user",
+                "root",
+            ],
+        )
         assert result.exit_code == 0
         assert "User=root" in result.output
 
     def test_respects_port_option(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--port", "8883",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--port",
+                "8883",
+            ],
+        )
         assert result.exit_code == 0
         assert "--port 8883" in result.output
 
     def test_respects_interval_option(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--interval", "30",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--interval",
+                "30",
+            ],
+        )
         assert result.exit_code == 0
         assert "--interval 30" in result.output
 
     def test_respects_username_password(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--username", "mqttuser", "--password", "s3cret",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--username",
+                "mqttuser",
+                "--password",
+                "s3cret",
+            ],
+        )
         assert result.exit_code == 0
         assert "--username mqttuser" in result.output
         assert "--password 's3cret'" in result.output
 
     def test_respects_ha_config(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--ha-config", "none",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--ha-config",
+                "none",
+            ],
+        )
         assert result.exit_code == 0
         assert "--ha-config none" in result.output
 
     def test_output_to_file(self, tmp_path):
         out = tmp_path / "test.service"
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--output", str(out),
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--output",
+                str(out),
+            ],
+        )
         assert result.exit_code == 0
         content = out.read_text()
         assert "[Unit]" in content
@@ -1627,35 +1700,60 @@ class TestMqttPublishService:
 
     def test_install_instructions_in_comments(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+            ],
+        )
         assert result.exit_code == 0
         assert "systemctl daemon-reload" in result.output
         assert "systemctl enable" in result.output
 
     def test_exec_override(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--exec", "/usr/local/bin/bluetti-cli",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--exec",
+                "/usr/local/bin/bluetti-cli",
+            ],
+        )
         assert result.exit_code == 0
         assert "ExecStart=/usr/local/bin/bluetti-cli" in result.output
 
     def test_restart_on_source_change_in_execstart(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+            ],
+        )
         assert result.exit_code == 0
         assert "--restart-on-source-change" in result.output
 
     def test_restart_always_in_service(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+            ],
+        )
         assert result.exit_code == 0
         assert "Restart=always" in result.output
 
@@ -1667,10 +1765,17 @@ class TestMqttPublishService:
 
     def test_publish_service_includes_serial(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-publish-service", "AA:BB:CC:DD:EE:FF", "--broker", "x",
-            "--serial", "MYSERIAL",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-publish-service",
+                "AC2A0000000",
+                "--broker",
+                "x",
+                "--serial",
+                "MYSERIAL",
+            ],
+        )
         assert result.exit_code == 0
         assert "--serial MYSERIAL" in result.output
 
@@ -1711,19 +1816,20 @@ class TestSourceChangeWatcher:
         watcher = SourceChangeWatcher(Path("/tmp"))
         watcher.changed.set()
         import pytest
+
         with pytest.raises(SystemExit) as exc:
-            asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
-                _watch_source_changes(watcher)
-            )
+            asyncio.get_event_loop_policy().new_event_loop().run_until_complete(_watch_source_changes(watcher))
         assert exc.value.code == 0
 
     def test_watch_coroutine_does_not_exit_without_event(self):
         watcher = SourceChangeWatcher(Path("/tmp"))
+
         async def run():
             try:
                 await asyncio.wait_for(_watch_source_changes(watcher), timeout=0.2)
             except asyncio.TimeoutError:
                 pass  # expected — coroutine didn't exit
+
         asyncio.get_event_loop_policy().new_event_loop().run_until_complete(run())
 
 
@@ -1771,6 +1877,7 @@ class TestShutdownWatch:
 
     def test_latch_triggers_recovery_log(self, caplog):
         import logging
+
         w = ShutdownWatch(threshold=10, grace=60)
         with caplog.at_level(logging.INFO):
             w.handle_soc(5)
@@ -1825,9 +1932,16 @@ class TestMqttListenService:
 
     def test_generates_service_sections(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "12345", "--broker", "192.168.1.100",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "12345",
+                "--broker",
+                "192.168.1.100",
+            ],
+        )
         assert result.exit_code == 0
         output = result.output
         assert "[Unit]" in output
@@ -1837,9 +1951,16 @@ class TestMqttListenService:
 
     def test_execstart_has_serial_and_broker(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "SN123", "--broker", "10.0.0.1",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "SN123",
+                "--broker",
+                "10.0.0.1",
+            ],
+        )
         assert result.exit_code == 0
         assert "--serial SN123" in result.output
         assert "--broker 10.0.0.1" in result.output
@@ -1847,59 +1968,107 @@ class TestMqttListenService:
 
     def test_user_is_root_by_default(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "x", "--broker", "x",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "x",
+                "--broker",
+                "x",
+            ],
+        )
         assert result.exit_code == 0
         assert "User=root" in result.output
 
     def test_respects_shutdown_at(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "x", "--broker", "x",
-            "--shutdown-at", "20",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "x",
+                "--broker",
+                "x",
+                "--shutdown-at",
+                "20",
+            ],
+        )
         assert result.exit_code == 0
         assert "--shutdown-at 20" in result.output
 
     def test_respects_grace_period(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "x", "--broker", "x",
-            "--grace-period", "120",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "x",
+                "--broker",
+                "x",
+                "--grace-period",
+                "120",
+            ],
+        )
         assert result.exit_code == 0
         assert "--grace-period 120" in result.output
 
     def test_restart_on_source_change_in_execstart(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "x", "--broker", "x",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "x",
+                "--broker",
+                "x",
+            ],
+        )
         assert result.exit_code == 0
         assert "--restart-on-source-change" in result.output
 
     def test_install_instructions_in_comments(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "x", "--broker", "x",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "x",
+                "--broker",
+                "x",
+            ],
+        )
         assert result.exit_code == 0
         assert "systemctl daemon-reload" in result.output
         assert "systemctl enable" in result.output
 
     def test_service_name_uses_serial(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--serial", "DEADBEEF", "--broker", "x",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--serial",
+                "DEADBEEF",
+                "--broker",
+                "x",
+            ],
+        )
         assert result.exit_code == 0
         assert "bluetti-shutdown-DEADBEEF" in result.output
 
     def test_no_address_argument(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "mqtt-listen-service", "--help",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "mqtt-listen-service",
+                "--help",
+            ],
+        )
         assert result.exit_code == 0
         assert "ADDRESS" not in result.output

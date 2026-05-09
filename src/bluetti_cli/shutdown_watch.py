@@ -47,17 +47,18 @@ class ShutdownWatch:
             self._latched = True
             self._fire_at = time.monotonic() + self.grace
             logging.warning(
-                "SOC %d%% below %d%% — shutdown in %ds "
-                "(systemctl stop to abort)",
-                soc, self.threshold, self.grace,
+                "SOC %d%% below %d%% — shutdown in %ds (systemctl stop to abort)",
+                soc,
+                self.threshold,
+                self.grace,
             )
         elif self._latched and soc >= self.threshold:
             assert self._fire_at is not None
             remaining = max(0.0, self._fire_at - time.monotonic())
             logging.info(
-                "SOC recovered to %d%% but shutdown already triggered — "
-                "%.0fs remaining",
-                soc, remaining,
+                "SOC recovered to %d%% but shutdown already triggered — %.0fs remaining",
+                soc,
+                remaining,
             )
 
         if self._fire_at and time.monotonic() >= self._fire_at:
@@ -70,7 +71,9 @@ class ShutdownWatch:
         logging.warning("Initiating system shutdown")
         try:
             subprocess.run(
-                ["sudo", "shutdown", "-h", "now"], check=False, timeout=30,
+                ["sudo", "shutdown", "-h", "now"],
+                check=False,
+                timeout=30,
             )
         except Exception as exc:
             logging.error("Shutdown command failed: %s", exc)
@@ -91,8 +94,10 @@ async def run_shutdown_listener(
     while True:
         try:
             async with Client(
-                hostname=broker, port=port,
-                username=username, password=password,
+                hostname=broker,
+                port=port,
+                username=username,
+                password=password,
             ) as client:
                 await client.subscribe(topic)
                 logging.info("Listening on %s (threshold %d%%)", topic, threshold)

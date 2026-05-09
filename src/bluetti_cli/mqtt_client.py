@@ -474,9 +474,7 @@ class MQTTClient:
                 retain=True,
             )
 
-        logging.info(
-            f"Sent Home Assistant discovery for {device.type}-{device.sn}"
-        )
+        logging.info(f"Sent Home Assistant discovery for {device.type}-{device.sn}")
 
     def _ha_config_payload(self, name: str, device: BluettiDevice, field: MqttFieldConfig) -> str:
         topic_field = field.topic_name or name
@@ -494,9 +492,7 @@ class MQTTClient:
         }
         if field.setter:
             # Use the field key (name) not topic_name: _handle_command dispatches by key.
-            payload_dict["command_topic"] = (
-                f"bluetti/command/{device.type}-{device.sn}/{name}"
-            )
+            payload_dict["command_topic"] = f"bluetti/command/{device.type}-{device.sn}/{name}"
         payload_dict.update(field.home_assistant_extra)
         return json.dumps(payload_dict, separators=(",", ":"))
 
@@ -507,9 +503,7 @@ class MQTTClient:
             logging.warning(f"Unknown command topic: {topic}")
             return
 
-        device = next(
-            (d for d in self.devices if d.type == m[1] and d.sn == m[2]), None
-        )
+        device = next((d for d in self.devices if d.type == m[1] and d.sn == m[2]), None)
         if not device:
             logging.warning(f"Unknown device: {m[1]} {m[2]}")
             return

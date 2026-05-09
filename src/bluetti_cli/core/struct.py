@@ -60,7 +60,7 @@ class DecimalField(DeviceField):
 
     def parse(self, data: bytes) -> Decimal:
         val = Decimal(struct.unpack("!H", data)[0])
-        return val / 10 ** self.scale
+        return val / 10**self.scale
 
     def in_range(self, val: Decimal) -> bool:
         if self.range is None:
@@ -80,7 +80,7 @@ class SignedDecimalField(DeviceField):
         val = (hi << 16) | lo
         if val >= 0x80000000:
             val -= 0x100000000
-        return Decimal(val) / 10 ** self.scale
+        return Decimal(val) / 10**self.scale
 
     def in_range(self, val: Decimal) -> bool:
         if self.range is None:
@@ -172,7 +172,7 @@ class Decimal32Field(DeviceField):
         lo = struct.unpack("!H", data[0:2])[0]
         hi = struct.unpack("!H", data[2:4])[0]
         val = (hi << 16) | lo
-        return Decimal(val) / 10 ** self.scale
+        return Decimal(val) / 10**self.scale
 
     def in_range(self, val: Decimal) -> bool:
         if self.range is None:
@@ -263,7 +263,7 @@ class DeviceStruct:
             if f.word_offset is not None:
                 field_data = bytes([data[data_start + f.word_offset]])
             else:
-                field_data = data[data_start:data_start + 2 * f.size]
+                field_data = data[data_start : data_start + 2 * f.size]
             val = f.parse(field_data)
             if not f.in_range(val):
                 continue

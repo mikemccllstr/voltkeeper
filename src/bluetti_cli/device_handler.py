@@ -24,7 +24,9 @@ class SourceChangeWatcher:
         self.changed = threading.Event()
         self._observer = Observer()
         self._observer.schedule(
-            _PyFileHandler(self.changed), str(watch_path), recursive=True,
+            _PyFileHandler(self.changed),
+            str(watch_path),
+            recursive=True,
         )
 
     def start(self):

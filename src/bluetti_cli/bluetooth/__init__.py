@@ -30,6 +30,7 @@ async def lookup_device_name(address: str, timeout: float = 5.0) -> str:
                 return name
     return address
 
+
 async def scan_devices(timeout: float = 10.0) -> list[tuple[str, str]]:
     click.echo(f"Scanning for Bluetti devices (service {SERVICE_UUID}) ...")
     devices = await BleakScanner.discover(
@@ -63,10 +64,7 @@ async def pick_address_after_scan() -> tuple[str, str]:
 
     click.echo(f"\nFound {len(devices)} Bluetti devices:\n")
     for i, (addr, name) in enumerate(devices, 1):
-        click.echo(
-            f"  [{click.style(str(i), fg='cyan')}] "
-            f"{click.style(addr, fg='green')}  \u2014  {name}"
-        )
+        click.echo(f"  [{click.style(str(i), fg='cyan')}] {click.style(addr, fg='green')}  \u2014  {name}")
 
     click.echo()
     while True:
@@ -81,8 +79,18 @@ async def pick_address_after_scan() -> tuple[str, str]:
         click.echo(f"Enter a number between 1 and {len(devices)}.")
 
 
-def build_device(address: str, name: str):
+def _device_registry() -> dict[str, type]:
     from ..core.devices.ac2a import AC2A
 
+    return {"AC2A": AC2A}
+
+
+def build_device(address: str, name: str):
     sn = _parse_sn(name)
-    return AC2A(address, sn)
+    prefix_match = _DEVICE_NAME_SN_RE.match(name.strip())
+    prefix: str | None = prefix_match[1] if prefix_match else None
+    registry = _device_registry()
+    cls = registry.get(prefix) if prefix else None
+    if cls is None:
+        raise ValueError(f"Unsupported device model: {name!r}. Known prefixes: {sorted(registry)}")
+    return cls(address, sn)

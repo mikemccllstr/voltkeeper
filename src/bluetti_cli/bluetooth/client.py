@@ -49,12 +49,8 @@ class BluetoothClient:
 
             try:
                 assert self.client is not None
-                await self.client.write_gatt_char(
-                    WRITE_UUID, bytes(cmd), response=False
-                )
-                resp = await asyncio.wait_for(
-                    self._notify_future, timeout=RESPONSE_TIMEOUT
-                )
+                await self.client.write_gatt_char(WRITE_UUID, bytes(cmd), response=False)
+                resp = await asyncio.wait_for(self._notify_future, timeout=RESPONSE_TIMEOUT)
             except ParseError:
                 retries += 1
                 if retries >= MAX_RETRIES:
@@ -78,9 +74,7 @@ class BluetoothClient:
             return
 
         if data == b"AT+NAME?\r" or data == b"AT+ADV?\r":
-            self._notify_future.set_exception(
-                BadConnectionError("Got AT+ notification")
-            )
+            self._notify_future.set_exception(BadConnectionError("Got AT+ notification"))
             return
 
         self._notify_response.extend(data)

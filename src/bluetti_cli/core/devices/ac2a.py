@@ -179,10 +179,24 @@ class AC2A(BluettiDevice):
         s.add_uint_field("inv_freq", 2210)
 
     WRITABLE_FIELD_NAMES = [
-        "ac_output", "dc_output", "power_off", "dc_eco_mode", "ac_eco_mode",
-        "charging_mode", "power_lifting", "battery_range_start", "battery_range_end",
-        "alarm_sound", "lcd_timeout", "led_color", "soc_low", "soc_high",
-        "factory_reset", "inv_voltage", "inv_freq", "working_mode",
+        "ac_output",
+        "dc_output",
+        "power_off",
+        "dc_eco_mode",
+        "ac_eco_mode",
+        "charging_mode",
+        "power_lifting",
+        "battery_range_start",
+        "battery_range_end",
+        "alarm_sound",
+        "lcd_timeout",
+        "led_color",
+        "soc_low",
+        "soc_high",
+        "factory_reset",
+        "inv_voltage",
+        "inv_freq",
+        "working_mode",
     ]
 
     CTRL_EVENT_BITS = [
@@ -201,10 +215,7 @@ class AC2A(BluettiDevice):
 
     @classmethod
     def decode_ctrl_event(cls, ctrl_event: int) -> dict:
-        return {
-            name: bool(ctrl_event & (1 << i))
-            for i, (name, _) in enumerate(cls.CTRL_EVENT_BITS)
-        }
+        return {name: bool(ctrl_event & (1 << i)) for i, (name, _) in enumerate(cls.CTRL_EVENT_BITS)}
 
     # ── Parse dispatch ─────────────────────────────────────────────────
 
@@ -337,10 +348,16 @@ class AC2A(BluettiDevice):
 
     def has_field(self, field: str) -> bool:
         return field in self.WRITABLE_FIELD_NAMES or any(
-            f.name == field for fs in (
-                self.home_struct, self.inv_base_struct, self.inv_pv_struct,
-                self.inv_grid_struct, self.inv_load_struct, self.inv_inv_struct,
-            ) for f in fs.fields
+            f.name == field
+            for fs in (
+                self.home_struct,
+                self.inv_base_struct,
+                self.inv_pv_struct,
+                self.inv_grid_struct,
+                self.inv_load_struct,
+                self.inv_inv_struct,
+            )
+            for f in fs.fields
         )
 
     def has_field_setter(self, field: str) -> bool:

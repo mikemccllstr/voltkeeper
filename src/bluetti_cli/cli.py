@@ -24,9 +24,7 @@ def _close_loop(loop: asyncio.AbstractEventLoop) -> None:
         for task in tasks:
             task.cancel()
         if tasks:
-            loop.run_until_complete(
-                asyncio.gather(*tasks, return_exceptions=True)
-            )
+            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
     finally:
         loop.close()
 
@@ -96,9 +94,7 @@ def scan(timeout):
     click.echo()
     if len(devices) == 1:
         click.echo("To read data from this device:")
-        click.echo(
-            f"  {click.style(f'bluetti-cli status {devices[0][0]}', bold=True)}"
-        )
+        click.echo(f"  {click.style(f'bluetti-cli status {devices[0][0]}', bold=True)}")
     else:
         click.echo("To read data from a specific device:")
         for addr, _ in devices:
@@ -189,10 +185,7 @@ def status(address, timeout, verbose):
                     # read attempts return Modbus exceptions — expected.
                     pass
                 except (ParseError, BadConnectionError) as exc:
-                    click.secho(
-                        f"  ⚠  control read at {cmd_obj.starting_address} "
-                        f"failed: {exc}", fg="yellow"
-                    )
+                    click.secho(f"  ⚠  control read at {cmd_obj.starting_address} failed: {exc}", fg="yellow")
         else:
             cmd = ReadHoldingRegisters(100, 6)
             raw = loop.run_until_complete(client.execute(cmd))
@@ -250,7 +243,12 @@ def _print_status(home: dict) -> None:
 
 
 def _print_verbose(
-    home: dict, inv_base: dict, pv: dict, grid: dict, load: dict, inv_info: dict,
+    home: dict,
+    inv_base: dict,
+    pv: dict,
+    grid: dict,
+    load: dict,
+    inv_info: dict,
     controls: dict | None = None,
 ) -> None:
     sep = "\u2500" * 56
@@ -280,17 +278,11 @@ def _print_verbose(
     cs = home.get("packChargingStatus", 0)
     click.echo(f"    Status:               {status_map.get(cs, str(cs))} ({cs})")
     if cs == 1:
-        click.echo(
-            f"    Time to Full:         {home.get('packChgFullTime', 0) * 6:>5.0f} min"
-        )
+        click.echo(f"    Time to Full:         {home.get('packChgFullTime', 0) * 6:>5.0f} min")
     else:
-        click.echo(
-            f"    Time to Empty:        {home.get('packDsgEmptyTime', 0) * 6:>5.0f} min"
-        )
+        click.echo(f"    Time to Empty:        {home.get('packDsgEmptyTime', 0) * 6:>5.0f} min")
     if "packDsgEnergyTotal" in home:
-        click.echo(
-            f"    Total Discharged:     {home['packDsgEnergyTotal']:>8.1f} Wh"
-        )
+        click.echo(f"    Total Discharged:     {home['packDsgEnergyTotal']:>8.1f} Wh")
 
     # ── Power Meters ──
     if any(k in home for k in ("totalPVPower", "totalACPower", "totalDCPower")):
@@ -309,21 +301,13 @@ def _print_verbose(
 
     # ── Energy Totals ──
     if any(k in home for k in ("totalPVChargingEnergy", "totalDCEnergy")):
-        click.echo(
-            f"\n  {click.style('ENERGY (lifetime)', bold=True, fg='yellow')}"
-        )
+        click.echo(f"\n  {click.style('ENERGY (lifetime)', bold=True, fg='yellow')}")
         if "totalPVChargingEnergy" in home:
-            click.echo(
-                f"    PV Charging:          {home['totalPVChargingEnergy']:>8.1f} Wh"
-            )
+            click.echo(f"    PV Charging:          {home['totalPVChargingEnergy']:>8.1f} Wh")
         if "totalGridChargingEnergy" in home:
-            click.echo(
-                f"    Grid Charging:        {home['totalGridChargingEnergy']:>8.1f} Wh"
-            )
+            click.echo(f"    Grid Charging:        {home['totalGridChargingEnergy']:>8.1f} Wh")
         if "totalFeedbackEnergy" in home:
-            click.echo(
-                f"    Feed-back:            {home['totalFeedbackEnergy']:>8.1f} Wh"
-            )
+            click.echo(f"    Feed-back:            {home['totalFeedbackEnergy']:>8.1f} Wh")
         if "totalDCEnergy" in home:
             click.echo(f"    DC Output:            {home['totalDCEnergy']:>8.1f} Wh")
         if "totalACEnergy" in home:
@@ -350,18 +334,12 @@ def _print_verbose(
     # ── Software Versions ──
     soft_keys = [k for k in inv_base if k.startswith("software[")]
     if soft_keys:
-        click.echo(
-            f"\n  {click.style('SOFTWARE VERSIONS', bold=True, fg='magenta')}"
-        )
+        click.echo(f"\n  {click.style('SOFTWARE VERSIONS', bold=True, fg='magenta')}")
         for k in sorted(soft_keys):
             click.echo(f"    {k}: {inv_base[k]}")
 
     # ── PV Details ──
-    pv_keys = [
-        k
-        for k in pv
-        if k.startswith("pv[") and k.endswith(".type") and pv.get(k, 0) != 0
-    ]
+    pv_keys = [k for k in pv if k.startswith("pv[") and k.endswith(".type") and pv.get(k, 0) != 0]
     if pv_keys:
         click.echo(f"\n  {click.style('PV STRINGS', bold=True, fg='cyan')}")
         for pk in sorted(set(k.split(".")[0] for k in pv_keys)):
@@ -371,8 +349,7 @@ def _print_verbose(
             pv_volt = pv.get(f"{pk}.inputVoltage", 0)
             pv_curr = pv.get(f"{pk}.inputCurrent", 0)
             click.echo(
-                f"    {pk}: Power={pv_power}W  V={pv_volt:.1f}V  "
-                f"I={pv_curr:.1f}A  Status={pv_status}  Type={pv_type}"
+                f"    {pk}: Power={pv_power}W  V={pv_volt:.1f}V  I={pv_curr:.1f}A  Status={pv_status}  Type={pv_type}"
             )
 
     # ── Grid ──
@@ -396,9 +373,7 @@ def _print_verbose(
         dc_parts = []
         for v in ("5V", "12V", "24V"):
             if f"dc{v}Power" in load:
-                dc_parts.append(
-                    f"DC{v}={load[f'dc{v}Power']}W/{load[f'dc{v}Current']:.1f}A"
-                )
+                dc_parts.append(f"DC{v}={load[f'dc{v}Power']}W/{load[f'dc{v}Current']:.1f}A")
         if dc_parts:
             click.echo(f"    {'  '.join(dc_parts)}")
         if "dcLoadTotalPower" in load:
@@ -435,9 +410,7 @@ def _print_verbose(
     misc_parts = []
     if "chargingMode" in home:
         mode_map = {0: "Standard", 1: "Turbo", 2: "Silent"}
-        misc_parts.append(
-            f"Charge Mode={mode_map.get(home['chargingMode'], str(home['chargingMode']))}"
-        )
+        misc_parts.append(f"Charge Mode={mode_map.get(home['chargingMode'], str(home['chargingMode']))}")
     if home.get("invWorkingStatus", 0):
         misc_parts.append(f"Inv Status={home['invWorkingStatus']}")
     if home.get("packAgingInfo", 0):
@@ -445,9 +418,7 @@ def _print_verbose(
     if home.get("gridParallelSoC", 0):
         misc_parts.append(f"Grid Parallel SoC={home['gridParallelSoC']}%")
     if home.get("rateVoltage") or home.get("rateFrequency"):
-        misc_parts.append(
-            f"Rated={home.get('rateVoltage', '?')}V/{home.get('rateFrequency', '?')}Hz"
-        )
+        misc_parts.append(f"Rated={home.get('rateVoltage', '?')}V/{home.get('rateFrequency', '?')}Hz")
     if "selfSufficiencyRate" in home:
         misc_parts.append(f"Self-Sufficiency={home['selfSufficiencyRate']}%")
     if "pvToAcEnergy" in home:
@@ -481,6 +452,7 @@ def _print_verbose(
         ctrl_event = home.get("ctrl_event") or (controls or {}).get("ctrl_event")
         if ctrl_event is not None:
             from .core.devices.ac2a import AC2A
+
             caps = AC2A.decode_ctrl_event(ctrl_event)
             click.echo(
                 f"\n  {click.style(f'CAPABILITIES (CTRL_EVENT @ 124: {ctrl_event:#018b})', bold=True, fg='magenta')}"
@@ -657,12 +629,14 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
     watcher = None
     if restart_on_source_change:
         from pathlib import Path
+
         watcher = SourceChangeWatcher(Path(__file__).resolve().parent)
         watcher.start()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
+
         async def run_bridge():
             tasks = [bus.run(), handler.run(), mqtt_client.run()]
             if watcher:
@@ -688,24 +662,28 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
 @cli.command("load-test")
 @click.argument("address")
 @click.option(
-    "-o", "--output",
+    "-o",
+    "--output",
     type=click.Path(),
     help="CSV output file (default: ac2a_load_test_YYYYMMDD_HHMMSS.csv)",
 )
 @click.option(
-    "-i", "--interval",
+    "-i",
+    "--interval",
     type=int,
     default=60,
     show_default=True,
     help="Sample interval in seconds (minimum 15).",
 )
 @click.option(
-    "-l", "--expected-load",
+    "-l",
+    "--expected-load",
     type=float,
     help="Known constant load in watts for analysis reference.",
 )
 @click.option(
-    "-p", "--phase",
+    "-p",
+    "--phase",
     type=str,
     help="Label for this test phase.",
 )
@@ -722,9 +700,7 @@ def load_test_command(address, output, interval, expected_load, phase):
     from datetime import datetime
 
     if interval < load_test.MIN_INTERVAL:
-        raise click.BadParameter(
-            f"Interval must be at least {load_test.MIN_INTERVAL} seconds."
-        )
+        raise click.BadParameter(f"Interval must be at least {load_test.MIN_INTERVAL} seconds.")
 
     address = address.upper()
 
@@ -744,9 +720,7 @@ def load_test_command(address, output, interval, expected_load, phase):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(
-            load_test.run_load_test(device, output, interval, expected_load, phase)
-        )
+        loop.run_until_complete(load_test.run_load_test(device, output, interval, expected_load, phase))
     except KeyboardInterrupt:
         click.echo("\nInterrupted.")
     except Exception as exc:
@@ -769,8 +743,11 @@ def load_test_command(address, output, interval, expected_load, phase):
 @click.option("--password", help="MQTT broker password (visible in service file).")
 @click.option("--interval", type=int, default=0, show_default=True, help="Poll interval in seconds.")
 @click.option(
-    "--ha-config", type=click.Choice(["normal", "none", "advanced"]),
-    default="normal", show_default=True, help="Home Assistant discovery mode.",
+    "--ha-config",
+    type=click.Choice(["normal", "none", "advanced"]),
+    default="normal",
+    show_default=True,
+    help="Home Assistant discovery mode.",
 )
 @click.option("--user", help="System user to run service as (default: current user).")
 @click.option("--exec", "exec_path", help="Path to bluetti-cli executable (default: auto-detect).")
@@ -903,16 +880,23 @@ def mqtt_publish_service(
 @click.option("--username", help="MQTT broker username.")
 @click.option("--password", help="MQTT broker password (visible in service file).")
 @click.option(
-    "--shutdown-at", type=int, default=10, show_default=True,
+    "--shutdown-at",
+    type=int,
+    default=10,
+    show_default=True,
     help="SOC %% threshold for initiating shutdown.",
 )
 @click.option(
-    "--grace-period", type=int, default=60, show_default=True,
+    "--grace-period",
+    type=int,
+    default=60,
+    show_default=True,
     help="Seconds below threshold before shutdown triggers.",
 )
 @click.option(
     "--restart-on-source-change/--no-restart-on-source-change",
-    default=False, show_default=True,
+    default=False,
+    show_default=True,
     help="Exit cleanly when source code changes, so systemd restarts the process.",
 )
 def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, grace_period, restart_on_source_change):
@@ -960,12 +944,14 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
     watcher = None
     if restart_on_source_change:
         from pathlib import Path
+
         watcher = SourceChangeWatcher(Path(__file__).resolve().parent)
         watcher.start()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
+
         async def run():
             tasks = [
                 run_shutdown_listener(topic, broker, port, username, password, shutdown_at, grace_period),
@@ -996,11 +982,17 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
 @click.option("--username", help="MQTT broker username.")
 @click.option("--password", help="MQTT broker password (visible in service file).")
 @click.option(
-    "--shutdown-at", type=int, default=10, show_default=True,
+    "--shutdown-at",
+    type=int,
+    default=10,
+    show_default=True,
     help="SOC %% threshold for initiating shutdown.",
 )
 @click.option(
-    "--grace-period", type=int, default=60, show_default=True,
+    "--grace-period",
+    type=int,
+    default=60,
+    show_default=True,
     help="Seconds below threshold before shutdown triggers.",
 )
 @click.option("--user", help="System user to run service as (default: root).")
