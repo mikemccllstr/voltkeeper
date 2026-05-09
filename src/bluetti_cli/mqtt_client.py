@@ -407,7 +407,8 @@ class MQTTClient:
         self.password = password
         self.home_assistant_mode = home_assistant_mode
         self.devices: List[BluettiDevice] = []
-        self.message_queue: asyncio.Queue = None
+        self.message_queue: asyncio.Queue = asyncio.Queue()
+        self.bus.add_parser_listener(self.handle_message)
 
     async def run(self):
         while True:
@@ -420,9 +421,6 @@ class MQTTClient:
                     password=self.password,
                 ) as client:
                     logging.info("Connected to MQTT broker")
-                    self.message_queue = asyncio.Queue()
-                    self.bus.add_parser_listener(self.handle_message)
-
                     await asyncio.gather(
                         self._handle_commands(client),
                         self._handle_messages(client),

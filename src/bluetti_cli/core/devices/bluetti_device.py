@@ -1,6 +1,5 @@
 # ABOUTME: Base class for Bluetti device definitions — struct, polling commands, protocol version.
 
-from enum import Enum
 from typing import Any, List
 
 from ..commands import ReadHoldingRegisters, WriteSingleRegister
@@ -8,8 +7,6 @@ from ..struct import BoolField, DeviceStruct, EnumField
 
 
 class BluettiDevice:
-    struct: DeviceStruct
-
     def __init__(self, address: str, type: str, sn: str):
         self.address = address
         self.type = type
@@ -17,10 +14,10 @@ class BluettiDevice:
         self.protocol_version = 0
 
     def parse(self, address: int, data: bytes) -> dict:
-        return self.struct.parse(address, data)
+        raise NotImplementedError
 
     def has_field(self, field: str) -> bool:
-        return any(f.name == field for f in self.struct.fields)
+        raise NotImplementedError
 
     def has_field_setter(self, field: str) -> bool:
         matches = [f for f in self.struct.fields if f.name == field]

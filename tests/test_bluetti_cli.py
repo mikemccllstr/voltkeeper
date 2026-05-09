@@ -23,11 +23,11 @@ from src.bluetti_cli.core.utils import (
     crc16_modbus,
 )
 from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
+from src.bluetti_cli.core.devices.bluetti_device import BluettiDevice
 from src.bluetti_cli.core.commands import WriteSingleRegister, WriteMultipleRegisters
 from src.bluetti_cli.bus import EventBus, ParserMessage, CommandMessage
 from src.bluetti_cli.mqtt_client import (
     MQTTClient,
-    MqttFieldConfig,
     MqttFieldType,
     NORMAL_DEVICE_FIELDS,
     COMMAND_TOPIC_RE,
@@ -530,6 +530,24 @@ class TestAC2AWritableFields:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  BluettiDevice base class contract
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBluettiDeviceBase:
+    def test_parse_raises_not_implemented(self):
+        """Base parse() must raise NotImplementedError, not AttributeError."""
+        device = BluettiDevice("00:00:00:00:00:00", "TEST", "SN")
+        with pytest.raises(NotImplementedError):
+            device.parse(100, b"\x00" * 4)
+
+    def test_has_field_raises_not_implemented(self):
+        device = BluettiDevice("00:00:00:00:00:00", "TEST", "SN")
+        with pytest.raises(NotImplementedError):
+            device.has_field("packTotalSoc")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  EventBus — message routing
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -591,6 +609,26 @@ class TestEventBus:
         bus_task.cancel()
 
         assert sorted(results) == ["a", "b"]
+
+    @pytest.mark.asyncio
+    async def test_messages_put_before_run_are_not_lost(self, ac2a_device):
+        """Messages enqueued before run() starts must not be dropped."""
+        bus = EventBus()
+        received = []
+
+        async def listener(msg: ParserMessage):
+            received.append(msg)
+
+        bus.add_parser_listener(listener)
+        # put() is called BEFORE run() — the queue must be the same object
+        await bus.put(ParserMessage(ac2a_device, {"pre": True}))
+
+        bus_task = asyncio.create_task(bus.run())
+        await asyncio.sleep(0.1)
+        bus_task.cancel()
+
+        assert len(received) == 1
+        assert received[0].parsed == {"pre": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -709,6 +747,15 @@ class TestMqttClient:
         assert NORMAL_DEVICE_FIELDS["dc_output"].topic_name == "dc_output_on"
         assert NORMAL_DEVICE_FIELDS["chargingMode"].topic_name == "charging_mode"
         assert NORMAL_DEVICE_FIELDS["power_lifting"].topic_name == "power_lifting_on"
+
+    def test_listener_registered_exactly_once_at_init(self):
+        """MQTTClient must register its listener at construction, not inside run()."""
+        bus = EventBus()
+        mqtt = MQTTClient(bus, "localhost", "none")
+        # Exactly one listener after construction — not zero (added too late)
+        # and not growing on every reconnect.
+        assert len(bus.parser_listeners) == 1
+        assert bus.parser_listeners[0] == mqtt.handle_message
 
 
 # ═══════════════════════════════════════════════════════════════════════

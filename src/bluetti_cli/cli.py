@@ -940,6 +940,7 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
         raise click.UsageError("Provide ADDRESS, --serial, or both.")
 
     sn = serial
+    device_type = "AC2A"
     if sn is None:
         address = address.upper()
         loop = asyncio.new_event_loop()
@@ -948,9 +949,11 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
             device_name = loop.run_until_complete(lookup_device_name(address))
         finally:
             loop.close()
-        sn = build_device(address, device_name).sn
+        _device = build_device(address, device_name)
+        sn = _device.sn
+        device_type = _device.type
 
-    topic = f"bluetti/state/AC2A-{sn}/total_battery_percent"
+    topic = f"bluetti/state/{device_type}-{sn}/total_battery_percent"
 
     watcher = None
     if restart_on_source_change:
