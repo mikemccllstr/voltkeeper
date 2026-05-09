@@ -9,12 +9,16 @@ from typing import Any, List
 
 from ..commands import ReadHoldingRegisters, WriteSingleRegister
 from ..struct import BoolField, DeviceStruct, EnumField
+from ..utils import _u16
 from .bluetti_device import BluettiDevice
 
 BASE_CONFIG = 1
 BLUETOOTH_PASSWORD = 7
 BASE_REAL_DATA = 10
 MODBUS_PROTOCOL_VER = 16
+# TODO(hardware): FINDINGS §15.5 lists DEVICE_SN at register 21, but §15.6 puts
+# the SN at byte-offset 14-21 (registers 17-20). Hardware verification needed
+# to resolve. The struct uses register 21 per §15.5 until proven otherwise.
 DEVICE_SN = 21
 MCU_STATUS = 22
 ADDITIONAL_DATA = 70
@@ -56,7 +60,7 @@ class V1Base(BluettiDevice):
 
         super().__init__(address, type, sn)
 
-    # ── BASE_REAL_DATA (register 10) ───────────────────────────────────
+    # ── BASE_REAL_DATA (register 10) — per FINDINGS §15.6 ──────────────
 
     def _build_real_data_struct(self):
         s = self.real_data_struct
@@ -68,7 +72,7 @@ class V1Base(BluettiDevice):
         s.add_uint_field("acLoadPower", 38)
         s.add_uint_field("dcLoadPower", 39)
         s.add_uint_field("feedBackPower", 40)
-        s.add_uint_field("totalPVPower", 41)
+        s.add_decimal32_field("totalPVPower", 41, 1)
         s.add_uint_field("batterySOC", 43)
         s.add_uint_field("pvIconDisplay", 44)
         s.add_uint_field("gridIconDisplay", 45)
@@ -83,6 +87,8 @@ class V1Base(BluettiDevice):
         s.add_uint_field("chgFullTime", 63)
         s.add_uint_field("dsgEmptyTime", 64)
         s.add_uint_field("sysIsHighVolt", 65)
+        s.add_uint8_field("maxGridChgCurrentEnable", 66, 0)
+        s.add_uint8_field("gridPlusModeEnable", 66, 1)
         s.add_uint_field("rateVoltage", 67)
         s.add_uint_field("rateFrequency", 68)
 
@@ -90,10 +96,30 @@ class V1Base(BluettiDevice):
 
     def parse(self, address: int, data: bytes) -> dict:
         if BASE_REAL_DATA <= address < 100:
-            return self.real_data_struct.parse(address, data)
+            result = self.real_data_struct.parse(address, data)
+            self._fill_software_versions(result, data)
+            return result
         elif SETTABLE_DATA <= address < 3100:
             return self.control_struct.parse(address, data)
         return {}
+
+    # ── Custom array helpers ────────────────────────────────────────────
+
+    @staticmethod
+    def _fill_software_versions(result: dict, data: bytes):
+        """Parse mcu1-4 + hmi1-2 software versions from BASE_REAL_DATA.
+
+        Per FINDINGS §15.6: 6 version fields at register offsets 23-34,
+        each 4 bytes in endian [2][3][0][1] format.
+        """
+        labels = ["mcu1ver", "mcu2ver", "mcu3ver", "mcu4ver", "hmi1ver", "hmi2ver"]
+        for i, label in enumerate(labels):
+            off = (23 - BASE_REAL_DATA + i * 2) * 2
+            if len(data) < off + 4:
+                break
+            ver = (_u16(data, off + 2) << 16) | _u16(data, off)
+            if ver > 0:
+                result[label] = ver
 
     # ── Writable-field plumbing (mirrors V2Base) ───────────────────────
 
@@ -132,7 +158,7 @@ class V1Base(BluettiDevice):
     @property
     def polling_commands(self) -> List[ReadHoldingRegisters]:
         return [
-            ReadHoldingRegisters(BASE_REAL_DATA, 60),
+            ReadHoldingRegisters(BASE_REAL_DATA, 110),
         ]
 
     @property
