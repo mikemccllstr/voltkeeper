@@ -53,20 +53,6 @@ async def lookup_scan_result(address: str, timeout: float = 5.0) -> ScanResult:
     return ScanResult(address=address, name=address, encrypted=None)
 
 
-async def lookup_device_name(address: str, timeout: float = 5.0) -> str:
-    devices = await BleakScanner.discover(
-        timeout=timeout,
-        service_uuids=[SERVICE_UUID],
-        return_adv=True,
-    )
-    for addr, (device, adv) in devices.items():
-        if addr.upper() == address.upper():
-            name = (device.name or adv.local_name or "").strip()
-            if name:
-                return name
-    return address
-
-
 def _classify(adv) -> bool | None:
     for blob in adv.manufacturer_data.values():
         if blob.startswith(PREFIX_PLAINTEXT):

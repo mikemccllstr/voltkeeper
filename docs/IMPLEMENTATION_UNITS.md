@@ -58,11 +58,12 @@ Unit 1 (registry refactor)
                      │   Unit 6 (handshake)  │
                      │      └─────── depends on Unit 5
                      │                       │
-                     └── Unit 7 (encrypted client) — depends on 5+6
-                              ├── Unit 8 (V2 base) ── Unit 10 (per-model V2)
-                              └── Unit 9 (V1 base) ── Unit 10 (per-model V1)
+                     └── Unit 7  (encrypted-client plumbing) — depends on 5+6
+                              ├── Unit 7b (handshake state machine) — depends on 7
+                              ├── Unit 8  (V2 base) ── Unit 10 (per-model V2)
+                              └── Unit 9  (V1 base) ── Unit 10 (per-model V1)
 
-Unit 11 (probe)         — depends on Units 4, 7, 8, 9
+Unit 11 (probe)         — depends on Units 4, 7, 8, 9 (Unit 7b for encrypted devices)
 Unit 12 (validate)      — depends on Unit 11
 Unit 13 (annotate)      — depends on Unit 11
 Unit 14 (btsnoop + docs)— depends on Unit 7 (for cipher reference); else free
@@ -70,6 +71,8 @@ Unit 14 (btsnoop + docs)— depends on Unit 7 (for cipher reference); else free
 
 Units 5 and 6 can run in parallel. Units 8 and 9 can run in parallel after
 Unit 4. Per-model classes within Unit 10 can run in parallel once 8 and 9 land.
+Unit 7b can run in parallel with Units 8/9/10 — it touches `handshake.py` and
+`client.py`, neither of which Units 8–10 modify.
 
 ---
 
@@ -875,8 +878,150 @@ raise BadConnectionError(
   per-address scan info.
 - Every `BluetoothClient(...)` construction in `src/` passes an explicit
   `encrypted=` keyword.
-- Encrypted-device path either works or fails with a clear, actionable error.
+- `BluetoothClient.execute()` validates CRC on the **decrypted** Modbus
+  frame, not just the plaintext path.
+- The SN-validation `BadConnectionError` fires when CRC fails persistently
+  on a session-active client.
 - No reference to `AC2A` remains in `client.py`.
+
+The encrypted *connect-and-read* path (`HandshakeSession.run` body) is
+deferred to **Unit 7b** below — Unit 7 here covers structural plumbing and
+post-decrypt validation only.
+
+---
+
+## Unit 7b — Implement `HandshakeSession.run` (BLE state machine)
+
+**Depends on:** Units 5, 6, 7.
+**Scope:** new BLE-driving body on `HandshakeSession`, plus a unit test that
+mocks `BleakClient` end-to-end.
+
+### Goal
+
+Unit 6 stubbed `HandshakeSession.run` to `raise NotImplementedError`. Unit 7
+wired the call site (`BluetoothClient.connect()` calls
+`HandshakeSession().run(self.client)` when `encrypted=True`). This unit
+implements the actual state machine over an active `BleakClient`.
+
+### What's already in place
+
+- Pure crypto helpers: `derive_legacy_session_key`, `verify_device_pubkey`,
+  `sign_app_pubkey`, `derive_shared_key` (Unit 6).
+- Cipher session class: `CbcSession`, `derive_iv` (Unit 5).
+- GATT UUIDs: `WRITE_UUID`, `NOTIFY_UUID` (Unit 4).
+- The Bluetti protocol bytes per FINDINGS §15.2 step 3 are documented in
+  the Unit 6 "Path 1 / Path 2" section above — re-read them.
+
+### State machine to implement
+
+```python
+class HandshakeSession:
+    async def run(self, client: BleakClient) -> CbcSession:
+        # 1. Subscribe to NOTIFY_UUID with a queue-style notification
+        #    handler so `await self._next_notification(...)` blocks until
+        #    the next inbound frame, regardless of whether the BluetoothClient's
+        #    own _on_notification has been wired yet. (This handshake runs
+        #    BEFORE the main client.start_notify hook becomes useful.)
+
+        # 2. Path 1 — legacy challenge-response:
+        #    - Read the next notification → expect `2A 2A 01` + 4 random bytes.
+        #    - randomMd5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
+        #    - Build reply: `2A 2A 02 04` + ASCII bytes of randomMd5_hex[16:24]
+        #      + sum-checksum (2 bytes, little-endian, of preceding 8 bytes).
+        #    - write_gatt_char(WRITE_UUID, reply, response=False)
+
+        # 3. Path 2 — ECDH:
+        #    - Read next notification(s); concatenate until 144 bytes (9 blocks).
+        #    - decrypt(buf, ble_conn_aes_key, derive_iv(randomMd5_hex))
+        #    - Slice [4:68] → device pubkey, [68:132] → signature.
+        #    - verify_device_pubkey(...)
+        #    - Generate ephemeral SECP256R1 keypair.
+        #    - app_pub_raw = uncompressed-point bytes of the ephemeral pubkey
+        #      (drop the leading 0x04 to match the device's format).
+        #    - signature = sign_app_pubkey(app_pub_raw, randomMd5_hex)
+        #    - reply = `2A 2A 05 80` + app_pub_raw + signature + sum-checksum
+        #    - encrypt with ble_conn_aes_key + chained IV
+        #    - write_gatt_char(WRITE_UUID, reply, response=False)
+        #    - Read next notification → expect `2A 2A 06 00 ...` confirmation
+        #      (decrypted with ble_conn_aes_key + chained IV).
+
+        # 4. shared_key = derive_shared_key(app_priv, device_pub)
+        #    return CbcSession(shared_key, derive_iv(randomMd5_hex))
+```
+
+### Implementation notes
+
+- **Notification capture during handshake:** The handshake needs to read
+  notifications BEFORE `BluetoothClient` has set up its own polling
+  notification handler (`_on_notification` is for Modbus frames, not
+  handshake frames). Two clean approaches:
+  1. Have `BluetoothClient.connect()` call `start_notify` with a
+     handshake-aware handler that demultiplexes the first few frames to
+     the `HandshakeSession`, then hands off to `_on_notification`.
+  2. Or, simpler: `HandshakeSession.run()` calls
+     `await client.start_notify(NOTIFY_UUID, self._handler)` itself, then
+     `await client.stop_notify(NOTIFY_UUID)` before returning so
+     `BluetoothClient.connect()` can re-subscribe its own handler.
+  
+  Option (2) is cleaner — it keeps the handshake self-contained. Update
+  `BluetoothClient.connect()` so the order becomes:
+  ```python
+  await self.client.connect(timeout=timeout)
+  if self.encrypted:
+      self._session = await HandshakeSession().run(self.client)
+  await self.client.start_notify(NOTIFY_UUID, self._on_notification)
+  ```
+
+- **Sum-checksum:** the spec says "2-byte little-endian sum-checksum of
+  preceding bytes." That's the unsigned sum of all preceding bytes, modulo
+  `0x10000`, packed little-endian. Validate by computing it on outgoing
+  frames and asserting incoming `2A 2A 06 ...` confirmation passes the
+  same check.
+
+- **Frame fragmentation:** BLE notifications are MTU-bounded (~20 bytes
+  default; up to 244 with extended MTU). The 144-byte ECDH response will
+  arrive across multiple notifications. Concatenate until you have at
+  least the expected length; do not assume one notification = one frame.
+
+### Files to modify
+
+- `src/bluetti_cli/bluetooth/handshake.py` — replace
+  `HandshakeSession.run`'s `NotImplementedError` body with the state
+  machine. Keep the pure helpers untouched.
+- `src/bluetti_cli/bluetooth/client.py` — re-order `connect()` per the
+  notification-capture note above. No other changes.
+
+### Verification
+
+1. **Unit test:** `tests/test_handshake_state_machine.py` —
+   `test_handshake_session_run_against_mock_client`:
+   - Construct a `MagicMock` `BleakClient`.
+   - Pre-script the notification stream with bytes captured from a real
+     handshake (or, lacking that, bytes generated by a fake "device side"
+     that uses the same crypto helpers in reverse — i.e., a pure-Python
+     simulator of the device end of the handshake).
+   - Drive `HandshakeSession().run(mock_client)`.
+   - Assert: returns a `CbcSession`, the session's key length is 16,
+     the mock received the expected number of `write_gatt_char` calls
+     with the expected first-bytes (`2A 2A 02` then `2A 2A 05`).
+2. **Unit test:** `test_handshake_rejects_invalid_device_signature` —
+   pre-script the device pubkey with a bad signature; assert
+   `HandshakeSession().run` raises `ValueError` (from
+   `verify_device_pubkey`).
+3. **Unit test:** `test_bluetoothclient_connect_runs_handshake_when_encrypted`
+   — mock `BleakClient` + `HandshakeSession`; verify `connect()` calls
+   the handshake exactly when `encrypted=True`.
+4. **Manual encrypted test (hardware):** if an encrypted device is
+   reachable, run `bluetti-cli status <ADDR>` and confirm a populated
+   reading — OR confirm the SN-validation diagnostic fires (per Unit 7).
+
+### Done when
+
+- `HandshakeSession.run` no longer raises `NotImplementedError`.
+- The three unit tests above pass.
+- AC2A regression suite still green (`uv run pytest`).
+- A `bluetti-cli status` against an encrypted device either succeeds or
+  fails with the SN-validation diagnostic — no opaque tracebacks.
 
 ---
 

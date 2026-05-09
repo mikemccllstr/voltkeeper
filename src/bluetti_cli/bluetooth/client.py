@@ -74,6 +74,16 @@ class BluetoothClient:
             if self._session:
                 resp = self._session.decrypt(resp)
                 resp = resp[: cmd.response_size()]
+                if not cmd.is_valid_response(resp):
+                    retries += 1
+                    if retries >= MAX_RETRIES:
+                        raise BadConnectionError(
+                            "Encrypted handshake completed but Modbus responses do not validate. "
+                            "This device may require the per-SN key-binding step that Bluetti's "
+                            "licensed library performs (status 3 in ble_crypt_link_handler). "
+                            "Run with -v to capture the handshake transcript and open an issue."
+                        )
+                    continue
 
             if cmd.is_exception_response(resp):
                 raise ModbusError(f"Modbus exception code: {resp[2]}")
