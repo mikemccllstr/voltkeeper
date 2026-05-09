@@ -460,6 +460,21 @@ Implement the cipher described in FINDINGS §15.8:
 - `pyproject.toml` — add `cryptography` to dependencies. Run `uv sync`
   afterwards.
 
+### Padding contract — read this before writing the code
+
+`encrypt()` zero-pads the plaintext to a 16-byte boundary. `decrypt()` returns
+**the full block-aligned plaintext including any padding bytes** — it must
+*not* `rstrip(b"\x00")` or otherwise try to remove padding. The Bluetti
+protocol carries plaintext bytes that legitimately end in `0x00`:
+
+- Modbus register values < 256 → high byte is `0x00`.
+- Modbus CRC-16 high bytes are `0x00` for ~0.4% of frames.
+- ECDSA signature and sum-checksum bytes can be `0x00`.
+
+The upper layer (Modbus parser, handshake state machine) determines the
+actual payload length from protocol-level fields and ignores trailing pad
+bytes. Stripping nulls in `decrypt()` would silently corrupt these payloads.
+
 ### Implementation shape
 
 ```python
@@ -492,6 +507,7 @@ def encrypt(plaintext: bytes, key: bytes, iv: bytes) -> bytes:
 
 
 def decrypt(ciphertext: bytes, key: bytes, iv: bytes) -> bytes:
+    """Returns full block-aligned plaintext. Caller handles framing/padding."""
     if len(ciphertext) % 16 != 0:
         raise ValueError("Ciphertext length must be a multiple of 16")
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
@@ -519,11 +535,16 @@ class CbcSession:
 
 ### Verification
 
-1. `tests/test_cipher.py` — three required tests:
-   - **Roundtrip:** for a fixed key and IV, `decrypt(encrypt(pt))` round-trips
-     several payloads of varying length (1, 15, 16, 17, 100 bytes).
+1. `tests/test_cipher.py` — four required tests:
+   - **Roundtrip (aligned):** for plaintext sizes that are exact multiples of
+     16 (16, 32, 64, 256), `decrypt(encrypt(pt))` returns `pt` unchanged.
+   - **Padding is zero-extension, not strip** (regression test): for `pt =
+     b"hi"` (2 bytes), `decrypt(encrypt(pt))` returns `pt + b"\x00" * 14` —
+     full 16 bytes, with the padding visible. **And** for an aligned 16-byte
+     plaintext that ends in `0x00` (e.g. `b"\x01\x03\x02\x12\x34\x00" +
+     b"\x00" * 10`), the round-trip preserves every trailing null.
    - **IV derivation:** assert `derive_iv("abc")` equals
-     `hashlib.md5(b"abc").digest()` — a sanity check that the function reads
+     `hashlib.md5(b"abc").digest()` — sanity check that the function reads
      the *string* of hex chars, not raw bytes.
    - **Chained IV:** create `CbcSession`, encrypt three messages, assert that
      decrypting in-order recovers the originals; assert that re-decrypting the
@@ -533,8 +554,9 @@ class CbcSession:
 
 ### Done when
 
-All three tests pass, and `pyproject.toml` declares the new dep with no upper
-bound (e.g., `"cryptography>=42"`).
+All four tests pass, and `pyproject.toml` declares the new dep with no upper
+bound (e.g., `"cryptography>=42"`). `decrypt()` does **not** strip trailing
+nulls.
 
 ---
 
@@ -571,11 +593,21 @@ PUBLIC_KEY_K2_DER_HEX = (
    (XOR of `bytes.fromhex(randomMd5_hex)` with `LOCAL_AES_KEY`).
 
 **Path 2 (ECDH, FINDINGS §15.2 step 3b):**
+
+> **Important:** `cipher.decrypt()` returns the full block-aligned plaintext
+> *including zero-pad bytes* (Unit 5 padding contract). Slice the decrypted
+> buffer by **known offsets from the start** (`[4:68]`, `[68:132]`,
+> `[132:134]`) — do NOT use `[-2:]` to grab the checksum, because the last 2
+> bytes of the buffer may be padding rather than the actual checksum. The
+> intended plaintext length is fixed at 134 bytes (`4` header + `64` pubkey
+> + `64` sig + `2` checksum); the ciphertext on the wire is 144 bytes (9
+> blocks).
+
 1. Receive `2A 2A 04 ...` AES-CBC encrypted with `bleConnAESKey` and IV
    `derive_iv(randomMd5_hex)`.
-2. After decrypt: bytes `[4:68]` = device public key (raw 64-byte uncompressed
-   point, no `0x04` prefix); `[68:-2]` = ECDSA signature `r||s` (64 bytes);
-   last 2 bytes = sum-checksum.
+2. After decrypt (first 134 bytes of the padded plaintext): bytes `[4:68]` =
+   device public key (raw 64-byte uncompressed point, no `0x04` prefix);
+   `[68:132]` = ECDSA signature `r||s` (64 bytes); `[132:134]` = sum-checksum.
 3. Verify ECDSA signature over `(devicePublicKey || randomMd5_hex_ascii)`
    using `PUBLIC_KEY_K2`.
 4. Generate ephemeral SECP256R1 keypair.

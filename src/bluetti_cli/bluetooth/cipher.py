@@ -1,5 +1,13 @@
 # ABOUTME: AES-128-CBC cipher with chained IV and zero-padding (no PKCS) for Bluetti BLE encryption.
 # ABOUTME: Unit 5 per IMPLEMENTATION_UNITS.md.
+#
+# Framing note: encrypt() zero-pads to a 16-byte boundary. decrypt() returns
+# the full block-aligned plaintext including any padding bytes — it does NOT
+# strip trailing zeros, because the Bluetti protocol carries plaintext bytes
+# that legitimately end in 0x00 (Modbus register values < 256, CRC high
+# bytes, ECDSA signature/checksum bytes, etc.). The upper layer (Modbus
+# parser, handshake state machine) determines actual payload length from
+# protocol-level fields and ignores trailing pad bytes.
 
 import hashlib
 
@@ -14,10 +22,6 @@ def _zero_pad(data: bytes, block: int = 16) -> bytes:
     if len(data) % block == 0:
         return data
     return data + b"\x00" * (block - len(data) % block)
-
-
-def _zero_unpad(data: bytes) -> bytes:
-    return data.rstrip(b"\x00")
 
 
 def encrypt(plaintext: bytes, key: bytes, iv: bytes) -> bytes:
@@ -36,7 +40,7 @@ def decrypt(ciphertext: bytes, key: bytes, iv: bytes) -> bytes:
         raise ValueError("Ciphertext length must be a multiple of 16")
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
     dec = cipher.decryptor()
-    return _zero_unpad(dec.update(ciphertext) + dec.finalize())
+    return dec.update(ciphertext) + dec.finalize()
 
 
 class CbcSession:
