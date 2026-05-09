@@ -23,6 +23,29 @@ verification steps that prove it's done.
 7. **Don't auto-commit.** Present changes for human review unless explicitly
    told to commit (per `AGENTS.md`).
 
+## Tooling constraints
+
+Every commit is gated on `mise run check` (lint + typecheck + tests). Your
+work is not done until that passes:
+
+- **Lint** — `mise run lint` → `uv run ruff check src/ tests/`. Rules:
+  `E, F, W, I`.
+- **Format** — `mise run format` → `uv run ruff format src/ tests/`.
+  `line-length = 120`. **The pre-commit hook runs this on every commit and
+  will reformat lines in files you've touched.** Expect "out-of-scope"
+  reflows in `git diff` for any file you edit (joining short multi-line
+  statements onto one line, etc.). These are non-functional and expected. Do
+  *not* try to scope your edits to keep the diff small — let the formatter
+  do its job.
+- **Typecheck** — `mise run typecheck` → `uv run mypy src/bluetti_cli`.
+  Config: `check_untyped_defs = true`, `no_implicit_optional = true`. Type
+  new code properly; don't reach for `# type: ignore` to make a problem go
+  away.
+- **Tests** — `mise run test` → `uv run pytest`.
+
+Test imports use `from src.bluetti_cli...` (not `from bluetti_cli...`) —
+match the existing convention in `tests/test_bluetti_cli.py`.
+
 ## Dependency graph
 
 ```
@@ -107,37 +130,78 @@ units expand it.
 
 ### Done when
 
-- `git diff` touches only `src/bluetti_cli/bluetooth/__init__.py` and one new
-  test.
-- `uv run pytest` is green.
+- `mise run check` is green (lint, typecheck, all tests).
+- `tests/test_bluetooth_init.py::test_build_device_rejects_unknown` passes.
 
 ---
 
 ## Unit 2 — Decouple AC2A literals from CLI and MQTT layers
 
 **Depends on:** Unit 1.
-**Scope:** ~50 lines across 3 files.
+**Scope:** ~80 lines across 3 files plus tests.
 
 ### Goal
 
-Two AC2A literals leak into upper layers:
+After Unit 1 and the earlier "bug 1c" quality fix (commit `7a54ab9`), exactly
+one functional AC2A literal and two direct AC2A class references remain in
+upper layers:
 
-- `src/bluetti_cli/cli.py:953` — MQTT topic uses literal `"AC2A"`.
-- `src/bluetti_cli/cli.py:483-488` — verbose status block calls
-  `AC2A.decode_ctrl_event` and reads `AC2A.CTRL_EVENT_BITS` directly.
+```
+$ grep -rn '"AC2A"\|AC2A\.' src/
+src/bluetti_cli/cli.py:929    device_type = "AC2A"                            ← target
+src/bluetti_cli/cli.py:456    caps = AC2A.decode_ctrl_event(ctrl_event)       ← target
+src/bluetti_cli/cli.py:460    for name, _ in AC2A.CTRL_EVENT_BITS:            ← target
+```
 
-Move both behind device-class methods so other models can opt in.
+(Line numbers may drift slightly after format reflows. The harmless mentions
+in `bluetooth/__init__.py:85` registry and `core/devices/ac2a.py:54`
+constructor are definition sites and stay.)
+
+Move all three behind device-class methods so other models can opt in.
+
+### Special case: `cli.py:929` — `mqtt-listen --serial` without ADDRESS
+
+The `mqtt-listen` command accepts ADDRESS, `--serial`, or both. When ADDRESS
+is provided we can scan and resolve the device class. When only `--serial` is
+provided (the latched-shutdown deployment use case), we have no scan and
+therefore no auto-detection. The current code defaults the topic to `"AC2A"`,
+which silently breaks for any other model.
+
+Required change: add a `--device-type` Click option (default `None`).
+Resolution order in the command body:
+
+1. If `address` is set → resolve via `build_device(...).type` (existing
+   path).
+2. Else if `--device-type` is set → use it verbatim, but validate against
+   the registry (raise `click.BadParameter` for unknown values).
+3. Else (only `--serial`, no `--device-type`) → raise `click.UsageError`
+   instructing the user to pass `--device-type` so the MQTT topic stays
+   correct. Do *not* fall back to AC2A silently — that would re-introduce
+   the original bug.
 
 ### Files to modify
 
-- `src/bluetti_cli/core/devices/bluetti_device.py` — add two optional helper
-  methods with default `None`/`{}`.
-- `src/bluetti_cli/core/devices/ac2a.py` — already has `decode_ctrl_event` and
-  `CTRL_EVENT_BITS`; just confirm the new base-class signatures match.
-- `src/bluetti_cli/cli.py` — call `device.decode_ctrl_event(...)` instead of
-  `AC2A.decode_ctrl_event(...)`. Use `device.type` for MQTT topic prefix.
-- `src/bluetti_cli/mqtt_client.py` — audit for any hardcoded `AC2A`; replace
-  with `device.type`.
+- `src/bluetti_cli/core/devices/bluetti_device.py` — add an optional
+  `decode_ctrl_event` method and a `ctrl_event_bits` property with `None`
+  / empty-list defaults.
+- `src/bluetti_cli/core/devices/ac2a.py` — port the existing
+  `@classmethod decode_ctrl_event` to an instance method and expose
+  `CTRL_EVENT_BITS` via the `ctrl_event_bits` property.
+- `src/bluetti_cli/cli.py`:
+  - The verbose status block (currently around lines 454–460): replace the
+    inline `from .core.devices.ac2a import AC2A` plus
+    `AC2A.decode_ctrl_event(...)` / `AC2A.CTRL_EVENT_BITS` with
+    `device.decode_ctrl_event(ctrl_event)` and iteration over
+    `device.ctrl_event_bits`.
+  - `mqtt_listen` (currently around line 929): add the `--device-type`
+    option, replace the `device_type = "AC2A"` literal with the
+    resolution logic above.
+- `src/bluetti_cli/bluetooth/__init__.py` — promote `_device_registry()`
+  to a public name (e.g. `device_registry()`) or add a small public helper
+  `is_supported_device_type(prefix: str) -> bool`. Pick whichever feels
+  less intrusive; the CLI needs a way to validate `--device-type`.
+- `src/bluetti_cli/mqtt_client.py` — final audit. Should already be
+  model-agnostic post-bug-1c; verify with `grep '"AC2A"'`.
 
 ### Implementation shape
 
@@ -150,7 +214,7 @@ class BluettiDevice:
     # Optional capability hook. Subclasses that expose a ctrl-event bitmask
     # should override and return {bit_name: bool}. Default: None means
     # "device does not expose ctrl events" — caller should skip the section.
-    def decode_ctrl_event(self, ctrl_event: int) -> dict | None:
+    def decode_ctrl_event(self, ctrl_event: int) -> dict[str, bool] | None:
         return None
 
     @property
@@ -158,40 +222,89 @@ class BluettiDevice:
         return []
 ```
 
-In `ac2a.py`, change the existing `@classmethod decode_ctrl_event` into an
-instance method and delete the redundant module-level constant access.
-
-In `cli.py:953` (or thereabouts):
+In `ac2a.py`:
 
 ```python
-topic_prefix = f"bluetti/state/{device.type}-{sn}"
+class AC2A(...):
+    CTRL_EVENT_BITS = [...]  # keep the constant
+
+    @property
+    def ctrl_event_bits(self) -> list[tuple[str, str]]:
+        return self.CTRL_EVENT_BITS
+
+    def decode_ctrl_event(self, ctrl_event: int) -> dict[str, bool]:
+        # body unchanged from current @classmethod implementation;
+        # just drop @classmethod and `cls` -> `self`.
+        ...
 ```
 
-In `cli.py:483-488`:
+In `cli.py` (verbose status block):
 
 ```python
-ctrl_event_value = parsed.get("ctrl_event")
-if ctrl_event_value is not None:
-    decoded = device.decode_ctrl_event(ctrl_event_value)
-    if decoded:
-        # render the table
+caps = device.decode_ctrl_event(ctrl_event)
+if caps is None:
+    return  # device does not expose ctrl events; skip the block
+for name, label in device.ctrl_event_bits:
+    ...
+```
+
+In `cli.py` (mqtt_listen — Click option + body):
+
+```python
+@click.option(
+    "--device-type",
+    type=str,
+    default=None,
+    help="Device model (e.g. AC2A). Required when --serial is given without ADDRESS.",
+)
+def mqtt_listen(..., device_type, ...):
+    ...
+    if address:
+        _device = build_device(address, lookup_device_name(address))
+        device_type_resolved = _device.type
+        sn = _device.sn
+    elif device_type:
+        if not is_supported_device_type(device_type):
+            raise click.BadParameter(
+                f"Unknown device type {device_type!r}. "
+                f"Known: {sorted(device_registry())}"
+            )
+        device_type_resolved = device_type
+    else:
+        raise click.UsageError(
+            "When ADDRESS is omitted, pass --device-type so the MQTT topic "
+            "is correct (e.g. --device-type AC2A)."
+        )
 ```
 
 ### Verification
 
-1. `uv run pytest` — green.
-2. `grep -rn "AC2A" src/bluetti_cli/cli.py src/bluetti_cli/mqtt_client.py` —
-   the only remaining matches should be in import paths or comments, never in
-   topic strings or capability lookups.
-3. Manual: run `bluetti-cli status -v <ADDR>` against an AC2A — capabilities
-   block must look identical to before.
-4. Manual: run `bluetti-cli mqtt-publish <ADDR> --broker localhost` and confirm
-   the published topic is `bluetti/state/AC2A-<sn>/...` (unchanged).
+1. `mise run check` — green.
+2. `grep -rn '"AC2A"' src/` matches only at:
+   - `src/bluetti_cli/bluetooth/__init__.py` (registry definition)
+   - `src/bluetti_cli/core/devices/ac2a.py` (`super().__init__(..., "AC2A", ...)` in constructor)
+3. `grep -rn "AC2A\." src/bluetti_cli/cli.py` returns no matches (no direct
+   class access — must go through `device.<method>`).
+4. **New tests** in `tests/test_bluetti_cli.py` (or a new file):
+   - `test_mqtt_listen_requires_device_type_when_no_address` — invoke `cli`
+     with `mqtt-listen --serial 1234`, assert `UsageError` fires.
+   - `test_mqtt_listen_validates_device_type` — pass `--device-type INVALID`,
+     assert `BadParameter`.
+   - `test_mqtt_listen_uses_explicit_device_type` — pass
+     `--serial 1234 --device-type AC2A`, assert the resolved topic prefix
+     contains `AC2A`.
+   - `test_decode_ctrl_event_default_returns_none` — instantiate the base
+     class (or a minimal subclass), assert `decode_ctrl_event(0)` is `None`.
+5. Manual: `bluetti-cli status -v <AC2A_ADDR>` — capabilities block looks
+   identical to before.
+6. Manual: `bluetti-cli mqtt-publish <AC2A_ADDR> --broker localhost` —
+   published topic prefix is `bluetti/state/AC2A-<sn>/...` (unchanged).
 
 ### Done when
 
-`grep -rn '"AC2A"' src/` returns matches only in `core/devices/ac2a.py`
-(definition site) and `bluetooth/__init__.py` (registry).
+- All four new unit tests pass.
+- `grep` checks in steps 2 and 3 above are clean.
+- AC2A regression: verbose status block and MQTT topics unchanged.
 
 ---
 
