@@ -1200,6 +1200,34 @@ following that table.
 
 The `BASE_CONFIG` block at register 1 is parsed per FINDINGS §15.7.
 
+### V1 + BLE encryption — extra investigation
+
+Unit 7b's `HandshakeSession.run` always proceeds to Path 2 (ECDH) after Path 1.
+Per FINDINGS §15.2 step 3b, ECDH is **V2+ only**. If a V1 device sets
+`isBLEEncrypted == true` (or `isESP32Encrypted == true`), the current state
+machine will hang at `_collect(144)` waiting for an ECDH frame the device
+never sends.
+
+Before/while writing `v1_base.py`, do the following:
+
+1. **Research:** grep `docs/FINDINGS.md` (and the decompiled APK metadata
+   under `apk_decompiled/`) for any V1 model (`protocolVer < 2000`) where
+   `isBLEEncrypted` or `isESP32Encrypted` is true. The encryption-flag
+   thresholds in §15.4 are the primary source.
+2. **If no V1-encrypted model exists:** add a one-line claim to the top of
+   `v1_base.py` ("V1 devices are always plaintext per FINDINGS §15.4 as of
+   APK 3.0.8") and call it out in `tests/test_v1_base.py` so future device
+   classes can rely on the assumption.
+3. **If at least one V1-encrypted model exists:** extend
+   `HandshakeSession.run` with a `skip_ecdh: bool = False` parameter (or a
+   second method `run_legacy_only`). When set, return
+   `CbcSession(ble_conn_aes_key, initial_iv)` immediately after Path 1
+   completes. Plumb the flag from the per-model class (V1-encrypted models
+   pass `skip_ecdh=True` when constructing the handshake) — do **not**
+   plumb it through `BluetoothClient`'s public API; keep it internal.
+   Add a unit test that drives the V1-encrypted path end-to-end with a
+   mock device that only does Path 1.
+
 ### Verification
 
 1. **Synthetic input fixture:** craft a 220-byte hex blob simulating a known
@@ -1208,10 +1236,14 @@ The `BASE_CONFIG` block at register 1 is parsed per FINDINGS §15.7.
 2. **Parse test:** assert `V1Base().parse(10, fixture)` returns
    `{"deviceModel": "EB3A", "protocolVer": 1018, "batterySOC": 75, ...}`.
 3. `uv run pytest tests/test_v1_base.py -v`.
+4. **V1-encryption claim:** either the documentation note (case 2 above)
+   or the new `skip_ecdh` test (case 3 above) is in place.
 
 ### Done when
 
-The synthetic-fixture test parses every documented field from FINDINGS §15.6.
+The synthetic-fixture test parses every documented field from FINDINGS §15.6,
+**and** the V1-encryption question above is resolved (either documented away
+or implemented).
 
 ---
 

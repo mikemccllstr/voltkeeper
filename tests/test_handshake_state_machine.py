@@ -153,3 +153,93 @@ class TestHandshakeStateMachine:
 
         with pytest.raises(ValueError, match="device pubkey signature"):
             await task
+
+    @pytest.mark.asyncio
+    async def test_rejects_bad_challenge_header(self):
+        client = FakeClient()
+        h = HandshakeSession()
+
+        task = asyncio.create_task(h.run(client))
+        while client._notify_callback is None:
+            await asyncio.sleep(0)
+        # Wrong header: 2A 2A 99 instead of 2A 2A 01
+        client.feed(b"\x2a\x2a\x99\x01\x02\x03\x04")
+
+        with pytest.raises(ValueError, match="Expected challenge 0x2A2A01"):
+            await task
+
+    @pytest.mark.asyncio
+    async def test_rejects_bad_ecdh_header(self):
+        client = FakeClient()
+        h = HandshakeSession()
+
+        random_bytes = b"\x01\x02\x03\x04"
+        random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
+        initial_iv = derive_iv(random_md5_hex)
+        enc_session = CbcSession(ble_conn_aes_key, initial_iv)
+
+        # Build an ECDH frame with WRONG header (2A 2A 99 instead of 2A 2A 04),
+        # padded to 144 bytes so _collect(144) returns.
+        bad_ecdh = b"\x2a\x2a\x99" + b"\x00" * (144 - 3)
+        enc_bad = enc_session.encrypt(bad_ecdh)
+
+        task = asyncio.create_task(h.run(client))
+        while client._notify_callback is None:
+            await asyncio.sleep(0)
+
+        client.feed(b"\x2a\x2a\x01" + random_bytes)
+        client.feed(enc_bad)
+
+        with pytest.raises(ValueError, match="Expected ECDH start 0x2A2A04"):
+            await task
+
+    @pytest.mark.asyncio
+    async def test_rejects_bad_confirmation_header(self):
+        client = FakeClient()
+        h = HandshakeSession()
+
+        random_bytes = b"\x01\x02\x03\x04"
+        random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
+        initial_iv = derive_iv(random_md5_hex)
+        enc_session = CbcSession(ble_conn_aes_key, initial_iv)
+
+        device_priv = ec.generate_private_key(ec.SECP256R1())
+        device_pub_raw = device_priv.public_key().public_bytes(
+            encoding=Encoding.X962, format=PublicFormat.UncompressedPoint
+        )[1:]
+        device_sig = sign_app_pubkey(device_pub_raw, random_md5_hex)
+        ecdh_msg = b"\x2a\x2a\x04" + device_pub_raw + device_sig
+        ecdh_msg += _checksum(ecdh_msg)
+        enc_ecdh = enc_session.encrypt(ecdh_msg)
+
+        # Build a confirmation with WRONG header (2A 2A 99 instead of 2A 2A 06)
+        bad_conf = b"\x2a\x2a\x99\x00" + b"\x00" * 10
+        bad_conf += _checksum(bad_conf)
+
+        with patch("src.bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
+            mock_verify.side_effect = lambda pub, sig, md5: ec.EllipticCurvePublicKey.from_encoded_point(
+                ec.SECP256R1(), b"\x04" + pub
+            )
+
+            task = asyncio.create_task(h.run(client))
+            while client._notify_callback is None:
+                await asyncio.sleep(0)
+
+            # Feed challenge → capture legacy reply.
+            client.feed(b"\x2a\x2a\x01" + random_bytes)
+            legacy_reply = await _await_send(client)
+            assert legacy_reply[:3] == b"\x2a\x2a\x02"
+
+            # Feed encrypted ECDH frame → capture app's ECDH reply, mirror its
+            # decryption on our side to keep the CBC IV state in sync with the
+            # handshake's enc_session.
+            client.feed(enc_ecdh)
+            ecdh_reply = await _await_send(client)
+            enc_session.decrypt(ecdh_reply)
+
+            # Now encrypt and feed the bad confirmation.
+            enc_bad_conf = enc_session.encrypt(bad_conf)
+            client.feed(enc_bad_conf)
+
+            with pytest.raises(ValueError, match="Expected confirmation 0x2A2A06"):
+                await task

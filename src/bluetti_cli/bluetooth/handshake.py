@@ -134,6 +134,13 @@ class HandshakeSession:
                 raise ValueError(f"Expected confirmation 0x2A2A06, got {conf_plaintext[:3].hex()}")
 
             shared_key = derive_shared_key(app_priv, device_pub)
+            # CAVEAT: FINDINGS §15.2 step 3c is ambiguous about whether the IV
+            # resets when the session key changes (bleConnAESKey → bleConnShareKey)
+            # or whether it continues chaining from the last handshake ciphertext
+            # block. We choose to RESET to derive_iv(randomMd5) since the key
+            # changed; this is plausible but unvalidated against a real device.
+            # If encrypted Modbus traffic decrypts to garbage post-handshake,
+            # suspect this first and try `enc_session.iv` instead of `initial_iv`.
             return CbcSession(shared_key, initial_iv)
         finally:
             await client.stop_notify(NOTIFY_UUID)
