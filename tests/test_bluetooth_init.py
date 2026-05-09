@@ -17,7 +17,7 @@ from src.bluetti_cli.bluetooth import (
 
 def test_build_device_rejects_unknown():
     with pytest.raises(ValueError, match="Unsupported device model"):
-        build_device("AA:BB:CC:DD:EE:FF", "EP600123456")
+        build_device("AA:BB:CC:DD:EE:FF", "BOGUS999999")
 
 
 class TestClassify:

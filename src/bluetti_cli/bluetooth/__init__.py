@@ -10,7 +10,7 @@ from bleak import BleakScanner
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 WRITE_UUID = "0000ff02-0000-1000-8000-00805f9b34fb"
 NOTIFY_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
-_DEVICE_NAME_SN_RE = re.compile(r"^(AC2A|AC60|EP600|EP500|EB3A)(\d+)$")
+_DEVICE_NAME_SN_RE = re.compile(r"^(AC2A|AC60|EP600|EP500|EB3A|AC300|AC500|AC200L|AC200PL|AC200M)(\d+)$")
 
 PREFIX_PLAINTEXT = bytes.fromhex("424c5545545449")
 PREFIX_ENCRYPTED = (
@@ -113,8 +113,26 @@ async def pick_address_after_scan() -> ScanResult:
 
 def _device_registry() -> dict[str, type]:
     from ..core.devices.ac2a import AC2A
+    from ..core.devices.ac60 import AC60
+    from ..core.devices.ac200l import AC200L
+    from ..core.devices.ac200m import AC200M
+    from ..core.devices.ac200pl import AC200PL
+    from ..core.devices.ac300 import AC300
+    from ..core.devices.ac500 import AC500
+    from ..core.devices.eb3a import EB3A
+    from ..core.devices.ep600 import EP600
 
-    return {"AC2A": AC2A}
+    return {
+        "AC2A": AC2A,
+        "AC60": AC60,
+        "AC200L": AC200L,
+        "AC200M": AC200M,
+        "AC200PL": AC200PL,
+        "AC300": AC300,
+        "AC500": AC500,
+        "EB3A": EB3A,
+        "EP600": EP600,
+    }
 
 
 def device_registry() -> dict[str, type]:
