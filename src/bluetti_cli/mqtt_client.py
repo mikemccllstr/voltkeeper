@@ -493,8 +493,9 @@ class MQTTClient:
             "object_id": f"{device.type}_{ha_id}",
         }
         if field.setter:
+            # Use the field key (name) not topic_name: _handle_command dispatches by key.
             payload_dict["command_topic"] = (
-                f"bluetti/command/{device.type}-{device.sn}/{topic_field}"
+                f"bluetti/command/{device.type}-{device.sn}/{name}"
             )
         payload_dict.update(field.home_assistant_extra)
         return json.dumps(payload_dict, separators=(",", ":"))
