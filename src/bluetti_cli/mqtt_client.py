@@ -1,11 +1,11 @@
 # ABOUTME: MQTT client — publishes device state and handles MQTT commands with Home Assistant auto-discovery.
 
 import asyncio
-from dataclasses import dataclass
-from enum import auto, Enum, unique
 import json
 import logging
 import re
+from dataclasses import dataclass
+from enum import Enum, auto, unique
 from typing import List, Optional
 
 from aiomqtt import Client, MqttError

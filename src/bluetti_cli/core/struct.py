@@ -1,8 +1,8 @@
 # ABOUTME: Declarative device register struct — field types and DeviceStruct parser.
 
+import struct
 from decimal import Decimal
 from enum import Enum
-import struct
 from typing import Any, Optional, Tuple, Type
 
 
@@ -217,7 +217,9 @@ class DeviceStruct:
     def add_decimal_field(self, name: str, address: int, scale: int, range: Optional[Tuple[int, int]] = None):
         self.fields.append(DecimalField(name, address, scale, range))
 
-    def add_signed_decimal_field(self, name: str, address: int, scale: int, range: Optional[Tuple[float, float]] = None):
+    def add_signed_decimal_field(
+        self, name: str, address: int, scale: int, range: Optional[Tuple[float, float]] = None
+    ):
         self.fields.append(SignedDecimalField(name, address, scale, range))
 
     def add_uint8_field(self, name: str, address: int, word_offset: int, range: Optional[Tuple[int, int]] = None):

@@ -3,7 +3,7 @@
 from typing import Any, List
 
 from ..commands import ReadHoldingRegisters, WriteSingleRegister
-from ..struct import BoolField, DeviceStruct, EnumField
+from ..struct import BoolField, EnumField
 
 
 class BluettiDevice:

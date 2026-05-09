@@ -17,12 +17,6 @@ dependencies = [
     "watchdog>=6.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=1.0",
-]
-
 [project.scripts]
 bluetti-cli = "src.bluetti_cli.cli:cli"
 
@@ -36,6 +30,17 @@ markers = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["bluetti_cli"]
 
 [dependency-groups]
 dev = [

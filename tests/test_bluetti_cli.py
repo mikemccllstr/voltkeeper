@@ -3,15 +3,21 @@
 
 import asyncio
 import csv
-from io import StringIO
 import json
+import time
 from decimal import Decimal
+from io import StringIO
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
+import src.bluetti_cli.load_test as lt
+from src.bluetti_cli.bus import CommandMessage, EventBus, ParserMessage
 from src.bluetti_cli.cli import cli
+from src.bluetti_cli.core.commands import WriteMultipleRegisters, WriteSingleRegister
+from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
+from src.bluetti_cli.core.devices.bluetti_device import BluettiDevice
 from src.bluetti_cli.core.utils import (
     _ascii,
     _bcd_sn,
@@ -22,17 +28,15 @@ from src.bluetti_cli.core.utils import (
     _u32,
     crc16_modbus,
 )
-from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
-from src.bluetti_cli.core.devices.bluetti_device import BluettiDevice
-from src.bluetti_cli.core.commands import WriteSingleRegister, WriteMultipleRegisters
-from src.bluetti_cli.bus import EventBus, ParserMessage, CommandMessage
+from src.bluetti_cli.device_handler import SourceChangeWatcher, _watch_source_changes
 from src.bluetti_cli.mqtt_client import (
+    CHARGING_STATUS_MAP,
+    COMMAND_TOPIC_RE,
+    NORMAL_DEVICE_FIELDS,
     MQTTClient,
     MqttFieldType,
-    NORMAL_DEVICE_FIELDS,
-    COMMAND_TOPIC_RE,
-    CHARGING_STATUS_MAP,
 )
+from src.bluetti_cli.shutdown_watch import ShutdownWatch
 
 
 @pytest.fixture
@@ -767,9 +771,10 @@ class TestDeviceHandler:
     @pytest.mark.asyncio
     async def test_poll_once_no_double_strip(self, ac2a_device, ac2a_home_bytes):
         """execute() already returns stripped body; _poll_once must not strip again."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
+
+        from src.bluetti_cli.bus import EventBus
         from src.bluetti_cli.device_handler import DeviceHandler
-        from src.bluetti_cli.bus import EventBus, ParserMessage
 
         bus = EventBus()
         handler = DeviceHandler("00:00:00:00:00:00", ac2a_device, 0, bus)
@@ -857,8 +862,6 @@ class TestCli:
 #  Load test
 # ═══════════════════════════════════════════════════════════════════════
 
-
-import src.bluetti_cli.load_test as lt
 
 
 class TestEnergyComputation:
@@ -1401,11 +1404,6 @@ class TestMqttPublishService:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-from src.bluetti_cli.device_handler import (
-    SourceChangeWatcher, _PyFileHandler, _watch_source_changes,
-)
-
-
 class TestSourceChangeWatcher:
     def test_watcher_event_set_on_py_modify(self, tmp_path):
         (tmp_path / "mod.py").touch()
@@ -1413,7 +1411,7 @@ class TestSourceChangeWatcher:
         watcher.start()
         try:
             (tmp_path / "mod.py").write_text("x = 1")
-            import time; time.sleep(0.3)
+            time.sleep(0.3)
             assert watcher.changed.is_set()
         finally:
             watcher.stop()
@@ -1423,7 +1421,7 @@ class TestSourceChangeWatcher:
         watcher.start()
         try:
             (tmp_path / "notes.txt").write_text("hello")
-            import time; time.sleep(0.3)
+            time.sleep(0.3)
             assert not watcher.changed.is_set()
         finally:
             watcher.stop()
@@ -1456,9 +1454,6 @@ class TestSourceChangeWatcher:
 # ═══════════════════════════════════════════════════════════════════════
 #  Shutdown watch latch logic
 # ═══════════════════════════════════════════════════════════════════════
-
-
-from src.bluetti_cli.shutdown_watch import ShutdownWatch
 
 
 class TestShutdownWatch:

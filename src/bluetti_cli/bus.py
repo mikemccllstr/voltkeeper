@@ -1,12 +1,12 @@
 # ABOUTME: EventBus — internal async pub/sub for parsed device data and commands.
 
 import asyncio
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Callable, List, Union
 
-from .core.devices.bluetti_device import BluettiDevice
 from .core.commands import DeviceCommand
+from .core.devices.bluetti_device import BluettiDevice
 
 
 @dataclass(frozen=True)

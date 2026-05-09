@@ -2,15 +2,14 @@
 
 import asyncio
 import csv
-from datetime import datetime, timezone
-import sys
 import time
+from datetime import datetime, timezone
 
 import click
 
-from .core.commands import ReadHoldingRegisters
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import ModbusError
+from .core.commands import ReadHoldingRegisters
 
 MIN_INTERVAL = 15
 GRID_WARNING_W = 10
@@ -261,7 +260,7 @@ def _display_status(data, sample_n, start_time):
     phase = data.get("phase", "")
 
     click.echo("─" * 60)
-    header = f"  Load Test"
+    header = "  Load Test"
     if phase:
         header += f" | {phase}"
     header += f" | Sample {sample_n} | {hours}h {minutes:02d}m {seconds:02d}s"
@@ -287,7 +286,7 @@ def _display_status(data, sample_n, start_time):
         f"  Temp:      {amb if amb != '' else 'Not fitted'}  |  "
         f"{inv if inv != '' else 'Not fitted'}"
     )
-    click.echo(f"  ────────────────────────────────────────────")
+    click.echo("  ────────────────────────────────────────────")
     click.echo(f"  Energy (computed):    {data.get('energy_computed_wh', 0):.1f} Wh")
     click.echo(f"  Energy (register):    {data.get('energy_register_wh', '--')} Wh")
     est = data.get("est_remaining_min", "")
