@@ -10,6 +10,7 @@ from typing import Any, List
 from ..commands import ReadHoldingRegisters, WriteSingleRegister
 from ..struct import BoolField, DeviceStruct, EnumField
 from ..utils import _u16
+from ._v1_alarm_tables import CONNECT_CONSTANTS_ALARM_NAMES, CONNECT_CONSTANTS_FAULT_NAMES
 from .bluetti_device import BluettiDevice
 
 BASE_CONFIG = 1
@@ -50,122 +51,19 @@ AC_ECO_POWER = 3070
 OUTPUT_VOLTAGE = 3079
 SYS_SWITCH_RECOVERY = 3090
 
-# ── V1 alarm/fault name tables (shared by all V1 devices) ──────────────
-# Per FINDINGS §15.6: alarmInfo at registers 54-57 (4×16-bit),
-# faultInfo at registers 58-62 (5×16-bit per ProtocolParse.java).
-# Bit 0 = LSB, index 0 = bit 0.
-
-LOW_POWER_WARN_NAMES: dict[int, list[str]] = {
-    1: [
-        "Grid Voltage High",
-        "Grid Voltage Low",
-        "Grid Frequency High",
-        "Grid Frequency Low",
-        "Grid Oscillation",
-        "Networking Operation Abnormal",
-        "Grid Connection Fault",
-        "Accessory Malfunction",
-        "PV Configuration Error",
-        "Grid 2 Voltage High",
-        "Grid 2 Voltage Low",
-        "Grid 2 Frequency High",
-        "Grid 2 Frequency Low",
-        "Grid 2 Oscillation",
-        "Grid Not Connected",
-    ],
-    2: [
-        "Battery Pack Communication Abnormal",
-        "IoT Communication Error",
-        "UPS Input Overvoltage",
-        "UPS Input Undervoltage",
-        "UPS Input Overcurrent",
-        "UPS Input Overtemperature",
-        "UPS Precharge Fault",
-        "UPS Hardware Fault",
-    ],
-}
-
-LOW_POWER_FAULT_NAMES: dict[int, list[str]] = {
-    1: [
-        "Inverter Overload",
-        "Inverter Over Temperature",
-        "Inverter Short Circuit",
-        "Inverter Output Fault",
-        "LLC Output Error",
-        "Bus Over Voltage/Hardware Bus Over Voltage",
-        "BUS Low Voltage",
-        "Hardware Inverter Overcurrent",
-        "Hardware Input Overcurrent",
-        "Battery Voltage High/Hardware Battery Over Voltage",
-        "Battery Voltage Low",
-        "Main Relay Failure",
-        "Grid Relay Failure",
-        "Calibration Fail",
-        "Auxiliary Battery Malfunction",
-        "Fan Error",
-    ],
-    2: [
-        "Multihost Error",
-        "Phase Loss",
-        "Multi-machine Communication Abnormal",
-        "Multi-machine Synchronization Abnormal",
-        "Multi-machine Configuration Abnormal",
-        "Generator Voltage Abnormal",
-        "System Initialization Failure",
-        "Parallel Relay Failure",
-        "Grid Input Overcurrent",
-        "System Overload",
-        "DC Output Overload",
-        "Inverter Low Temperature",
-    ],
-    3: [
-        "PV1 Over Voltage",
-        "PV2 Over Voltage",
-        "PV3 Over Voltage",
-        "PV1 Overcurrent",
-        "PV2 Overcurrent",
-        "PV3 Overcurrent",
-        "PV1 Over Temperature",
-        "PV2 Over Temperature",
-        "PV3 Over Temperature",
-        "PV Precharge Fault",
-        "PV1 Hardware Error",
-        "PV2 Hardware Error",
-        "PV3 Hardware Error",
-        "PV Insulation Resistance Fault",
-    ],
-    4: [
-        "PV4 Over Voltage",
-        "PV4 Overcurrent",
-        "PV4 Over Temperature",
-        "PV4 Hardware Error",
-        "PV1 Low Temperature",
-        "PV2 Low Temperature",
-        "PV3 Low Temperature",
-        "PV4 Low Temperature",
-    ],
-    5: [
-        "DC Output Short Circuit",
-        "DC Output Voltage High",
-        "DC Output Current High",
-        "DC Output Over Temperature",
-        "DC Output Failure",
-        "BMS Communication Failure",
-        "Inverter String Communication Failure",
-        "RTC Error",
-        "EEPROM Error",
-        "BMS System Fault",
-        "Controller Temperature Too High",
-        "Zero Drift Abnormal (DSP)",
-        "DC Output Low Temperature",
-        "Leakage Current Fault",
-        "Insulation Resistance Failure",
-    ],
-}
+# ── V1Base default alarm/fault tables are ConnectConstants (V1 high-power)
+# ── per IMPLEMENTATION_UNITS.md Unit 10b. Subclasses with isLowPower=true
+# ── override to _v1_alarm_tables.LOW_POWER_* in their class body.
 
 
 class V1Base(BluettiDevice):
     WRITABLE_FIELD_NAMES: list[str] = []
+
+    # Default alarm/fault tables: ConnectConstants (V1 high-power).
+    # Subclasses with isLowPower=true override these to LOW_POWER_WARN_NAMES /
+    # LOW_POWER_FAULT_NAMES from _v1_alarm_tables.
+    ALARM_NAMES: dict[int, list[str | None]] = CONNECT_CONSTANTS_ALARM_NAMES
+    FAULT_NAMES: dict[int, list[str | None]] = CONNECT_CONSTANTS_FAULT_NAMES
 
     def __init__(self, address: str, type: str, sn: str):
         self.real_data_struct = DeviceStruct()
@@ -237,15 +135,14 @@ class V1Base(BluettiDevice):
             if ver > 0:
                 result[label] = ver
 
-    @staticmethod
-    def _fill_alarms(result: dict, data: bytes):
-        """Decode alarmInfo (regs 54-57) and faultInfo (regs 58-62).
+    def _fill_alarms(self, result: dict, data: bytes):
+        """Decode alarmInfo (regs 54-57) and faultInfo (regs 58-64).
 
-        Walks each 16-bit word, bit 0 = LSB, and emits
-        ``alarm.<name>: True`` / ``fault.<name>: True`` keys.
-
-        Uses LOW_POWER_WARN_NAMES / LOW_POWER_FAULT_NAMES — all V1
-        devices share the same tables regardless of power class.
+        Reads tables from ``self.ALARM_NAMES`` / ``self.FAULT_NAMES`` so
+        subclasses can override the table set via class attributes. Bits
+        whose name is ``None`` are skipped (unused positions in the APK
+        tables). The loop iterates 7 fault words to be safe across table
+        sets; missing keys are silently ignored.
         """
         base = BASE_REAL_DATA
 
@@ -256,21 +153,21 @@ class V1Base(BluettiDevice):
             if len(data) < off + 2:
                 break
             word_val = _u16(data, off)
-            names = LOW_POWER_WARN_NAMES.get(word_idx + 1, [])
+            names = self.ALARM_NAMES.get(word_idx + 1, [])
             for bit in range(16):
-                if (word_val >> bit) & 1 and bit < len(names):
+                if (word_val >> bit) & 1 and bit < len(names) and names[bit] is not None:
                     result[f"alarm.{names[bit]}"] = True
 
-        # faultInfo: 5 words starting at register 58
-        for word_idx in range(5):
+        # faultInfo: up to 7 words starting at register 58
+        for word_idx in range(7):
             reg = 58 + word_idx
             off = (reg - base) * 2
             if len(data) < off + 2:
                 break
             word_val = _u16(data, off)
-            names = LOW_POWER_FAULT_NAMES.get(word_idx + 1, [])
+            names = self.FAULT_NAMES.get(word_idx + 1, [])
             for bit in range(16):
-                if (word_val >> bit) & 1 and bit < len(names):
+                if (word_val >> bit) & 1 and bit < len(names) and names[bit] is not None:
                     result[f"fault.{names[bit]}"] = True
 
     # ── Writable-field plumbing (mirrors V2Base) ───────────────────────

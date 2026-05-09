@@ -40,6 +40,8 @@ class ChargingMode(Enum):
 class AC300(V1Base):
     """AC300 mid-large inverter. V1 protocol."""
 
+    # Uses V1Base default ALARM_NAMES/FAULT_NAMES (ConnectConstants).
+
     WRITABLE_FIELD_NAMES = [
         "ac_output",
         "dc_output",

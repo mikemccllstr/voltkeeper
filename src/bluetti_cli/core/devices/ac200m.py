@@ -23,6 +23,8 @@ from .v1_base import (
 class AC200M(V1Base):
     """AC200M (AC200MAX) older mid-range. V1 protocol."""
 
+    # Uses V1Base default ALARM_NAMES/FAULT_NAMES (ConnectConstants).
+
     WRITABLE_FIELD_NAMES = [
         "ac_output",
         "dc_output",

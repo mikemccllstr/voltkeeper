@@ -7,6 +7,7 @@ from enum import Enum, unique
 from typing import List
 
 from ..commands import ReadHoldingRegisters
+from ._v1_alarm_tables import LOW_POWER_FAULT_NAMES, LOW_POWER_WARN_NAMES
 from .v1_base import (
     AC_ECO_POWER,
     AC_SWITCH,
@@ -45,6 +46,10 @@ class InverterFrequency(Enum):
 
 class AC200L(V1Base):
     """AC200L mid-range portable. V1 protocol."""
+
+    # AC200L is isLowPower=true in the APK → uses ConnConstantsV2 lowPower tables.
+    ALARM_NAMES = LOW_POWER_WARN_NAMES
+    FAULT_NAMES = LOW_POWER_FAULT_NAMES
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",

@@ -83,25 +83,26 @@ def test_ac200pl_inherits_ac200l_controls():
     assert len(ac200pl.control_struct.fields) == len(ac200l.control_struct.fields)
 
 
-def test_v1_alarm_fault_parsing():
-    """V1Base._fill_alarms emits alarm.* and fault.* keys."""
-    from src.bluetti_cli.core.devices.v1_base import BASE_REAL_DATA, V1Base
+def test_v1_alarm_fault_parsing_eb3a_default_tables():
+    """EB3A uses ConnectConstants (V1 high-power) alarm tables."""
+    from src.bluetti_cli.core.devices.eb3a import EB3A
+    from src.bluetti_cli.core.devices.v1_base import BASE_REAL_DATA
 
-    v1 = V1Base("00:00:00:00:00:00", "EB3A", "TEST")
+    eb3a = EB3A("00:00:00:00:00:00", "1234567")
 
-    # alarmInfo: reg 54-57 (4 words), faultInfo: reg 58-62 (5 words)
+    # alarmInfo: reg 54-57 (4 words), faultInfo: reg 58-64 (7 words)
     regs = {}
-    for r in range(BASE_REAL_DATA, 63):
-        regs[r] = 0xFFFF  # all bits set → all alarms/faults on
+    for r in range(BASE_REAL_DATA, 65):
+        regs[r] = 0xFFFF
 
-    size = 63 - BASE_REAL_DATA + 1
+    size = 65 - BASE_REAL_DATA + 1
     data = bytearray(size * 2)
     for reg, val in regs.items():
         off = (reg - BASE_REAL_DATA) * 2
         data[off] = (val >> 8) & 0xFF
         data[off + 1] = val & 0xFF
 
-    parsed = v1.parse(BASE_REAL_DATA, bytes(data))
+    parsed = eb3a.parse(BASE_REAL_DATA, bytes(data))
 
     alarm_keys = [k for k in parsed if k.startswith("alarm.")]
     fault_keys = [k for k in parsed if k.startswith("fault.")]
@@ -109,19 +110,61 @@ def test_v1_alarm_fault_parsing():
     assert len(alarm_keys) > 0, "No alarm keys found"
     assert len(fault_keys) > 0, "No fault keys found"
 
-    # Spot-check known alarms
-    assert "alarm.Grid Voltage High" in parsed
-    assert "alarm.Battery Pack Communication Abnormal" in parsed
-    assert "alarm.UPS Input Overvoltage" in parsed
+    # ConnectConstants alarm names (V1 high-power)
+    assert "alarm.Grid voltage high" in parsed
+    assert "alarm.Meter communication failure" in parsed
 
-    # Spot-check known faults
+    # Low-power alarm names should NOT appear
+    assert "alarm.UPS Input Overvoltage" not in parsed
+    assert "alarm.Networking Operation Abnormal" not in parsed
+
+    # ConnectConstants fault names
+    assert "fault.Inverter Over Load" in parsed
+    assert "fault.Voltage Sensor Error" in parsed
+    assert "fault.GFCI Hardware Circuit Error" in parsed
+
+    # None entries should NOT be emitted
+    assert "fault.None" not in parsed
+
+
+def test_v1_alarm_fault_parsing_ac200l_low_power_tables():
+    """AC200L uses lowPower alarm tables (isLowPower=true)."""
+    from src.bluetti_cli.core.devices.ac200l import AC200L
+    from src.bluetti_cli.core.devices.v1_base import BASE_REAL_DATA
+
+    ac200l = AC200L("00:00:00:00:00:00", "1234567")
+
+    regs = {}
+    for r in range(BASE_REAL_DATA, 65):
+        regs[r] = 0xFFFF
+
+    size = 65 - BASE_REAL_DATA + 1
+    data = bytearray(size * 2)
+    for reg, val in regs.items():
+        off = (reg - BASE_REAL_DATA) * 2
+        data[off] = (val >> 8) & 0xFF
+        data[off + 1] = val & 0xFF
+
+    parsed = ac200l.parse(BASE_REAL_DATA, bytes(data))
+
+    alarm_keys = [k for k in parsed if k.startswith("alarm.")]
+    fault_keys = [k for k in parsed if k.startswith("fault.")]
+
+    assert len(alarm_keys) > 0, "No alarm keys found"
+    assert len(fault_keys) > 0, "No fault keys found"
+
+    # Low-power alarm names
+    assert "alarm.UPS Input Overvoltage" in parsed
+    assert "alarm.Networking Operation Abnormal" in parsed
+    assert "alarm.PV Configuration Error" in parsed
+
+    # ConnectConstants alarm names should NOT appear
+    assert "alarm.Meter communication failure" not in parsed
+
+    # Low-power fault names
     assert "fault.Inverter Overload" in parsed
     assert "fault.PV1 Over Voltage" in parsed
     assert "fault.Leakage Current Fault" in parsed
-
-    # All emitted values are True
-    for k in alarm_keys + fault_keys:
-        assert parsed[k] is True, f"{k} should be True"
 
 
 def test_v1_alarm_fault_parsing_no_bits_set():

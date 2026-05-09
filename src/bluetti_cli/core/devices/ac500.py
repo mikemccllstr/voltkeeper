@@ -47,6 +47,8 @@ class InverterFrequency(Enum):
 class AC500(V1Base):
     """AC500 larger inverter. V1 protocol."""
 
+    # Uses V1Base default ALARM_NAMES/FAULT_NAMES (ConnectConstants).
+
     WRITABLE_FIELD_NAMES = [
         "ac_output",
         "dc_output",
