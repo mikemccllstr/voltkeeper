@@ -1399,6 +1399,149 @@ display surface treats them the same as any other parsed field.
 
 ---
 
+## Unit 10b — Correct V1 alarm/fault map dispatch (follow-up to Unit 10)
+
+**Depends on:** Unit 10 (commit `8886a2d`).
+**Scope:** Single change to `v1_base.py`, one new constant module, six small
+edits to V1 model classes, and a test refactor. ~150 lines net.
+
+### Why this is needed
+
+Commit `8886a2d` lands Unit 10 with `V1Base._fill_alarms` decoding alarm/fault
+bitmasks against a single hard-coded pair of tables (`LOW_POWER_WARN_NAMES`,
+`LOW_POWER_FAULT_NAMES`) that mirror `ConnConstantsV2.lowPowerWarnNames` /
+`lowPowerFaultNames`. Re-reading the APK (`ProtocolParse.java:162–176`) shows
+the V1 path actually picks the table set per device:
+
+```java
+zIsLowPower ? ConnConstantsV2.lowPowerWarnNames  : ConnectConstants.alarmInfoNames
+zIsLowPower ? ConnConstantsV2.lowPowerFaultNames : ConnectConstants.faultInfoNames
+```
+
+`DeviceFunction.isLowPower` for the V1 models we shipped:
+
+| Model    | `isLowPower` (APK)                | Correct table set                     |
+|----------|-----------------------------------|---------------------------------------|
+| EB3A     | false                             | `ConnectConstants` (V1) maps          |
+| AC200M   | false                             | `ConnectConstants` (V1) maps          |
+| AC300    | false                             | `ConnectConstants` (V1) maps          |
+| AC500    | false                             | `ConnectConstants` (V1) maps          |
+| AC200L   | true (inherited from AC240)       | `ConnConstantsV2.lowPower*` maps      |
+| AC200PL  | true (inherited from AC200L)      | `ConnConstantsV2.lowPower*` maps      |
+
+Today `V1Base` applies the lowPower set to every V1 device — correct only for
+AC200L/AC200PL. EB3A/AC200M/AC300/AC500 currently emit alarm/fault names that
+don't match what the device actually reports.
+
+Unit 10 (and FINDINGS §15.6, since fixed) misled the implementation by
+collapsing "high-power V1 inverter" with `highPowerWarnNames`/`Faults` from
+`ConnConstantsV2`. Those maps belong to the V2 parser; V1 high-power devices
+use a different, smaller class (`ConnectConstants`).
+
+### Goal
+
+Make the alarm/fault tables a per-class concern, populate the V1 high-power
+tables, and route each V1 model to the right pair.
+
+### Files to add
+
+- `src/bluetti_cli/core/devices/_v1_alarm_tables.py` — module holding both
+  table sets as module-level dicts.
+  - `CONNECT_CONSTANTS_ALARM_NAMES` (mirrors `ConnectConstants.alarmInfoNames`,
+    1 key, 9 entries).
+  - `CONNECT_CONSTANTS_FAULT_NAMES` (mirrors `ConnectConstants.faultInfoNames`,
+    5 keys; entries 15 and 16 of keys 2 & 3 are zero in the APK and should be
+    `None` here so the bit is left undecoded).
+  - `LOW_POWER_WARN_NAMES`, `LOW_POWER_FAULT_NAMES` — moved verbatim from
+    `v1_base.py`.
+
+  Names should reflect the APK string-resource IDs (e.g.
+  `R.string.grid_valtage_high` → `"Grid Voltage High"`); preserve the APK's
+  spelling quirks where present. Drop anything resembling a guess; if a bit
+  index has `0` in the APK list, store `None` so the decoder skips it.
+
+### Files to modify
+
+- `src/bluetti_cli/core/devices/v1_base.py`
+  - Remove module-level `LOW_POWER_WARN_NAMES` / `LOW_POWER_FAULT_NAMES`
+    (now in the helper module).
+  - Add two class attributes on `V1Base`:
+    ```python
+    ALARM_NAMES: dict[int, list[str | None]] = CONNECT_CONSTANTS_ALARM_NAMES
+    FAULT_NAMES: dict[int, list[str | None]] = CONNECT_CONSTANTS_FAULT_NAMES
+    ```
+    These are the **defaults** (V1 high-power, the most common case in the
+    APK). Subclasses with `isLowPower=true` override them.
+  - `_fill_alarms` becomes an instance method (not `@staticmethod`) so it
+    can read `self.ALARM_NAMES` / `self.FAULT_NAMES`.
+  - Iterate **7 fault words** (registers 58–64), not 5. The decoder still
+    skips word indices whose key is missing from the dict, so over-iterating
+    is safe and future-proofs the helper for maps with more keys.
+  - Bits whose name list has `None` at that index are skipped (don't emit
+    `alarm.None: True`).
+
+- `src/bluetti_cli/core/devices/ac200l.py` — add the override:
+  ```python
+  from ._v1_alarm_tables import LOW_POWER_FAULT_NAMES, LOW_POWER_WARN_NAMES
+
+  class AC200L(V1Base):
+      ALARM_NAMES = LOW_POWER_WARN_NAMES
+      FAULT_NAMES = LOW_POWER_FAULT_NAMES
+      ...
+  ```
+  AC200PL inherits the override automatically (no change needed there).
+
+- `src/bluetti_cli/core/devices/eb3a.py`, `ac200m.py`, `ac300.py`, `ac500.py`
+  — no override needed; the V1Base default is correct for them. Add a one-line
+  comment in each: `# Uses V1Base default ALARM_NAMES/FAULT_NAMES (ConnectConstants).`
+
+- `tests/test_device_registry.py`
+  - `test_v1_alarm_fault_parsing` currently constructs a raw `V1Base` and
+    expects names from the lowPower table (e.g. `"alarm.UPS Input Overvoltage"`).
+    Replace with two tests:
+    1. Construct an `EB3A` (default tables): assert `"alarm.Grid Voltage High"`
+       is set when bit 0 of word 1 is set; assert `"alarm.UPS Input Overvoltage"`
+       is **not** present (it doesn't exist in the V1 high-power map).
+    2. Construct an `AC200L` (lowPower tables): assert
+       `"alarm.UPS Input Overvoltage"` is set when bit 2 of word 2 is set.
+  - Keep `test_v1_alarm_fault_parsing_no_bits_set`; it's table-agnostic.
+
+### Implementation notes
+
+- **Don't** introduce a runtime `isLowPower` lookup that mirrors
+  `DeviceConnUtil.getDeviceFunc()`. The APK uses that because it dispatches a
+  single parser across heterogeneous device descriptors; we have a class per
+  model and can encode the choice statically. Static class attributes are
+  simpler and align with how V2Base handles `voltage_scale`.
+- The two tables on `V1Base` are class attributes (not instance), so subclass
+  overrides cost zero extra memory.
+- Bit ordering: per APK, bit 0 = LSB, index 0 of the names list = bit 0. Keep
+  the existing `_fill_alarms` bit walk; only the data source changes.
+
+### Verification
+
+1. Existing registry/construction tests still pass.
+2. New EB3A test: a known V1 high-power alarm bit emits the
+   `ConnectConstants` name; a lowPower-only name does **not** appear.
+3. New AC200L test: a known lowPower alarm bit emits the
+   `ConnConstantsV2.lowPower*` name.
+4. `_fill_alarms` over a buffer with all 7 fault words set emits keys for all
+   defined bit positions in the active table (proves the loop covers 7 words,
+   not 5).
+5. Hardware regression (deferred): once an EB3A is on hand, confirm a
+   real fault on the device's LCD shows up in `bluetti-cli status` with the
+   `ConnectConstants` name, not the lowPower name.
+
+### Done when
+
+- `_v1_alarm_tables.py` exists with both table sets.
+- `V1Base` reads tables from class attributes and iterates 7 fault words.
+- AC200L overrides to lowPower; AC200PL inherits; EB3A/AC200M/AC300/AC500 use
+  the V1Base default.
+- Tests cover both table paths and pass.
+
+---
+
 ## Unit 11 — `bluetti-cli probe` (active register sweep)
 
 **Depends on:** Units 4, 7, 8, 9.
@@ -1421,35 +1564,107 @@ issue.
 - `src/bluetti_cli/cli.py` — add `probe` subcommand.
 - `pyproject.toml` — add `pyyaml` dependency.
 
+### Protocol detection
+
+Two paths, in this order:
+
+1. **Registry hit:** parse the BLE name with `_DEVICE_NAME_SN_RE` (e.g.
+   `"AC2A2305000"` → prefix `"AC2A"`). If the prefix is in
+   `_device_registry()`, instantiate the class and read its
+   `protocol_version` attribute. This avoids a probe round-trip for any
+   model we already know.
+2. **Dynamic probe:** for unknown prefixes, read **V1 register 16**
+   (`MODBUS_PROTOCOL_VER`, 1 register / 2 bytes) — the smallest read on
+   either protocol. Parse the value: `< 2000` → V1 sweep, `>= 2000` → V2
+   sweep. If the read itself errors, retry against V2 register 1100
+   (`INV_BASE_INFO`); if both error, write a YAML with `protocol: unknown`
+   and an empty blocks map so the human-submitted draft still has the
+   address and encryption flag.
+
+This matches how the Android app picks a parser (it dispatches off the
+device's reported protocolVer; `< 2000` → `ProtocolParse`, `>= 2000` →
+`ProtocolParserV2`).
+
+### V1 block table
+
+Lengths vary by `protocolVer` per `ProtocolParse.getReadTask`. Encode this
+explicitly so a probe of an older firmware doesn't ask for too many
+registers:
+
+| Address | Name              | Length rule (bytes after the Modbus header)               |
+|---------|-------------------|-----------------------------------------------------------|
+| 10      | BASE_REAL_DATA    | 53 if proto <1017 or model in {EB3A, AC200M}; 58 if 1017–1022; 59 if ≥1023 |
+| 22      | MCU_STATUS        | 2                                                         |
+| 70      | ADDITIONAL_DATA   | 87                                                        |
+| 91      | BMS_PACK          | 10 if proto <1017; 115 if 1017–1021; 127 if ≥1022         |
+| 130     | THREE_PHASE_DATA  | 27                                                        |
+| 157     | PV_CHARGE_DATA    | 32                                                        |
+| 190     | WIFI_SWITCH       | 1                                                         |
+| 3000    | SETTABLE_DATA     | 36/62/67/82/90/91 across thresholds <1016/<1019/<1021/<1023/<1026/≥1026 |
+| 4997    | BLE_MAC           | 3                                                         |
+| 5000    | INTERNET_STATUS   | 49 if iotVer<904100; 50 if 904100–904110; 66 if ≥904111   |
+| 5017    | INTERNET_SETTING  | 64                                                        |
+| 13603   | IOT_BLE_SERVER_KEY| 8                                                         |
+
+### V2 block table
+
+V2 read-task lengths could not be lifted from the APK by jadx (the V2
+`getReadTask` body fails to decompile). The probe should derive each
+block's length empirically from FINDINGS §15.5 addresses by reading each
+parser's `subList(start, end)` calls in `ProtocolParserV2.java` (each
+`parse*Info` method assumes a fixed slice length). Until that audit is
+done, ship with a conservative initial set whose lengths the AC2A
+already proves correct, and let `validate-profile` (Unit 12) flag any
+suspect-looking block:
+
+| Address | Name              | Notes                                                |
+|---------|-------------------|------------------------------------------------------|
+| 100     | APP_HOME_DATA     | Live home dashboard                                  |
+| 1100    | INV_BASE_INFO     | Embeds protocolVer for dynamic detection             |
+| 1200    | INV_PV_INFO       | Pass `pvNumber` from base info to size               |
+| 1300    | INV_GRID_INFO     | `phaseNum` from base info                            |
+| 1400    | INV_LOAD_INFO     |                                                      |
+| 1500    | INV_INV_INFO      |                                                      |
+| 1700    | INV_METER_INFO    | Optional — only if `bmsPack`/`hasMeter` set          |
+| 2000    | INV_BASE_SETTINGS | 54 (matches V1 `getReadTask` case 2000)              |
+| 6000    | PACK_MAIN_INFO    | BMS                                                  |
+| 6100    | PACK_ITEM_INFO    | BMS per-pack                                         |
+| 7200    | PACK_BMU_INFO     | BMS BMU                                              |
+| 11000   | IOT_BASE_INFO     | Optional — only if `hasIot`                          |
+
+Block lengths beyond INV_BASE_SETTINGS need to be filled in by inspecting
+the V2 parsers; document this as a follow-up before Unit 11 closes.
+
 ### Implementation shape
 
 ```python
 # probe.py
-async def probe_device(address: str, *, encrypted: bool) -> dict:
+V1_BLOCKS: list[tuple[int, str, Callable[[int, int], int]]] = ...  # see table
+V2_BLOCKS: list[tuple[int, int, str]] = ...                        # addr, size, name
+
+
+async def probe_device(address: str, name: str, *, encrypted: bool) -> dict:
     """Connect, sweep register blocks, return a structured profile dict."""
     client = BluetoothClient(address, encrypted=encrypted)
     await client.connect()
-    profile = {"address": address, "encrypted": encrypted, "blocks": {}}
+    profile = {"address": address, "name": name, "encrypted": encrypted}
     try:
-        # Try V2 protocol first (read register 1100)
-        # Fall back to V1 (register 16)
-        for block_addr, block_size, name in V2_BLOCKS:
+        proto = await _detect_protocol(client, name)
+        profile["protocol"] = proto  # "v1" | "v2" | "unknown"
+        profile["protocol_version"] = proto.version  # int or None
+        blocks = V1_BLOCKS if proto.kind == "v1" else V2_BLOCKS if proto.kind == "v2" else []
+        profile["blocks"] = {}
+        for block_addr, block_size, block_name in blocks:
             try:
                 resp = await client.execute(ReadHoldingRegisters(block_addr, block_size))
-                profile["blocks"][name] = {
-                    "address": block_addr,
-                    "size": block_size,
-                    "raw_hex": resp.hex(),
+                profile["blocks"][block_name] = {
+                    "address": block_addr, "size": block_size, "raw_hex": resp.hex(),
                 }
             except (ModbusError, BadConnectionError):
-                profile["blocks"][name] = {"address": block_addr, "error": "no response"}
+                profile["blocks"][block_name] = {"address": block_addr, "error": "no response"}
         return profile
     finally:
         await client.disconnect()
-
-
-def emit_yaml(profile: dict, path: pathlib.Path) -> None:
-    yaml.safe_dump(profile, path.open("w"), sort_keys=False)
 ```
 
 CLI wiring:
@@ -1460,31 +1675,38 @@ CLI wiring:
 @click.option("-o", "--output", type=click.Path(), default="profile.yaml")
 def probe(address: str, output: str) -> None:
     """Probe a Bluetti device and emit a draft profile YAML."""
-    # Determine encrypted flag from a quick scan
-    ...
-    profile = asyncio.run(probe_device(address, encrypted=encrypted))
+    sr = asyncio.run(lookup_scan_result(address))     # name + encryption flag
+    profile = asyncio.run(probe_device(address, sr.name, encrypted=bool(sr.encrypted)))
     emit_yaml(profile, pathlib.Path(output))
     click.echo(f"Wrote profile draft to {output}")
 ```
-
-The list of register blocks to sweep is the union of FINDINGS §15.5 V1 and V2
-tables — define `V1_BLOCKS` and `V2_BLOCKS` as module constants so they're
-auditable.
 
 ### Verification
 
 1. **Unit test:** `tests/test_probe.py::test_emit_yaml_round_trips` —
    construct a synthetic profile dict, emit, re-load with `yaml.safe_load`,
    assert equality.
-2. **Live test (AC2A):** `bluetti-cli probe <AC2A_ADDR> -o /tmp/ac2a.yaml`.
-   Open `/tmp/ac2a.yaml` and confirm it contains hex dumps for all six V2
-   blocks (home, inv_base, inv_pv, inv_grid, inv_load, inv_inv).
-3. **Resilience:** point probe at an unreachable address — must time out
-   gracefully and still write a valid (empty-blocks) YAML.
+2. **Detection unit test:** stub a `BluetoothClient` so register 16 returns
+   `0x07F4` (2036) — assert `_detect_protocol` reports V2; stub it to
+   return `0x03FB` (1019) — assert V1; stub it to error — assert fallback
+   to register 1100.
+3. **Registry shortcut test:** call `_detect_protocol` with a name like
+   `"AC2A2305000"` — must return V2 without issuing any reads (mock the
+   client and assert no calls).
+4. **Live test (AC2A):** `bluetti-cli probe <AC2A_ADDR> -o /tmp/ac2a.yaml`.
+   Confirm the YAML contains the V2 blocks the registry knows about and
+   `protocol: v2`, `protocol_version: 2000+`.
+5. **Resilience:** point probe at an unreachable address — must time out
+   gracefully and still write a valid YAML with `protocol: unknown` and
+   an empty `blocks` map.
 
 ### Done when
 
-YAML round-trips cleanly and the AC2A probe output covers all V2 blocks.
+YAML round-trips cleanly, `_detect_protocol` covers both registry and
+dynamic paths, and the AC2A probe writes a profile with `protocol: v2`
+plus the V2 blocks listed above. Filling in V2 block lengths by auditing
+`ProtocolParserV2` parsers is left to a Unit 11 follow-up before the
+probe ships to contributors.
 
 ---
 
