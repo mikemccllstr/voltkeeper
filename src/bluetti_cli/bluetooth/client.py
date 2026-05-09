@@ -29,9 +29,9 @@ class BluetoothClient:
     async def connect(self, timeout: float = 15.0) -> None:
         self.client = BleakClient(self.address)
         await self.client.connect(timeout=timeout)
-        await self.client.start_notify(NOTIFY_UUID, self._on_notification)  # type: ignore[arg-type]
         if self.encrypted:
             self._session = await HandshakeSession().run(self.client)
+        await self.client.start_notify(NOTIFY_UUID, self._on_notification)  # type: ignore[arg-type]
 
     @property
     def is_connected(self) -> bool:
