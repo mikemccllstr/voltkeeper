@@ -6,11 +6,10 @@ from typing import Optional
 from bleak import BleakClient, BleakError
 
 from ..core.commands import DeviceCommand
+from . import NOTIFY_UUID, WRITE_UUID
 from .exc import BadConnectionError, ModbusError, ParseError
 
 RESPONSE_TIMEOUT = 5
-WRITE_UUID = "0000ff02-0000-1000-8000-00805f9b34fb"
-NOTIFY_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
 MAX_RETRIES = 5
 
 
