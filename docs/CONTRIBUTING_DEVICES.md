@@ -52,13 +52,24 @@ register values to field names.
    python scripts/parse_btsnoop.py btsnoop_hci.log > capture.csv
    ```
 
-If your device uses BLE encryption, you'll need the session key.  Start
-`bluetti-cli` with `BLUETTI_DEBUG=1` to see key material, or extract it
-from the Android app's logcat.  Pass it with `--key` and `--iv`:
+If your device uses BLE encryption (`protocolVer >= 2000`, e.g. AC2A),
+the parser can decrypt frames with `--key` and `--iv`, but extracting
+the per-session AES key is not yet automated. For now: submit the raw
+btsnoop log alongside your `my-device.yaml`, and a maintainer will pair
+it with a session derived from `bluetti-cli`'s handshake to decrypt and
+analyze. Alternatively, capture from a V1 device (no encryption) on the
+same model family if available.
+
+Once you have a key (16 bytes / 32 hex chars) and initial IV:
 
 ```bash
 python scripts/parse_btsnoop.py btsnoop_hci.log --key a1b2... --iv c3d4... > capture.csv
 ```
+
+Note that the parser currently reuses the supplied IV for every frame.
+Bluetti chains IVs across frames (see FINDINGS §15.8), so only the
+first encrypted frame in a session will decrypt cleanly with this
+flag — improving multi-frame IV chaining is a planned follow-up.
 
 ## Step 4: Submit
 

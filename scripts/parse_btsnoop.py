@@ -174,7 +174,13 @@ def _parse_modbus(data: bytes, *, is_request: bool) -> tuple[int, int, int, byte
 
 
 def _make_decryptor(key_hex: str | None, iv_hex: str | None):
-    """Return a callable that decrypts bytes, or None if no key given."""
+    """Return a callable that decrypts bytes, or None if no key given.
+
+    NOTE: this reuses the supplied IV for every frame. Bluetti chains
+    IVs across frames within a session (see FINDINGS §15.8), so only
+    the first encrypted frame will decrypt cleanly. Multi-frame IV
+    chaining is a planned follow-up.
+    """
     if not key_hex:
         return None
 

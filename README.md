@@ -242,8 +242,20 @@ The tool reads plain Modbus RTU over BLE from Bluetti power stations.
 Encrypted devices (AES-CBC over BLE) are supported; the handshake is handled
 automatically.
 
-## Contributing
+## Testing
+
+```bash
+uv run pytest                 # unit tests (fast, no BLE required)
+uv run pytest -m integration  # integration tests (requires BLE adapter)
+```
+
+## Development
+
+See [docs/FINDINGS.md](docs/FINDINGS.md) for reverse-engineering notes
+and protocol details helpful when enhancing this tool.
+
+## Contributing a new device
 
 See [docs/CONTRIBUTING_DEVICES.md](docs/CONTRIBUTING_DEVICES.md) for the
-step-by-step guide to capturing data for a new device model.
-```
+step-by-step guide to capturing the data needed to add support for a
+new Bluetti device model.
