@@ -85,7 +85,9 @@ features you tested (e.g. "toggled AC output, observed grid+mode, max
 battery SOC was 95%").
 
 A maintainer will use these files to build a device class and get it
-merged — no coding required on your part.
+merged — no coding required on your part. (For maintainers: see
+[`MAINTAINING.md`](MAINTAINING.md) for the workflow on the receiving
+end.)
 
 ## Encryption notes
 

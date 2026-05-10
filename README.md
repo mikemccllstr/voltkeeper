@@ -258,4 +258,5 @@ and protocol details helpful when enhancing this tool.
 
 See [docs/CONTRIBUTING_DEVICES.md](docs/CONTRIBUTING_DEVICES.md) for the
 step-by-step guide to capturing the data needed to add support for a
-new Bluetti device model.
+new Bluetti device model. Maintainers receiving such a submission
+should follow [docs/MAINTAINING.md](docs/MAINTAINING.md).
