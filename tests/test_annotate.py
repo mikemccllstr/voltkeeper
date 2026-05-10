@@ -109,3 +109,24 @@ def test_save_creates_parent_dirs(tmp_path):
     with open(p) as f:
         reloaded = yaml.safe_load(f)
     assert reloaded == profile
+
+
+def test_save_is_atomic_preserves_old_file_on_failure(tmp_path, monkeypatch):
+    """If yaml.dump raises mid-write, the existing file is untouched."""
+    p = tmp_path / "draft.yaml"
+    good = {"annotations": [{"block": "B1", "offset": 0, "name": "kept"}]}
+    _save(good, p)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("simulated dump failure")
+
+    monkeypatch.setattr("src.bluetti_cli.annotate.yaml.dump", boom)
+    try:
+        _save({"annotations": [{"block": "B2", "offset": 1, "name": "lost"}]}, p)
+    except RuntimeError:
+        pass
+
+    # Original file is intact and parseable
+    with open(p) as f:
+        reloaded = yaml.safe_load(f)
+    assert reloaded == good

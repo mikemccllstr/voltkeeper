@@ -46,31 +46,55 @@ def _load_or_init(profile_path: Path) -> dict:
 
 
 def _save(profile: dict, profile_path: Path) -> None:
-    """Atomically write *profile* to *profile_path* as YAML."""
+    """Atomically write *profile* to *profile_path* as YAML.
+
+    Writes to a sibling temp file then ``os.replace``s it into place so
+    a Ctrl-C mid-write can't truncate an existing valid YAML.
+    """
+    import os
+
     profile_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(profile_path, "w") as f:
+    tmp_path = profile_path.with_suffix(profile_path.suffix + ".tmp")
+    with open(tmp_path, "w") as f:
         yaml.dump(profile, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, profile_path)
 
 
 # ── Annotate loop ─────────────────────────────────────────────────────
 
 
-async def annotate_loop(address: str, profile_path: Path, *, encrypted: bool) -> None:
-    """Connect, poll register blocks, prompt for field names on changes."""
+async def annotate_loop(
+    address: str,
+    profile_path: Path,
+    *,
+    encrypted: bool,
+    device_name: str = "",
+) -> None:
+    """Connect, poll register blocks, prompt for field names on changes.
+
+    *device_name* is the BLE-advertised name (e.g., ``"AC2A2305000"``).
+    Passing it lets ``_detect_protocol`` take the registry shortcut on
+    the first run, before the profile YAML has a ``name`` field stored.
+    """
     profile = _load_or_init(profile_path)
     client = BluetoothClient(address, encrypted=encrypted)
     await client.connect()
 
     try:
-        name = profile.get("name", "") or ""
-        info = await _detect_protocol(client, name)
+        # Prefer the live BLE name; fall back to whatever the saved profile has.
+        detect_name = device_name or profile.get("name", "") or ""
+        info = await _detect_protocol(client, detect_name)
 
         if info.kind == "unknown":
             # Fall back to sweeping known V1 blocks
-            blocks: list[tuple[int, int, str]] = [(addr, size_fn(0), name) for addr, name, size_fn in V1_BLOCKS]
+            blocks: list[tuple[int, int, str]] = [
+                (addr, size_fn(0), block_name) for addr, block_name, size_fn in V1_BLOCKS
+            ]
         elif info.kind == "v1":
             ver = info.version or 0
-            blocks = [(addr, size_fn(ver), name) for addr, name, size_fn in V1_BLOCKS]
+            blocks = [(addr, size_fn(ver), block_name) for addr, block_name, size_fn in V1_BLOCKS]
         else:
             blocks = list(V2_BLOCKS)
 
@@ -83,6 +107,8 @@ async def annotate_loop(address: str, profile_path: Path, *, encrypted: bool) ->
         profile.setdefault("protocol_version", info.version)
         profile.setdefault("address", address)
         profile.setdefault("encrypted", encrypted)
+        if detect_name:
+            profile.setdefault("name", detect_name)
         _save(profile, profile_path)
 
         last: dict[str, bytes] = {}
@@ -97,13 +123,13 @@ async def annotate_loop(address: str, profile_path: Path, *, encrypted: bool) ->
                     hex_offset = f"0x{addr * 2 + offset:04X}"
                     click.echo(f"\n  [{block_name}] offset {hex_offset}: 0x{old_byte:02X} → 0x{new_byte:02X}")
                     try:
-                        name = click.prompt("  Field name (or <Enter> to skip)", default="")
+                        field_name = click.prompt("  Field name (or <Enter> to skip)", default="")
                     except (click.Abort, EOFError, KeyboardInterrupt):
                         click.echo()
                         return
-                    if name.strip():
+                    if field_name.strip():
                         profile.setdefault("annotations", []).append(
-                            {"block": block_name, "offset": offset, "name": name.strip()}
+                            {"block": block_name, "offset": offset, "name": field_name.strip()}
                         )
                         _save(profile, profile_path)
                 last[block_name] = resp

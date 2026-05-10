@@ -1184,7 +1184,7 @@ def annotate(address: str, output: str) -> None:
     finally:
         loop.close()
 
-    asyncio.run(annotate_loop(address, Path(output), encrypted=bool(sr.encrypted)))
+    asyncio.run(annotate_loop(address, Path(output), encrypted=bool(sr.encrypted), device_name=sr.name))
 
 
 @cli.command("validate-profile")
