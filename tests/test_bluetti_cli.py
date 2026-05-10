@@ -1884,6 +1884,15 @@ class TestShutdownWatch:
             w.handle_soc(50)
         assert "shutdown already triggered" in caplog.text
 
+    def test_execute_shutdown_raises_on_non_linux(self):
+        import sys as _sys
+        from unittest.mock import patch
+
+        w = ShutdownWatch(threshold=10, grace=60)
+        with patch.object(_sys, "platform", "win32"):
+            with pytest.raises(RuntimeError, match="only supported on Linux"):
+                w.execute_shutdown()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  mqtt-listen CLI
@@ -1938,6 +1947,16 @@ class TestMqttListenCLI:
         runner = CliRunner()
         result = runner.invoke(cli, ["mqtt-listen", "--help"])
         assert "10" in result.output
+
+    def test_fails_on_non_linux_platform(self):
+        import sys as _sys
+        from unittest.mock import patch
+
+        runner = CliRunner()
+        with patch.object(_sys, "platform", "win32"):
+            result = runner.invoke(cli, ["mqtt-listen", "--serial", "1234", "--broker", "x", "--device-type", "AC2A"])
+        assert result.exit_code != 0
+        assert "Linux" in result.output
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -3,9 +3,14 @@
 import asyncio
 import logging
 import subprocess
+import sys
 import time
 
 from aiomqtt import Client, MqttError
+
+
+def _is_shutdown_supported() -> bool:
+    return sys.platform == "linux"
 
 
 class ShutdownWatch:
@@ -68,6 +73,8 @@ class ShutdownWatch:
 
     def execute_shutdown(self):
         """Run the shutdown command.  Logs result; does not raise."""
+        if not _is_shutdown_supported():
+            raise RuntimeError("System shutdown is only supported on Linux")
         logging.warning("Initiating system shutdown")
         try:
             subprocess.run(

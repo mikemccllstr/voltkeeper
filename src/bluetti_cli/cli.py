@@ -964,7 +964,10 @@ def mqtt_listen(
     )
 
     from .device_handler import SourceChangeWatcher, _watch_source_changes
-    from .shutdown_watch import run_shutdown_listener
+    from .shutdown_watch import _is_shutdown_supported, run_shutdown_listener
+
+    if not _is_shutdown_supported():
+        raise click.ClickException("System shutdown via mqtt-listen is only supported on Linux")
 
     if not address and not serial:
         raise click.UsageError("Provide ADDRESS, --serial, or both.")
@@ -1058,6 +1061,11 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
     Prints a service file to stdout (or --output). The file includes
     install instructions in comment lines at the top.
     """
+    from .shutdown_watch import _is_shutdown_supported
+
+    if not _is_shutdown_supported():
+        raise click.ClickException("System shutdown via mqtt-listen-service is only supported on Linux")
+
     # Run-as user
     run_user = user or "root"
 
