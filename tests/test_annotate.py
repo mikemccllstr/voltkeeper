@@ -3,7 +3,13 @@
 
 import yaml
 
-from src.bluetti_cli.annotate import _diff, _load_or_init, _save
+from src.bluetti_cli.annotate import (
+    _diff,
+    _format_change,
+    _load_or_init,
+    _registry_field_hints,
+    _save,
+)
 
 # ── _diff tests ───────────────────────────────────────────────────────
 
@@ -130,3 +136,36 @@ def test_save_is_atomic_preserves_old_file_on_failure(tmp_path, monkeypatch):
     with open(p) as f:
         reloaded = yaml.safe_load(f)
     assert reloaded == good
+
+
+# ── UX helpers ────────────────────────────────────────────────────────
+
+
+def test_registry_field_hints_includes_known_writable_names():
+    """Hints surface writable-field names from registered devices.
+
+    Locks the contract that the intro screen has a non-empty vocabulary.
+    """
+    hints = _registry_field_hints()
+    assert "ac_output" in hints  # AC2A, AC60, AC300, etc.
+    assert "charging_mode" in hints  # AC2A, AC60, AC300
+    assert "factory_reset" in hints
+    assert hints == sorted(hints)  # deterministic order
+
+
+def test_format_change_uses_register_and_byte_coords():
+    """Changes report (register, byte) — easier to look up than raw byte offset."""
+    # Block at register 100, byte offset 49 within the block.
+    # → register 100 + 49//2 = 124, byte 49%2 = 1.
+    line = _format_change("APP_HOME_DATA", 100, 49, 0x00, 0x40)
+    assert "APP_HOME_DATA" in line
+    assert "reg 124" in line
+    assert "byte 1" in line
+    assert "0x00" in line
+    assert "0x40" in line
+
+
+def test_format_change_byte_zero_is_high_byte():
+    """Modbus byte 0 of register N is the high byte; verify coords align."""
+    line = _format_change("INV_BASE_INFO", 1100, 0, 0xAA, 0xBB)
+    assert "reg 1100 byte 0" in line

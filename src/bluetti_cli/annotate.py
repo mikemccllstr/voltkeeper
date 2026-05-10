@@ -73,6 +73,65 @@ def _save_scrubbed(profile: dict, profile_path: Path) -> None:
     _save(scrub_profile(profile), profile_path)
 
 
+# ── UX helpers ────────────────────────────────────────────────────────
+
+
+def _registry_field_hints() -> list[str]:
+    """Collect the union of WRITABLE_FIELD_NAMES across registered devices.
+
+    Surfaced to the user at session start so they have a vocabulary to
+    pull from when labelling changed bytes.
+    """
+    from .bluetooth import _device_registry
+
+    names: set[str] = set()
+    for cls in _device_registry().values():
+        names.update(getattr(cls, "WRITABLE_FIELD_NAMES", []))
+    return sorted(names)
+
+
+def _format_change(block_name: str, addr: int, offset: int, old_byte: int, new_byte: int) -> str:
+    """Render a one-line description of a changed byte using register coords.
+
+    Modbus addresses things by register (16-bit word), so reporting
+    register + byte-within-register is more useful than a raw byte
+    offset when the user later wants to look it up in FINDINGS or the
+    APK.
+    """
+    register = addr + (offset // 2)
+    byte_in_reg = offset % 2
+    return f"  [{block_name} reg {register} byte {byte_in_reg}]: 0x{old_byte:02X} → 0x{new_byte:02X}"
+
+
+def _print_intro(profile_path: Path, model_sn: tuple[str, str] | None, num_blocks: int, hints: list[str]) -> None:
+    """One-screen onboarding shown before polling starts.
+
+    Explains the workflow (toggle on the device → watch the diff →
+    label) and lists known field names so the user has a vocabulary.
+    """
+    if model_sn:
+        model, real_sn = model_sn
+        click.echo(f"\nAnnotating {model} SN {real_sn} → {profile_path}")
+        click.echo(f"(SN scrubbed to {SYNTHETIC_SN_STR} in the saved file)\n")
+    else:
+        click.echo(f"\nAnnotating → {profile_path}\n")
+
+    click.secho("How this works:", bold=True)
+    click.echo("  1. Make a change on the device (toggle a switch, change a mode,")
+    click.echo("     wait for SOC to tick down).")
+    click.echo("  2. Watch which bytes change in the output below.")
+    click.echo("  3. Type a short field name when prompted, or press Enter to skip.")
+    click.echo("  4. Repeat for each thing you want to map.\n")
+
+    if hints:
+        click.secho("Common field names from existing models:", bold=True)
+        # Wrap the hint list to fit a typical terminal width without dominating.
+        wrapped = click.wrap_text(", ".join(hints), width=72, initial_indent="  ", subsequent_indent="  ")
+        click.echo(wrapped + "\n")
+
+    click.echo(f"Polling {num_blocks} register blocks. Press Ctrl-C to stop.\n")
+
+
 # ── Annotate loop ─────────────────────────────────────────────────────
 
 
@@ -122,37 +181,53 @@ async def annotate_loop(
             profile.setdefault("name", detect_name)
         _save_scrubbed(profile, profile_path)
 
-        # Show the real device identity to the user; the on-disk YAML has
-        # a synthetic SN so it's safe to share/commit.
-        parts = split_model_sn(detect_name)
-        if parts:
-            model, real_sn = parts
-            click.echo(
-                f"Annotating {model} SN {real_sn} → {profile_path} (SN scrubbed to {SYNTHETIC_SN_STR} in saved file)"
-            )
+        _print_intro(
+            profile_path=profile_path,
+            model_sn=split_model_sn(detect_name),
+            num_blocks=len(blocks),
+            hints=_registry_field_hints(),
+        )
 
         last: dict[str, bytes] = {}
-        click.echo(f"Polling {len(blocks)} register blocks. Press Ctrl-C to stop.\n")
+        # First poll establishes the baseline; no diffs reported.
+        first_pass = True
 
         while True:
+            cycle_changes: list[tuple[str, int, int, int, int]] = []
             for addr, size, block_name in blocks:
                 resp = await client.execute(ReadHoldingRegisters(addr, size))
                 prev = last.get(block_name)
-                changes = _diff(prev, resp)
-                for offset, old_byte, new_byte in changes:
-                    hex_offset = f"0x{addr * 2 + offset:04X}"
-                    click.echo(f"\n  [{block_name}] offset {hex_offset}: 0x{old_byte:02X} → 0x{new_byte:02X}")
-                    try:
-                        field_name = click.prompt("  Field name (or <Enter> to skip)", default="")
-                    except (click.Abort, EOFError, KeyboardInterrupt):
-                        click.echo()
-                        return
-                    if field_name.strip():
-                        profile.setdefault("annotations", []).append(
-                            {"block": block_name, "offset": offset, "name": field_name.strip()}
-                        )
-                        _save_scrubbed(profile, profile_path)
+                for offset, old_byte, new_byte in _diff(prev, resp):
+                    cycle_changes.append((block_name, addr, offset, old_byte, new_byte))
                 last[block_name] = resp
+
+            if first_pass:
+                first_pass = False
+                click.echo("Baseline captured. Make a change on the device now.\n")
+            elif cycle_changes:
+                click.echo("─" * 60)
+                click.echo(f"{len(cycle_changes)} byte(s) changed:")
+                for change in cycle_changes:
+                    click.echo(_format_change(*change))
+                try:
+                    field_name = click.prompt(
+                        "\nField name for these changes (Enter to skip)",
+                        default="",
+                        show_default=False,
+                    )
+                except (click.Abort, EOFError, KeyboardInterrupt):
+                    click.echo()
+                    return
+                if field_name.strip():
+                    name_clean = field_name.strip()
+                    for block_name, _addr, offset, _old, _new in cycle_changes:
+                        profile.setdefault("annotations", []).append(
+                            {"block": block_name, "offset": offset, "name": name_clean}
+                        )
+                    _save_scrubbed(profile, profile_path)
+                    click.echo(f"  ✓ recorded {len(cycle_changes)} entries as {name_clean!r}\n")
+                else:
+                    click.echo("  (skipped)\n")
 
             await asyncio.sleep(1)
 
