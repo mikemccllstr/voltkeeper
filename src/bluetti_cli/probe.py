@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
@@ -22,21 +23,61 @@ class ProtocolInfo:
     version: int | None
 
 
+# ── V1 per-protocolVer block size helpers ─────────────────────────────
+
+
+def _v1_base_real_data_size(ver: int) -> int:
+    if ver <= 0:
+        return 53
+    if ver < 1017:
+        return 53
+    if ver <= 1022:
+        return 58
+    return 59
+
+
+def _v1_bms_pack_size(ver: int) -> int:
+    if ver <= 0:
+        return 10
+    if ver < 1017:
+        return 10
+    if ver <= 1021:
+        return 115
+    return 127
+
+
+def _v1_settable_data_size(ver: int) -> int:
+    if ver <= 0:
+        return 36
+    if ver < 1016:
+        return 36
+    if ver < 1019:
+        return 62
+    if ver < 1021:
+        return 67
+    if ver < 1023:
+        return 82
+    if ver < 1026:
+        return 90
+    return 91
+
+
 # ── Register block tables ─────────────────────────────────────────────
 
-V1_BLOCKS: list[tuple[int, int, str]] = [
-    (10, 53, "BASE_REAL_DATA"),
-    (22, 2, "MCU_STATUS"),
-    (70, 87, "ADDITIONAL_DATA"),
-    (91, 10, "BMS_PACK"),
-    (130, 27, "THREE_PHASE_DATA"),
-    (157, 32, "PV_CHARGE_DATA"),
-    (190, 1, "WIFI_SWITCH"),
-    (3000, 36, "SETTABLE_DATA"),
-    (4997, 3, "BLE_MAC"),
-    (5000, 49, "INTERNET_STATUS"),
-    (5017, 64, "INTERNET_SETTING"),
-    (13603, 8, "IOT_BLE_SERVER_KEY"),
+# V1 blocks include a size function: (address, name, fn(protoVer) → size)
+V1_BLOCKS: list[tuple[int, str, Callable[[int], int]]] = [
+    (10, "BASE_REAL_DATA", _v1_base_real_data_size),
+    (22, "MCU_STATUS", lambda _: 2),
+    (70, "ADDITIONAL_DATA", lambda _: 87),
+    (91, "BMS_PACK", _v1_bms_pack_size),
+    (130, "THREE_PHASE_DATA", lambda _: 27),
+    (157, "PV_CHARGE_DATA", lambda _: 32),
+    (190, "WIFI_SWITCH", lambda _: 1),
+    (3000, "SETTABLE_DATA", _v1_settable_data_size),
+    (4997, "BLE_MAC", lambda _: 3),
+    (5000, "INTERNET_STATUS", lambda _: 49),
+    (5017, "INTERNET_SETTING", lambda _: 64),
+    (13603, "IOT_BLE_SERVER_KEY", lambda _: 8),
 ]
 
 V2_BLOCKS: list[tuple[int, int, str]] = [
@@ -101,25 +142,47 @@ async def _detect_protocol(client: BluetoothClient, name: str) -> ProtocolInfo:
 async def probe_device(address: str, name: str, *, encrypted: bool) -> dict:
     """Connect, sweep register blocks, return a structured profile dict."""
     client = BluetoothClient(address, encrypted=encrypted)
-    await client.connect()
     profile: dict = {"address": address, "name": name, "encrypted": encrypted}
+    try:
+        await client.connect()
+    except Exception:
+        # Resilience: unreachable device, BLE adapter down, timeout.
+        # Still emit a valid YAML so the human can submit address+flag info.
+        profile["protocol"] = "unknown"
+        profile["protocol_version"] = None
+        profile["blocks"] = {}
+        return profile
+
     try:
         info = await _detect_protocol(client, name)
         profile["protocol"] = info.kind
         profile["protocol_version"] = info.version
         profile["blocks"] = {}
 
-        blocks = V1_BLOCKS if info.kind == "v1" else V2_BLOCKS if info.kind == "v2" else []
-        for block_addr, block_size, block_name in blocks:
-            try:
-                resp = await client.execute(ReadHoldingRegisters(block_addr, block_size))
-                profile["blocks"][block_name] = {
-                    "address": block_addr,
-                    "size": block_size,
-                    "raw_hex": resp.hex(),
-                }
-            except (ModbusError, BadConnectionError):
-                profile["blocks"][block_name] = {"address": block_addr, "error": "no response"}
+        if info.kind == "v1":
+            ver = info.version or 0
+            for addr, block_name, size_fn in V1_BLOCKS:
+                block_size = size_fn(ver)
+                try:
+                    resp = await client.execute(ReadHoldingRegisters(addr, block_size))
+                    profile["blocks"][block_name] = {
+                        "address": addr,
+                        "size": block_size,
+                        "raw_hex": resp.hex(),
+                    }
+                except (ModbusError, BadConnectionError):
+                    profile["blocks"][block_name] = {"address": addr, "error": "no response"}
+        elif info.kind == "v2":
+            for addr, block_size, block_name in V2_BLOCKS:
+                try:
+                    resp = await client.execute(ReadHoldingRegisters(addr, block_size))
+                    profile["blocks"][block_name] = {
+                        "address": addr,
+                        "size": block_size,
+                        "raw_hex": resp.hex(),
+                    }
+                except (ModbusError, BadConnectionError):
+                    profile["blocks"][block_name] = {"address": addr, "error": "no response"}
         return profile
     finally:
         await client.disconnect()
