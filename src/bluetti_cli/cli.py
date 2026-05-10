@@ -20,6 +20,7 @@ from .bluetooth import (
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .core.commands import ReadHoldingRegisters
+from .probe import emit_yaml, probe_device
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 
@@ -1136,6 +1137,25 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
         click.echo(f"Service file written to {output}")
     else:
         click.echo(content, nl=False)
+
+
+@cli.command()
+@click.argument("address")
+@click.option("-o", "--output", default="profile.yaml", help="Output YAML file path")
+def probe(address: str, output: str) -> None:
+    """Probe a Bluetti device and emit a draft profile YAML."""
+    address = address.upper()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        sr = loop.run_until_complete(lookup_scan_result(address))
+    finally:
+        loop.close()
+
+    profile = asyncio.run(probe_device(address, sr.name, encrypted=bool(sr.encrypted)))
+    emit_yaml(profile, output)
+    click.echo(f"Wrote profile draft to {output}")
 
 
 if __name__ == "__main__":
