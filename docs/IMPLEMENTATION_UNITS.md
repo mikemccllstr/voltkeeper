@@ -1,5 +1,12 @@
 # Implementation Units — Multi-Device Support
 
+> **Status: complete.** All units (1–14, plus follow-ups 7b and 10b) shipped on
+> the `claude/multi-device-support-0lktM` branch. This document is kept as
+> historical design rationale — the *why* behind several non-obvious code
+> choices (e.g., V1 alarm/fault dispatch on `isLowPower`, per-`protocolVer`
+> read-task lengths, per-model V1-vs-V2 base-class assignments) lives here,
+> not in the code. Do not treat the unit-by-unit task lists as open work.
+
 This document breaks down `docs/MULTI_DEVICE_PLAN.md` into discrete work units
 that can be handed to a sub-agent. Each unit is self-contained: it lists its
 dependencies, the exact files to touch, the code shape expected, and the

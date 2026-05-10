@@ -1,5 +1,11 @@
 # Multi-Device Support for `bluetti-cli`
 
+> **Status: complete.** Plan delivered on the
+> `claude/multi-device-support-0lktM` branch. Kept as historical context
+> for the architectural decisions (encryption-now, per-model Python
+> classes, four discovery tools). For the unit-by-unit breakdown see
+> `IMPLEMENTATION_UNITS.md`.
+
 ## Context
 
 The CLI currently supports only the AC2A. The factory at `src/bluetti_cli/bluetooth/__init__.py:84-88` always returns `AC2A`, the BLE client at `src/bluetti_cli/bluetooth/client.py` assumes plaintext Modbus, and AC2A is referenced by name in `cli.py:953` (MQTT topic) and `cli.py:483-488` (capabilities display). The base class `BluettiDevice` is already clean — it exposes `polling_commands`, `logging_commands`, `parse()`, `writable_ranges`, `has_field()`, `has_field_setter()`, and `build_setter_command()` — so the contract is reusable.
