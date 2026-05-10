@@ -9,6 +9,7 @@ import sys
 import click
 
 from . import load_test
+from .annotate import annotate_loop
 from .bluetooth import (
     ScanResult,
     build_device,
@@ -1157,6 +1158,33 @@ def probe(address: str, output: str) -> None:
     profile = asyncio.run(probe_device(address, sr.name, encrypted=bool(sr.encrypted)))
     emit_yaml(profile, output)
     click.echo(f"Wrote profile draft to {output}")
+
+
+@cli.command("annotate")
+@click.argument("address")
+@click.option("-o", "--output", default="draft.yaml", help="Output YAML draft file")
+def annotate(address: str, output: str) -> None:
+    """Live-poll a device and annotate changing register values.
+
+    Connect, sweep register blocks, and highlight byte-level
+    changes in real time.  At each changed register offset you
+    are prompted for a field name; type a name to record the
+    annotation, or press Enter to skip.
+
+    Saves to *output* incrementally (Ctrl-C safe).
+    """
+    from pathlib import Path
+
+    address = address.upper()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        sr = loop.run_until_complete(lookup_scan_result(address))
+    finally:
+        loop.close()
+
+    asyncio.run(annotate_loop(address, Path(output), encrypted=bool(sr.encrypted)))
 
 
 @cli.command("validate-profile")
