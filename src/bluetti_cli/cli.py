@@ -21,6 +21,7 @@ from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .core.commands import ReadHoldingRegisters
 from .probe import emit_yaml, probe_device
+from .validate import validate_profile
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 
@@ -1156,6 +1157,39 @@ def probe(address: str, output: str) -> None:
     profile = asyncio.run(probe_device(address, sr.name, encrypted=bool(sr.encrypted)))
     emit_yaml(profile, output)
     click.echo(f"Wrote profile draft to {output}")
+
+
+@cli.command("validate-profile")
+@click.argument("yaml_path")
+def validate_profile_cmd(yaml_path: str) -> None:
+    """Validate a probe YAML against field sanity checks.
+
+    Loads a profile YAML (from ``bluetti-cli probe``), parses
+    each register block with the device model's parser, and flags
+    fields with stuck-at values (0, 0xFFFF, 0xFFFFFFFF) or
+    out-of-range values.
+    """
+    verdicts = validate_profile(yaml_path)
+    if not verdicts:
+        click.echo("No fields to validate (unknown model or empty profile).")
+        return
+
+    ok = sum(1 for v in verdicts if v.status == "ok")
+    suspect = sum(1 for v in verdicts if v.status == "suspect")
+    error = sum(1 for v in verdicts if v.status == "error")
+
+    click.echo(f"Fields: {ok} ok, {suspect} suspect, {error} error\n")
+
+    for v in verdicts:
+        line = f"  [{v.status.upper()}] {v.name}: {v.value}"
+        if v.note:
+            line += f"  ({v.note})"
+        if v.status == "ok":
+            click.secho(line, fg="green")
+        elif v.status == "suspect":
+            click.secho(line, fg="yellow")
+        else:
+            click.secho(line, fg="red", bold=True)
 
 
 if __name__ == "__main__":
