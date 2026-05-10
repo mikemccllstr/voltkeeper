@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bluetti CLI — Protocol &amp; Architecture Findings</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --warn: #d2991d;
+    --danger: #f85149;
+    --border: #30363d;
+    --card-bg: #161b22;
+    --inline-code: rgba(240,246,252,0.15);
+    --font: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  h1 { font-size: 2.25rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.5rem; margin: 3rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.15rem; margin: 2rem 0 0.75rem; color: var(--accent); }
+  p { margin: 0.75rem 0; }
+  ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+  li { margin: 0.25rem 0; }
+  code {
+    font-family: var(--mono);
+    background: var(--inline-code);
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+  }
+  pre {
+    font-family: var(--mono);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+  th, td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--accent); font-weight: 600; }
+  .subtitle { color: var(--muted); font-size: 1.1rem; margin-bottom: 2rem; }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .badge-v1 { background: #1a3a5c; color: #58a6ff; }
+  .badge-v2 { background: #1a3a2c; color: #3fb950; }
+  .badge-enc { background: #3a1a1a; color: #f85149; }
+  .badge-plain { background: #3a2a1a; color: #d2991d; }
+  svg { max-width: 100%; display: block; margin: 1rem 0; }
+  .note { color: var(--muted); font-size: 0.9rem; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1rem 0; }
+  .toc { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .toc h3 { margin-top: 0; }
+  .toc ul { list-style: none; margin-left: 0; }
+  .toc li { margin: 0.35rem 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>Bluetti CLI</h1>
+<p class="subtitle">Protocol Reverse-Engineering &amp; Architecture Findings</p>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#arch">Overall Architecture</a></li>
+    <li><a href="#ble">BLE Communication Flow</a></li>
+    <li><a href="#handshake">Encryption &amp; Handshake</a></li>
+    <li><a href="#modbus">Modbus RTU Protocol</a></li>
+    <li><a href="#registers">Register Address Map</a></li>
+    <li><a href="#devices">Device Model Hierarchy</a></li>
+    <li><a href="#dataflow">Data Flow — Bytes to Display</a></li>
+    <li><a href="#mqtt">MQTT Bridge</a></li>
+    <li><a href="#commands">CLI Commands Reference</a></li>
+    <li><a href="#fieldtypes">Field Types</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="arch">1. Overall Architecture</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<p>The tool is a layered Python application that communicates with Bluetti power stations exclusively over <strong>Bluetooth Low Energy (BLE)</strong>. There is no Wi-Fi, serial, or USB path — all data flows through BLE GATT characteristics.</p>
+
+<svg viewBox="0 0 900 460" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/></filter>
+    <linearGradient id="grad-cli" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#58a6ff"/><stop offset="100%" stop-color="#1f6feb"/></linearGradient>
+    <linearGradient id="grad-dev" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3fb950"/><stop offset="100%" stop-color="#238636"/></linearGradient>
+    <linearGradient id="grad-ble" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d2991d"/><stop offset="100%" stop-color="#9e6a03"/></linearGradient>
+    <linearGradient id="grad-core" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f85149"/><stop offset="100%" stop-color="#da3633"/></linearGradient>
+    <linearGradient id="grad-mqtt" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#bc8cff"/><stop offset="100%" stop-color="#6e40c9"/></linearGradient>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#8b949e"/></marker>
+    <marker id="arrow-up" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#8b949e"/></marker>
+  </defs>
+  <rect x="0" y="0" width="900" height="460" rx="8" fill="var(--card-bg)"/>
+
+  <!-- Layer 1: CLI -->
+  <rect x="20" y="20" width="860" height="85" rx="6" fill="url(#grad-cli)" opacity="0.15" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="40" y="48" fill="#58a6ff" font-family="mono" font-size="14" font-weight="bold">CLI Layer</text>
+  <text x="40" y="68" fill="#8b949e" font-size="12" font-family="mono">cli.py (Click commands)</text>
+  <text x="40" y="86" fill="#c9d1d9" font-size="11">scan | status | write | probe | annotate | mqtt-publish | mqtt-listen | load-test | validate</text>
+
+  <!-- Layer 2: Device Handler + EventBus -->
+  <rect x="20" y="120" width="860" height="70" rx="6" fill="var(--card-bg)" stroke="#8b949e" stroke-width="1"/>
+  <text x="40" y="148" fill="#d2991d" font-family="mono" font-size="13" font-weight="bold">Device Handler + EventBus</text>
+  <text x="40" y="166" fill="#8b949e" font-size="11">device_handler.py — BLE polling loop</text>
+  <text x="40" y="180" fill="#8b949e" font-size="11">bus.py — async pub/sub (ParserMessage / CommandMessage)</text>
+
+  <!-- Layer 3: BLE -->
+  <rect x="20" y="205" width="860" height="80" rx="6" fill="url(#grad-ble)" opacity="0.12" stroke="#d2991d" stroke-width="1.5"/>
+  <text x="40" y="233" fill="#d2991d" font-family="mono" font-size="14" font-weight="bold">BLE Layer</text>
+  <text x="40" y="253" fill="#8b949e" font-size="12" font-family="mono">bluetooth/</text>
+  <text x="40" y="271" fill="#c9d1d9" font-size="11">scan → classify encryption → build device → connect → handshake → execute modbus → notify</text>
+
+  <!-- Layer 4: Core Protocol -->
+  <rect x="20" y="300" width="860" height="65" rx="6" fill="url(#grad-core)" opacity="0.1" stroke="#f85149" stroke-width="1.5"/>
+  <text x="40" y="328" fill="#f85149" font-family="mono" font-size="14" font-weight="bold">Core Protocol</text>
+  <text x="40" y="346" fill="#8b949e" font-size="11">commands.py (Modbus RTU) | struct.py (14 field types) | devices/ (V1Base, V2Base, concrete models)</text>
+
+  <!-- Hardware -->
+  <rect x="250" y="380" width="400" height="50" rx="6" fill="url(#grad-dev)" opacity="0.2" stroke="#3fb950" stroke-width="2"/>
+  <text x="450" y="412" fill="#3fb950" font-family="mono" font-size="14" font-weight="bold" text-anchor="middle">Bluetti Power Station (BLE Peripheral)</text>
+
+  <!-- Arrows between layers -->
+  <line x1="450" y1="105" x2="450" y2="115" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="450" y1="190" x2="450" y2="200" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="450" y1="285" x2="450" y2="295" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="450" y1="365" x2="450" y2="375" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+</svg>
+
+<div class="card">
+  <h3 style="margin-top:0">Key Dependency Graph</h3>
+  <pre style="margin-bottom:0">┌──────────────┐    ┌─────────────┐    ┌──────────────┐
+│  Device      │    │  Handshake  │    │  Cipher      │
+│  Registry    │    │  (crypto)   │    │  AES-128-CBC │
+└──────┬───────┘    └──────┬──────┘    └──────┬───────┘
+       │                   │                  │
+       └───────────────────┼──────────────────┘
+                           │
+                    ┌──────┴──────┐
+                    │  Encrypted  │
+                    │  Client     │
+                    └──────┬──────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                  │
+  ┌──────┴──────┐  ┌──────┴──────┐  ┌───────┴──────┐
+  │  V1 Base    │  │  V2 Base    │  │  Modbus      │
+  │  (plaintext)│  │  (encrypt) │  │  RTU Frame   │
+  └──────┬──────┘  └──────┬──────┘  └──────────────┘
+         │                │
+  ┌──────┴────────────────┴──────┐
+  │  Concrete Device Models      │
+  │  AC2A AC60 EP600 EB3A AC300 │
+  │  AC500 AC200L AC200M AC200PL│
+  └──────────────────────────────┘</pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="ble">2. BLE Communication Flow</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<p>All interaction goes through a single BLE GATT service with two characteristics:</p>
+
+<svg viewBox="0 0 900 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="shadow2"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.2"/></filter>
+  </defs>
+  <rect x="0" y="0" width="900" height="200" rx="8" fill="var(--card-bg)"/>
+
+  <!-- Service -->
+  <rect x="50" y="30" width="800" height="140" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="450" y="55" fill="#8b949e" font-family="mono" font-size="11" text-anchor="middle">Bluetti Service UUID</text>
+  <text x="450" y="72" fill="#58a6ff" font-family="mono" font-size="10" text-anchor="middle" font-weight="bold">0000ff00-0000-1000-8000-00805f9b34fb</text>
+
+  <!-- Notify -->
+  <rect x="90" y="85" width="340" height="65" rx="5" fill="url(#grad-dev)" opacity="0.1" stroke="#3fb950" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="120" y="108" fill="#3fb950" font-family="mono" font-size="11" font-weight="bold">NOTIFY characteristic</text>
+  <text x="120" y="124" fill="#8b949e" font-family="mono" font-size="9">UUID: 0000ff01-... (device → app)</text>
+  <text x="120" y="140" fill="#8b949e" font-size="10">Async notifications carrying Modbus responses</text>
+
+  <!-- Write -->
+  <rect x="460" y="85" width="360" height="65" rx="5" fill="url(#grad-ble)" opacity="0.1" stroke="#d2991d" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="490" y="108" fill="#d2991d" font-family="mono" font-size="11" font-weight="bold">WRITE characteristic</text>
+  <text x="490" y="124" fill="#8b949e" font-family="mono" font-size="9">UUID: 0000ff02-... (app → device)</text>
+  <text x="490" y="140" fill="#8b949e" font-size="10">Write-without-response Modbus commands</text>
+
+  <!-- Direction arrows -->
+  <text x="260" y="180" fill="#3fb950" font-size="10" text-anchor="middle">Notifications ← device</text>
+  <text x="640" y="180" fill="#d2991d" font-size="10" text-anchor="middle">Commands → device</text>
+</svg>
+
+<h3>Connection Sequence</h3>
+
+<svg viewBox="0 0 900 620" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="620" rx="8" fill="var(--card-bg)"/>
+
+  <!-- Lifelines -->
+  <line x1="180" y1="50" x2="180" y2="590" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6,4"/>
+  <line x1="450" y1="50" x2="450" y2="590" stroke="#8b949e" stroke-width="2" stroke-dasharray="6,4"/>
+  <line x1="720" y1="50" x2="720" y2="590" stroke="#3fb950" stroke-width="2" stroke-dasharray="6,4"/>
+
+  <!-- Headers -->
+  <text x="180" y="35" fill="#58a6ff" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">bluetti-cli</text>
+  <text x="450" y="35" fill="#8b949e" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">BleakClient</text>
+  <text x="720" y="35" fill="#3fb950" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">Device</text>
+
+  <!-- Step 1: Scan -->
+  <rect x="20" y="65" width="130" height="28" rx="4" fill="url(#grad-ble)" opacity="0.15"/>
+  <text x="85" y="84" fill="#d2991d" font-size="10" text-anchor="middle">1. BLE Scan</text>
+  <line x1="180" y1="79" x2="720" y2="79" stroke="#d2991d" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="450" y="72" fill="#8b949e" font-size="9" text-anchor="middle">discover(service_uuids=[ff00], return_adv=True)</text>
+
+  <!-- Step 2: Extract name -->
+  <rect x="20" y="110" width="130" height="28" rx="4" fill="var(--card-bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="85" y="129" fill="#c9d1d9" font-size="10" text-anchor="middle">2. Classify</text>
+  <text x="340" y="122" fill="#8b949e" font-size="9" text-anchor="middle">Parse manufacturer data: "BLUETTI" = plaintext, "BLUETTE" = encrypted</text>
+
+  <!-- Step 3: Build device -->
+  <rect x="20" y="150" width="130" height="28" rx="4" fill="var(--card-bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="85" y="169" fill="#c9d1d9" font-size="10" text-anchor="middle">3. Build Device</text>
+  <text x="340" y="162" fill="#8b949e" font-size="9" text-anchor="middle">Parse BLE name regex → model prefix → instantiate device class</text>
+
+  <!-- Step 4: Connect -->
+  <rect x="20" y="195" width="130" height="28" rx="4" fill="url(#grad-dev)" opacity="0.15"/>
+  <text x="85" y="214" fill="#3fb950" font-size="10" text-anchor="middle">4. Bleak Connect</text>
+  <line x1="180" y1="209" x2="720" y2="209" stroke="#3fb950" stroke-width="1.2"/>
+  <line x1="720" y1="209" x2="180" y2="229" stroke="#3fb950" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="450" y="225" fill="#8b949e" font-size="9" text-anchor="middle">connected ←</text>
+
+  <!-- Step 5: Handshake (conditional) -->
+  <rect x="20" y="250" width="130" height="28" rx="4" fill="url(#grad-cli)" opacity="0.15"/>
+  <text x="85" y="269" fill="#58a6ff" font-size="10" text-anchor="middle">5. Handshake</text>
+  <text x="400" y="262" fill="#f85149" font-size="9">(encrypted models only — 2-stage ECDH key exchange)</text>
+
+  <!-- 5a -->
+  <line x1="720" y1="275" x2="180" y2="295" stroke="#f85149" stroke-width="1" marker-end="url(#arrow)"/>
+  <text x="450" y="290" fill="#f85149" font-size="8" text-anchor="middle">Device: 2A 2A 01 + 4 random bytes</text>
+
+  <!-- 5b -->
+  <line x1="180" y1="310" x2="720" y2="330" stroke="#58a6ff" stroke-width="1" marker-end="url(#arrow)"/>
+  <text x="450" y="325" fill="#58a6ff" font-size="8" text-anchor="middle">App: 2A 2A 02 04 + MD5-derived key fragment</text>
+
+  <!-- 5c -->
+  <line x1="720" y1="345" x2="180" y2="365" stroke="#f85149" stroke-width="1" marker-end="url(#arrow)"/>
+  <text x="450" y="360" fill="#f85149" font-size="8" text-anchor="middle">Device: 2A 2A 04 + device ECDH pubkey + ECDSA sig</text>
+
+  <!-- 5d -->
+  <line x1="180" y1="380" x2="720" y2="400" stroke="#58a6ff" stroke-width="1" marker-end="url(#arrow)"/>
+  <text x="450" y="395" fill="#58a6ff" font-size="8" text-anchor="middle">App: 2A 2A 05 80 + app ECDH pubkey + ECDSA sig</text>
+
+  <!-- 5e -->
+  <line x1="720" y1="415" x2="180" y2="430" stroke="#3fb950" stroke-width="1" marker-end="url(#arrow)"/>
+  <text x="450" y="426" fill="#3fb950" font-size="8" text-anchor="middle">Device: 2A 2A 06 (confirm)</text>
+
+  <!-- Step 6: Start notify -->
+  <rect x="20" y="450" width="130" height="28" rx="4" fill="var(--card-bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="85" y="469" fill="#c9d1d9" font-size="10" text-anchor="middle">6. Start Notify</text>
+  <line x1="180" y1="464" x2="720" y2="464" stroke="#58a6ff" stroke-width="1.2"/>
+  <text x="450" y="460" fill="#8b949e" font-size="9" text-anchor="middle">start_notify(ff01, handler)</text>
+
+  <!-- Step 7: Execute modbus -->
+  <rect x="20" y="500" width="130" height="28" rx="4" fill="url(#grad-core)" opacity="0.15"/>
+  <text x="85" y="519" fill="#f85149" font-size="10" text-anchor="middle">7. Execute</text>
+  <line x1="180" y1="514" x2="720" y2="514" stroke="#f85149" stroke-width="1.2"/>
+  <line x1="720" y1="535" x2="180" y2="555" stroke="#3fb950" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="450" y="530" fill="#8b949e" font-size="9" text-anchor="middle">write(ff02, modbus_frame)</text>
+  <text x="450" y="550" fill="#8b949e" font-size="9" text-anchor="middle">← notify(ff01, modbus_response)</text>
+
+  <!-- Step 8: Disconnect -->
+  <rect x="20" y="570" width="130" height="28" rx="4" fill="var(--card-bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="85" y="589" fill="#c9d1d9" font-size="10" text-anchor="middle">8. Disconnect</text>
+  <line x1="180" y1="584" x2="720" y2="584" stroke="#8b949e" stroke-width="1.2"/>
+</svg>
+
+<div class="card">
+  <h3 style="margin-top:0">Encryption Detection via Manufacturer Data</h3>
+  <p>The first 7 bytes of the BLE advertisement manufacturer data reveal the encryption state:</p>
+  <table>
+    <tr><th>Hex prefix</th><th>ASCII</th><th>Meaning</th><th style="text-align:center">Flag</th></tr>
+    <tr><td><code>42 4c 55 45 54 54 49</code></td><td>BLUETTI</td><td>Plaintext (no encryption)</td><td style="text-align:center"><span class="badge badge-plain">plaintext</span></td></tr>
+    <tr><td><code>42 4c 55 45 54 54 45</code></td><td>BLUETTE</td><td>Encrypted (v1 — legacy challenge-response only)</td><td style="text-align:center"><span class="badge badge-enc">v1</span></td></tr>
+    <tr><td><code>42 4c 55 45 54 54 46</code></td><td>BLUETTF</td><td>Encrypted (v2 — legacy + ECDH key exchange)</td><td style="text-align:center"><span class="badge badge-enc">v2</span></td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="handshake">3. Encryption &amp; Handshake</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<p>Encrypted devices use <strong>AES-128-CBC with zero-padding and chained IV</strong>. The session key is established through a 2-stage handshake:</p>
+
+<svg viewBox="0 0 900 480" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="480" rx="8" fill="var(--card-bg)"/>
+
+  <!-- Path 1 -->
+  <rect x="30" y="20" width="400" height="200" rx="6" fill="var(--bg)" stroke="#d2991d" stroke-width="1.5"/>
+  <text x="230" y="52" fill="#d2991d" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">Path 1 — Legacy Challenge-Response</text>
+  <text x="60" y="78" fill="#58a6ff" font-family="mono" font-size="10">Device sends 4 random bytes</text>
+  <text x="60" y="100" fill="#8b949e" font-size="9">random_md5 = MD5(reverse(random_bytes)).hexdigest().upper()</text>
+  <text x="60" y="122" fill="#8b949e" font-size="9">initial_iv = MD5(random_md5.encode("ascii"))</text>
+  <text x="60" y="144" fill="#8b949e" font-size="9">digest_ascii = random_md5.encode("ascii")</text>
+  <text x="60" y="166" fill="#8b949e" font-size="9">extended = hardcoded_aes_key * 2  (32 bytes)</text>
+  <text x="60" y="188" fill="#d2991d" font-family="mono" font-size="10" font-weight="bold">bleConnAESKey = XOR(digest_ascii, extended)[:16]</text>
+  <text x="60" y="210" fill="#8b949e" font-size="9">→ CbcSession(bleConnAESKey, initial_iv)  for Path 2</text>
+
+  <!-- Path 2 -->
+  <rect x="470" y="20" width="410" height="200" rx="6" fill="var(--bg)" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="675" y="52" fill="#3fb950" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">Path 2 — ECDH Key Exchange</text>
+  <text x="500" y="78" fill="#58a6ff" font-family="mono" font-size="10">Device pubkey + ECDSA signature (encrypted)</text>
+  <text x="500" y="100" fill="#8b949e" font-size="9">Verify: ECDSA.verify(device_pub, sig, PUBKEY_K2)</text>
+  <text x="500" y="122" fill="#8b949e" font-size="9">Generate ephemeral SECP256R1 keypair</text>
+  <text x="500" y="144" fill="#8b949e" font-size="9">Sign app_pubkey with PRIVATE_KEY_L1</text>
+  <text x="500" y="166" fill="#58a6ff" font-family="mono" font-size="10">App sends pubkey + sig (encrypted with bleConnAESKey)</text>
+  <text x="500" y="188" fill="#3fb950" font-family="mono" font-size="10" font-weight="bold">shared_key = ECDH(app_priv, device_pub)[:16]</text>
+  <text x="500" y="210" fill="#8b949e" font-size="9">→ CbcSession(shared_key, initial_iv)  for Modbus traffic</text>
+
+  <!-- Pass-through -->
+  <rect x="30" y="240" width="850" height="65" rx="6" fill="var(--bg)" stroke="#f85149" stroke-width="1.5"/>
+  <text x="455" y="265" fill="#f85149" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">CbcSession — AES-128-CBC with Chained IV</text>
+  <text x="60" y="288" fill="#8b949e" font-size="10">encrypt(p): zero-pad plaintext to 16B → AES-128-CBC(key, iv) → iv = ct[-16:] → return ciphertext</text>
+  <text x="60" y="300" fill="#8b949e" font-size="10">decrypt(ct): validate len % 16 → AES-128-CBC-decrypt(key, iv) → iv = ct[-16:] → return full plaintext (with zero-padding)</text>
+
+  <!-- Note -->
+  <rect x="30" y="325" width="850" height="50" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="455" y="348" fill="#c9d1d9" font-size="10" text-anchor="middle" font-weight="bold">Critical Design Note</text>
+  <text x="60" y="366" fill="#8b949e" font-size="9">decrypt() does NOT strip trailing zeros — Modbus register values/CRC bytes legitimately end in 0x00. The upper layer determines payload length from protocol fields.</text>
+
+  <!-- Hardcoded keys -->
+  <rect x="30" y="395" width="850" height="65" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="455" y="415" fill="#8b949e" font-family="mono" font-size="10" text-anchor="middle" font-weight="bold">Hardcoded Crypto Constants (recovered via JADX):</text>
+  <text x="60" y="435" fill="#8b949e" font-size="9">LOCAL_AES_KEY = 459FC535808941F17091E0993EE3E93D</text>
+  <text x="60" y="450" fill="#8b949e" font-size="9">PRIVATE_KEY_L1 (SECP256R1) + PUBLIC_KEY_K2 (DER-encoded ECDSA verification key)</text>
+</svg>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="modbus">4. Modbus RTU Protocol</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<p>All device communication uses <strong>Modbus RTU frames</strong> tunneled through BLE GATT writes/notifications. Only function codes 0x03 (Read Holding Registers), 0x06 (Write Single Register), and 0x10 (Write Multiple Registers) are used.</p>
+
+<svg viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="280" rx="8" fill="var(--card-bg)"/>
+
+  <text x="450" y="30" fill="#58a6ff" font-size="13" text-anchor="middle" font-weight="bold">Read Holding Registers — Request Frame (8 bytes)</text>
+
+  <!-- Frame bytes -->
+  <rect x="30" y="48" width="60" height="40" rx="4" fill="#1f6feb" opacity="0.2" stroke="#58a6ff" stroke-width="1"/>
+  <text x="60" y="73" fill="#58a6ff" font-size="11" text-anchor="middle">01</text>
+  <text x="60" y="98" fill="#8b949e" font-size="9" text-anchor="middle">Slave addr</text>
+
+  <rect x="100" y="48" width="60" height="40" rx="4" fill="#1f6feb" opacity="0.2" stroke="#58a6ff" stroke-width="1"/>
+  <text x="130" y="73" fill="#58a6ff" font-size="11" text-anchor="middle">03</text>
+  <text x="130" y="98" fill="#8b949e" font-size="9" text-anchor="middle">Func code</text>
+
+  <rect x="170" y="48" width="60" height="40" rx="4" fill="#238636" opacity="0.2" stroke="#3fb950" stroke-width="1"/>
+  <text x="200" y="73" fill="#3fb950" font-size="11" text-anchor="middle">00 64</text>
+  <text x="200" y="98" fill="#8b949e" font-size="9" text-anchor="middle">Start addr</text>
+
+  <rect x="240" y="48" width="60" height="40" rx="4" fill="#238636" opacity="0.2" stroke="#3fb950" stroke-width="1"/>
+  <text x="270" y="73" fill="#3fb950" font-size="11" text-anchor="middle">00 06</text>
+  <text x="270" y="98" fill="#8b949e" font-size="9" text-anchor="middle">Quantity</text>
+
+  <rect x="310" y="48" width="60" height="40" rx="4" fill="#9e6a03" opacity="0.2" stroke="#d2991d" stroke-width="1"/>
+  <text x="340" y="73" fill="#d2991d" font-size="11" text-anchor="middle">XX XX</text>
+  <text x="340" y="98" fill="#8b949e" font-size="9" text-anchor="middle">CRC16</text>
+
+  <!-- Frame explanation -->
+  <text x="60" y="130" fill="#8b949e" font-size="10">Address &amp; quantity are</text>
+  <text x="60" y="145" fill="#8b949e" font-size="10">big-endian 16-bit (struct.pack("!HH"))</text>
+
+  <text x="60" y="170" fill="#8b949e" font-size="10">CRC is little-endian 16-bit</text>
+  <text x="60" y="185" fill="#8b949e" font-size="10">(poly 0xA001, init 0xFFFF)</text>
+
+  <!-- Example -->
+  <rect x="340" y="120" width="530" height="75" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="355" y="140" fill="#f85149" font-family="mono" font-size="10" font-weight="bold">Example: ReadHoldingRegisters(100, 6)</text>
+  <text x="355" y="158" fill="#c9d1d9" font-family="mono" font-size="9">bytes = b'\x01\x03\x00\x64\x00\x06\xc4\x1e'</text>
+  <text x="355" y="174" fill="#8b949e" font-size="9">slave=1  fn=3  addr=100  qty=6  crc=0x1ec4</text>
+  <text x="355" y="190" fill="#8b949e" font-size="9">→ reads registers 100–105: pack voltage, current, SOC, charging status, time-to-full, time-to-empty</text>
+
+  <!-- Response -->
+  <text x="450" y="230" fill="#3fb950" font-size="13" text-anchor="middle" font-weight="bold">Response Frame</text>
+  <rect x="30" y="240" width="840" height="28" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="60" y="259" fill="#c9d1d9" font-family="mono" font-size="9">[0x01] [0x03] [byte_count] [register_bytes...] [crc_lo] [crc_hi]</text>
+  <text x="430" y="259" fill="#8b949e" font-size="9">byte_count = 2 × quantity</text>
+  <text x="690" y="259" fill="#8b949e" font-size="9">Total size = 2 × qty + 5 bytes</text>
+</svg>
+
+<div class="card">
+  <h3 style="margin-top:0">Function Codes Used</h3>
+  <table>
+    <tr><th>Code</th><th>Class</th><th>Use</th></tr>
+    <tr><td><code>0x03</code></td><td><code>ReadHoldingRegisters</code></td><td>Read device state, identity, temperatures, power values</td></tr>
+    <tr><td><code>0x06</code></td><td><code>WriteSingleRegister</code></td><td>Toggle AC/DC output, change charging mode, set thresholds</td></tr>
+    <tr><td><code>0x10</code></td><td><code>WriteMultipleRegisters</code></td><td>Write multi-register values atomically</td></tr>
+  </table>
+  <p class="note">Exception detection: if the response function code equals <code>request_fn + 0x80</code>, a ModbusError is raised. Control registers (2000+) may return exceptions on read because some are write-only on certain models.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="registers">5. Register Address Map</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<p>The register space is organized into blocks. V1 and V2 devices use different layouts:</p>
+
+<svg viewBox="0 0 900 580" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="580" rx="8" fill="var(--card-bg)"/>
+
+  <!-- V1 Map -->
+  <text x="250" y="30" fill="#d2991d" font-size="13" text-anchor="middle" font-weight="bold">V1 Register Layout (EB3A, AC200M, AC300, AC500, AC200L)</text>
+
+  <!-- V1 blocks -->
+  <rect x="20" y="45" width="400" height="48" rx="4" fill="#d2991d" opacity="0.08" stroke="#d2991d" stroke-width="1"/>
+  <text x="35" y="66" fill="#d2991d" font-family="mono" font-size="10" font-weight="bold">Reg 1–9</text>
+  <text x="35" y="82" fill="#8b949e" font-size="9">Config, BT password</text>
+
+  <rect x="20" y="100" width="400" height="100" rx="4" fill="#3fb950" opacity="0.08" stroke="#3fb950" stroke-width="1"/>
+  <text x="35" y="121" fill="#3fb950" font-family="mono" font-size="10" font-weight="bold">Reg 10–99  BASE_REAL_DATA (110 registers)</text>
+  <text x="35" y="137" fill="#8b949e" font-size="9">Protocol version(16), SN(21–24), Software versions(23–34)</text>
+  <text x="35" y="153" fill="#8b949e" font-size="9">PV/Grid/AC/DC power(36–41), Battery SOC/voltage(43–)</text>
+  <text x="35" y="169" fill="#8b949e" font-size="9">Alarm info(54–57), Fault info(58–64)</text>
+  <text x="35" y="185" fill="#8b949e" font-size="9">BMS pack data(91–), 3-phase data(130–), PV charge(157–)</text>
+
+  <rect x="20" y="207" width="400" height="48" rx="4" fill="#f85149" opacity="0.08" stroke="#f85149" stroke-width="1"/>
+  <text x="35" y="228" fill="#f85149" font-family="mono" font-size="10" font-weight="bold">Reg 3000–3091  SETTABLE_DATA (writable controls)</text>
+  <text x="35" y="244" fill="#8b949e" font-size="9">AC/DC switch, PV control, grid charging, LED, ECO mode, charging mode choice</text>
+
+  <rect x="20" y="262" width="400" height="48" rx="4" fill="#8b949e" opacity="0.08" stroke="#8b949e" stroke-width="1"/>
+  <text x="35" y="283" fill="#8b949e" font-family="mono" font-size="10">Reg 4997–  BLE MAC / Reg 5000–  IoT/WiFi status</text>
+
+  <!-- V2 Map -->
+  <text x="650" y="30" fill="#3fb950" font-size="13" text-anchor="middle" font-weight="bold">V2 Register Layout (AC2A, AC60, EP600)</text>
+
+  <!-- V2 blocks -->
+  <rect x="440" y="45" width="440" height="60" rx="4" fill="#58a6ff" opacity="0.08" stroke="#58a6ff" stroke-width="1"/>
+  <text x="455" y="66" fill="#58a6ff" font-family="mono" font-size="10" font-weight="bold">Reg 100–167  HOME_DATA (62 regs)</text>
+  <text x="455" y="82" fill="#8b949e" font-size="9">Pack voltage/current/SOC, charging status, model name,</text>
+  <text x="455" y="98" fill="#8b949e" font-size="9">SN, power values (PV/AC/DC/Grid), energy totals, charging mode</text>
+
+  <rect x="440" y="112" width="440" height="52" rx="4" fill="#bc8cff" opacity="0.06" stroke="#bc8cff" stroke-width="1"/>
+  <text x="455" y="133" fill="#bc8cff" font-family="mono" font-size="10" font-weight="bold">Reg 1100–1153  INV_BASE (51 regs)</text>
+  <text x="455" y="149" fill="#8b949e" font-size="9">Inverter ID/type/SN, temperatures, software versions, rated currents</text>
+
+  <rect x="440" y="171" width="440" height="45" rx="4" fill="#d2991d" opacity="0.06" stroke="#d2991d" stroke-width="1"/>
+  <text x="455" y="192" fill="#d2991d" font-family="mono" font-size="10" font-weight="bold">Reg 1200–1269  INV_PV (70 regs)</text>
+  <text x="455" y="208" fill="#8b949e" font-size="9">PV string power/voltage/current, type, working status</text>
+
+  <rect x="440" y="223" width="440" height="42" rx="4" fill="#58a6ff" opacity="0.05" stroke="#58a6ff" stroke-width="1"/>
+  <text x="455" y="244" fill="#58a6ff" font-family="mono" font-size="10" font-weight="bold">Reg 1300–1330  INV_GRID (31 regs)</text>
+
+  <rect x="440" y="272" width="440" height="42" rx="4" fill="#3fb950" opacity="0.05" stroke="#3fb950" stroke-width="1"/>
+  <text x="455" y="293" fill="#3fb950" font-family="mono" font-size="10" font-weight="bold">Reg 1400–1447  INV_LOAD (48 regs)</text>
+
+  <rect x="440" y="321" width="440" height="42" rx="4" fill="#d2991d" opacity="0.05" stroke="#d2991d" stroke-width="1"/>
+  <text x="455" y="342" fill="#d2991d" font-family="mono" font-size="10" font-weight="bold">Reg 1500–1529  INV_INV (30 regs)</text>
+
+  <rect x="440" y="370" width="440" height="55" rx="4" fill="#f85149" opacity="0.06" stroke="#f85149" stroke-width="1"/>
+  <text x="455" y="391" fill="#f85149" font-family="mono" font-size="10" font-weight="bold">Reg 2000–2086  BASE_SETTINGS (writable)</text>
+  <text x="455" y="407" fill="#8b949e" font-size="9">AC/DC output, power off, ECO modes, charging mode, power lifting,</text>
+  <text x="455" y="421" fill="#8b949e" font-size="9">battery range, alarm sound, LED color, SOC thresholds</text>
+
+  <rect x="440" y="432" width="440" height="42" rx="4" fill="#f85149" opacity="0.04" stroke="#f85149" stroke-width="1"/>
+  <text x="455" y="453" fill="#f85149" font-family="mono" font-size="10" font-weight="bold">Reg 2200–2211  ADVANCE_SETTINGS (writable)</text>
+  <text x="455" y="469" fill="#8b949e" font-size="9">Factory reset, inverter voltage, inverter frequency</text>
+
+  <!-- Central poll dispatch -->
+  <rect x="180" y="490" width="540" height="70" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="450" y="515" fill="#c9d1d9" font-size="12" text-anchor="middle" font-weight="bold">V2 Parse Dispatch (v2_base.py lines 161–176)</text>
+  <text x="450" y="535" fill="#8b949e" font-size="10" text-anchor="middle">100–1099 → home  |  1100–1199 → inv_base  |  1200–1299 → pv</text>
+  <text x="450" y="550" fill="#8b949e" font-size="10" text-anchor="middle">1300–1399 → grid  |  1400–1499 → load  |  1500–1999 → inv  |  2000–2299 → control</text>
+</svg>
+
+<div class="card">
+  <h3 style="margin-top:0">Polling Strategy</h3>
+  <p><strong>V1 devices:</strong> One large read: <code>ReadHoldingRegisters(10, 110)</code> — dumps nearly all data in a single BLE exchange.</p>
+  <p><strong>V2 devices:</strong> Six targeted reads, one per block — allows partial refresh and reduces BLE overhead:</p>
+  <pre>ReadHoldingRegisters(100,  62)   → home data
+ReadHoldingRegisters(1100, 51)   → inverter base info
+ReadHoldingRegisters(1200, 70)   → PV panel data
+ReadHoldingRegisters(1300, 31)   → grid data
+ReadHoldingRegisters(1400, 48)   → load data
+ReadHoldingRegisters(1500, 30)   → inverter output info</pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="devices">6. Device Model Hierarchy</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="420" rx="8" fill="var(--card-bg)"/>
+
+  <!-- Root -->
+  <rect x="325" y="20" width="250" height="55" rx="6" fill="url(#grad-cli)" opacity="0.15" stroke="#58a6ff" stroke-width="2"/>
+  <text x="450" y="44" fill="#58a6ff" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">BluettiDevice</text>
+  <text x="450" y="63" fill="#8b949e" font-size="9" text-anchor="middle">(abstract base)</text>
+
+  <!-- Lines from root to children -->
+  <line x1="380" y1="75" x2="200" y2="110" stroke="#58a6ff" stroke-width="1.5"/>
+  <line x1="520" y1="75" x2="700" y2="110" stroke="#58a6ff" stroke-width="1.5"/>
+
+  <!-- V1Base -->
+  <rect x="40" y="115" width="340" height="42" rx="6" fill="url(#grad-ble)" opacity="0.1" stroke="#d2991d" stroke-width="1.5"/>
+  <text x="210" y="134" fill="#d2991d" font-family="mono" font-size="11" text-anchor="middle" font-weight="bold">V1Base</text>
+  <text x="210" y="150" fill="#8b949e" font-size="9" text-anchor="middle">protocol_version=0  |  plaintext-only  |  single-block polling</text>
+
+  <!-- V2Base -->
+  <rect x="520" y="115" width="350" height="42" rx="6" fill="url(#grad-dev)" opacity="0.08" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="695" y="134" fill="#3fb950" font-family="mono" font-size="11" text-anchor="middle" font-weight="bold">V2Base</text>
+  <text x="695" y="150" fill="#8b949e" font-size="9" text-anchor="middle">protocol_version≥2000  |  encrypted  |  multi-block polling</text>
+
+  <!-- V1 children -->
+  <rect x="20" y="180" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="70" y="202" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">EB3A</text>
+
+  <rect x="130" y="180" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="180" y="202" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">AC200M</text>
+
+  <rect x="240" y="180" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="290" y="202" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">AC300</text>
+
+  <rect x="20" y="225" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="70" y="247" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">AC500</text>
+
+  <rect x="130" y="225" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="180" y="247" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">AC200L</text>
+
+  <rect x="240" y="225" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="290" y="247" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">AC200PL</text>
+
+  <!-- V1 connecting lines -->
+  <line x1="100" y1="157" x2="75" y2="178" stroke="#8b949e" stroke-width="1"/>
+  <line x1="180" y1="157" x2="180" y2="178" stroke="#8b949e" stroke-width="1"/>
+  <line x1="260" y1="157" x2="275" y2="178" stroke="#8b949e" stroke-width="1"/>
+
+  <!-- V2 children -->
+  <rect x="540" y="180" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="590" y="202" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">AC2A</text>
+
+  <rect x="655" y="180" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="705" y="202" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">AC60</text>
+
+  <rect x="540" y="225" width="100" height="35" rx="4" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="590" y="247" fill="#c9d1d9" font-family="mono" font-size="10" text-anchor="middle">EP600</text>
+
+  <!-- V2 connecting lines -->
+  <line x1="610" y1="157" x2="590" y2="178" stroke="#8b949e" stroke-width="1"/>
+  <line x1="710" y1="157" x2="705" y2="178" stroke="#8b949e" stroke-width="1"/>
+
+  <!-- Comparison table -->
+  <rect x="60" y="280" width="780" height="120" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="450" y="302" fill="#c9d1d9" font-size="11" text-anchor="middle" font-weight="bold">V1 vs V2 Key Differences</text>
+
+  <text x="75" y="322" fill="#d2991d" font-family="mono" font-size="9" font-weight="bold">V1Base</text>
+  <text x="75" y="338" fill="#8b949e" font-size="9">Protocol version 0 | Always plaintext | 1 polling command (110 regs)</text>
+  <text x="75" y="354" fill="#8b949e" font-size="9">Control regs at 3000–3091 | Alarm/fault tables | Writable fields vary per device</text>
+  <text x="75" y="370" fill="#8b949e" font-size="9">Software versions: 6 fields mapped into softwareVerInfo struct</text>
+  <text x="75" y="386" fill="#8b949e" font-size="9">Alarm word (4 regs) + Fault word (7 regs) with isLowPower dispatch</text>
+
+  <text x="480" y="322" fill="#3fb950" font-family="mono" font-size="9" font-weight="bold">V2Base</text>
+  <text x="480" y="338" fill="#8b949e" font-size="9">Protocol version 2000 | May be encrypted | 6 polling commands per block</text>
+  <text x="480" y="354" fill="#8b949e" font-size="9">Control regs at 2000–2087 + 2200–2211 | Split into BLOCK1 + BLOCK2</text>
+  <text x="480" y="370" fill="#8b949e" font-size="9">Array-style sub-registers: pv[0..4], gridPhase[0..2], load/acPhase[0..2]</text>
+  <text x="480" y="386" fill="#8b949e" font-size="9">No alarm/fault tables (N/A in V2 protocol)</text>
+</svg>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="dataflow">7. Data Flow — Bytes to Display</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<svg viewBox="0 0 900 590" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="590" rx="8" fill="var(--card-bg)"/>
+
+  <!-- Stage 1 -->
+  <rect x="30" y="20" width="840" height="52" rx="6" fill="#1f6feb" opacity="0.08" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="50" y="42" fill="#58a6ff" font-family="mono" font-size="11" font-weight="bold">1. Modbus RTU Frame Construction</text>
+  <text x="50" y="58" fill="#8b949e" font-size="9">struct.pack("!HH", addr, qty) → concat [0x01, 0x03, ...] → append CRC16(data, poly=0xA001)</text>
+
+  <line x1="450" y1="72" x2="450" y2="88" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 2 -->
+  <rect x="30" y="92" width="840" height="52" rx="6" fill="#f85149" opacity="0.06" stroke="#f85149" stroke-width="1.5"/>
+  <text x="50" y="114" fill="#f85149" font-family="mono" font-size="11" font-weight="bold">2. Encryption (if needed)</text>
+  <text x="50" y="130" fill="#8b949e" font-size="9">Zero-pad frame to 16B boundary → AES-128-CBC encrypt with chained IV → update IV to last block</text>
+
+  <line x1="450" y1="144" x2="450" y2="160" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 3 -->
+  <rect x="30" y="164" width="840" height="52" rx="6" fill="#3fb950" opacity="0.06" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="50" y="186" fill="#3fb950" font-family="mono" font-size="11" font-weight="bold">3. BLE GATT Write → Device</text>
+  <text x="50" y="202" fill="#8b949e" font-size="9">write_gatt_char(WRITE_UUID "ff02", ciphertext, response=False) — write without response</text>
+
+  <line x1="450" y1="216" x2="450" y2="232" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 4 -->
+  <rect x="30" y="236" width="840" height="52" rx="6" fill="#3fb950" opacity="0.06" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="50" y="258" fill="#3fb950" font-family="mono" font-size="11" font-weight="bold">4. BLE Notification ← Device</text>
+  <text x="50" y="274" fill="#8b949e" font-size="9">_on_notification handler accumulates fragments → validate CRC → check for Modbus exception (fn+0x80)</text>
+
+  <line x1="450" y1="288" x2="450" y2="304" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 5 -->
+  <rect x="30" y="308" width="840" height="52" rx="6" fill="#f85149" opacity="0.06" stroke="#f85149" stroke-width="1.5"/>
+  <text x="50" y="330" fill="#f85149" font-family="mono" font-size="11" font-weight="bold">5. Decryption (if needed) → Trim to Response Size</text>
+  <text x="50" y="346" fill="#8b949e" font-size="9">AES-128-CBC decrypt → slice to cmd.response_size() (removes zero-padding) → CRC revalidation</text>
+
+  <line x1="450" y1="360" x2="450" y2="376" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 6 -->
+  <rect x="30" y="380" width="840" height="68" rx="6" fill="#bc8cff" opacity="0.06" stroke="#bc8cff" stroke-width="1.5"/>
+  <text x="50" y="402" fill="#bc8cff" font-family="mono" font-size="11" font-weight="bold">6. Struct Parsing — Raw Bytes → Python dict</text>
+  <text x="50" y="418" fill="#8b949e" font-size="9">For each field whose address range falls within [starting, starting+data_size]:</text>
+  <text x="50" y="433" fill="#8b949e" font-size="9">offset = 2 × (field.address - starting_address)</text>
+  <text x="50" y="448" fill="#8b949e" font-size="9">field_bytes = data[offset : offset + 2*field.size]  →  field.parse(field_bytes)</text>
+
+  <line x1="450" y1="448" x2="450" y2="464" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Output -->
+  <rect x="30" y="468" width="400" height="100" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="50" y="490" fill="#3fb950" font-family="mono" font-size="10" font-weight="bold">CLI Display</text>
+  <text x="50" y="508" fill="#c9d1d9" font-family="mono" font-size="8">  Battery SOC:          85 %</text>
+  <text x="50" y="520" fill="#c9d1d9" font-family="mono" font-size="8">  Pack Voltage:         26.3 V</text>
+  <text x="50" y="532" fill="#c9d1d9" font-family="mono" font-size="8">  Charging Status:      Charging (1)</text>
+  <text x="50" y="544" fill="#c9d1d9" font-family="mono" font-size="8">  Time to Full:         150 min</text>
+  <text x="50" y="556" fill="#c9d1d9" font-family="mono" font-size="8">  DC Load:              12 W</text>
+
+  <!-- MQTT side -->
+  <rect x="470" y="468" width="400" height="100" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="490" y="490" fill="#bc8cff" font-family="mono" font-size="10" font-weight="bold">MQTT Publish</text>
+  <text x="490" y="508" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/AC2A-12345/total_battery_percent = 85</text>
+  <text x="490" y="520" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/AC2A-12345/total_battery_voltage = 26.3</text>
+  <text x="490" y="532" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/AC2A-12345/pack_charging_status = CHARGING</text>
+  <text x="490" y="544" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/AC2A-12345/time_to_full_minutes = 150</text>
+  <text x="490" y="556" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/AC2A-12345/dc_output_power = 12</text>
+
+  <text x="450" y="584" fill="#8b949e" font-size="10" text-anchor="middle">All register fields use typed struct definitions (UintField, Signed32Field, BoolField, EnumField, etc.)</text>
+</svg>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="mqtt">8. MQTT Bridge</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<svg viewBox="0 0 900 340" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="900" height="340" rx="8" fill="var(--card-bg)"/>
+
+  <!-- Device Handler -->
+  <rect x="30" y="20" width="240" height="80" rx="6" fill="var(--bg)" stroke="#d2991d" stroke-width="1.5"/>
+  <text x="150" y="45" fill="#d2991d" font-family="mono" font-size="11" text-anchor="middle" font-weight="bold">DeviceHandler</text>
+  <text x="150" y="62" fill="#8b949e" font-size="9" text-anchor="middle">BLE polling loop</text>
+  <text x="150" y="76" fill="#8b949e" font-size="9" text-anchor="middle">retry on disconnect</text>
+  <text x="150" y="90" fill="#8b949e" font-size="8" text-anchor="middle">device_handler.py</text>
+
+  <!-- EventBus -->
+  <rect x="350" y="20" width="200" height="80" rx="6" fill="var(--bg)" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="450" y="45" fill="#58a6ff" font-family="mono" font-size="11" text-anchor="middle" font-weight="bold">EventBus</text>
+  <text x="450" y="62" fill="#8b949e" font-size="9" text-anchor="middle">async pub/sub</text>
+  <text x="450" y="76" fill="#8b949e" font-size="9" text-anchor="middle">asyncio.Queue</text>
+  <text x="450" y="90" fill="#8b949e" font-size="8" text-anchor="middle">bus.py</text>
+
+  <!-- MQTT Client -->
+  <rect x="630" y="20" width="240" height="80" rx="6" fill="var(--bg)" stroke="#bc8cff" stroke-width="1.5"/>
+  <text x="750" y="45" fill="#bc8cff" font-family="mono" font-size="11" text-anchor="middle" font-weight="bold">MQTTClient</text>
+  <text x="750" y="62" fill="#8b949e" font-size="9" text-anchor="middle">publish state</text>
+  <text x="750" y="76" fill="#8b949e" font-size="9" text-anchor="middle">subscribe commands</text>
+  <text x="750" y="90" fill="#8b949e" font-size="8" text-anchor="middle">mqtt_client.py</text>
+
+  <!-- Arrows between components -->
+  <line x1="270" y1="60" x2="345" y2="60" stroke="#d2991d" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="308" y="52" fill="#d2991d" font-size="8" text-anchor="middle">ParserMessage</text>
+
+  <line x1="550" y1="45" x2="625" y2="45" stroke="#bc8cff" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="588" y="38" fill="#bc8cff" font-size="8" text-anchor="middle">ParserMessage</text>
+
+  <line x1="625" y1="80" x2="275" y2="80" stroke="#f85149" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="450" y="95" fill="#f85149" font-size="8" text-anchor="middle">CommandMessage (write from MQTT)</text>
+
+  <!-- MQTT Broker -->
+  <rect x="250" y="130" width="400" height="55" rx="6" fill="url(#grad-dev)" opacity="0.1" stroke="#3fb950" stroke-width="2"/>
+  <text x="450" y="155" fill="#3fb950" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">MQTT Broker (e.g., mosquitto, Home Assistant)</text>
+  <text x="450" y="175" fill="#8b949e" font-size="10" text-anchor="middle">hostname:port with optional username/password</text>
+
+  <!-- MQTT topics -->
+  <rect x="30" y="210" width="400" height="110" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="230" y="233" fill="#3fb950" font-family="mono" font-size="10" text-anchor="middle" font-weight="bold">State Topics (publish)</text>
+  <text x="50" y="252" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/{type}-{sn}/total_battery_percent</text>
+  <text x="50" y="266" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/{type}-{sn}/total_ac_power</text>
+  <text x="50" y="280" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/{type}-{sn}/charging_mode</text>
+  <text x="50" y="294" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/state/{type}-{sn}/ac_output_on</text>
+  <text x="50" y="308" fill="#8b949e" font-size="8">All values published with retain flag</text>
+
+  <rect x="470" y="210" width="400" height="110" rx="6" fill="var(--bg)" stroke="#30363d" stroke-width="1"/>
+  <text x="670" y="233" fill="#f85149" font-family="mono" font-size="10" text-anchor="middle" font-weight="bold">Command Topics (subscribe)</text>
+  <text x="490" y="252" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/command/{type}-{sn}/ac_output</text>
+  <text x="490" y="266" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/command/{type}-{sn}/dc_output</text>
+  <text x="490" y="280" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/command/{type}-{sn}/charging_mode</text>
+  <text x="490" y="294" fill="#c9d1d9" font-family="mono" font-size="8">bluetti/command/# (wildcard subscription)</text>
+  <text x="490" y="308" fill="#8b949e" font-size="8">Payloads: "ON"/"OFF" for bool, "TURBO" for enum, "85" for numeric</text>
+
+  <!-- Lines from MQTT Client to Broker -->
+  <line x1="450" y1="100" x2="450" y2="125" stroke="#8b949e" stroke-width="1.5"/>
+  <line x1="450" y1="185" x2="450" y2="205" stroke="#8b949e" stroke-width="1.5"/>
+</svg>
+
+<div class="card">
+  <h3 style="margin-top:0">Home Assistant Auto-Discovery</h3>
+  <p>When <code>--ha-config normal</code> (default), the bridge publishes MQTT discovery configs so devices appear automatically in Home Assistant — no YAML configuration needed:</p>
+  <pre>homeassistant/sensor/{sn}_total_battery_percent/config     ← JSON discovery payload
+homeassistant/switch/{sn}_ac_output_on/config
+homeassistant/select/{sn}_charging_mode/config
+homeassistant/number/{sn}_soc_low/config</pre>
+  <p>Discovery config includes: state_topic, command_topic (for writable fields), device info (manufacturer/model/SN), unique_id, unit_of_measurement, device_class, state_class.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="commands">9. CLI Commands Reference</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<table>
+  <tr><th>Command</th><th>Purpose</th><th>Requires BLE?</th><th>Key flags</th></tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli scan</code></td>
+    <td>Scan for nearby Bluetti devices via BLE advertisement</td>
+    <td style="text-align:center">Yes</td>
+    <td><code>--timeout</code> (default 10s)</td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli status [ADDRESS]</code></td>
+    <td>Read battery SOC, voltage, charging status, and loads</td>
+    <td style="text-align:center">Yes</td>
+    <td><code>--verbose</code> (full status), <code>--timeout</code></td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli write ADDRESS FIELD VALUE</code></td>
+    <td>Write a writable register (toggle outputs, change mode)</td>
+    <td style="text-align:center">Yes</td>
+    <td>Field depends on device model</td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli probe ADDRESS</code></td>
+    <td>Active register sweep → draft YAML profile (for new devices)</td>
+    <td style="text-align:center">Yes</td>
+    <td><code>--output</code> (default profile.yaml)</td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli annotate ADDRESS</code></td>
+    <td>Live-poll and interactively label changing register values</td>
+    <td style="text-align:center">Yes</td>
+    <td><code>--output</code> (default draft.yaml)</td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli mqtt-publish ADDRESS --broker HOST</code></td>
+    <td>Continuous BLE → MQTT bridge with HA auto-discovery</td>
+    <td style="text-align:center">Yes</td>
+    <td><code>--serial</code>, <code>--port</code>, <code>--interval</code>, <code>--ha-config</code></td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli mqtt-listen --broker HOST</code></td>
+    <td>Watch battery SOC via MQTT and trigger system shutdown (Linux only)</td>
+    <td style="text-align:center">No</td>
+    <td><code>--serial</code>, <code>--shutdown-at</code>, <code>--grace-period</code></td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli load-test ADDRESS</code></td>
+    <td>Battery discharge characterization — CSV logging</td>
+    <td style="text-align:center">Yes</td>
+    <td><code>--output</code>, <code>--interval</code>, <code>--expected-load</code></td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli validate-profile YAML</code></td>
+    <td>Validate probe YAML against field sanity checks (offline)</td>
+    <td style="text-align:center">No</td>
+    <td>Stuck-at-0, stuck-at-0xFFFF, out-of-range detection</td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli mqtt-publish-service ADDRESS --broker HOST</code></td>
+    <td>Generate systemd unit file for mqtt-publish</td>
+    <td style="text-align:center">No</td>
+    <td><code>--user</code>, <code>--output</code>, <code>--exec</code></td>
+  </tr>
+  <tr>
+    <td style="white-space:nowrap"><code>bluetti-cli mqtt-listen-service --serial SERIAL --broker HOST</code></td>
+    <td>Generate systemd unit file for mqtt-listen (Linux only)</td>
+    <td style="text-align:center">No</td>
+    <td><code>--shutdown-at</code>, <code>--grace-period</code>, <code>--output</code></td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="fieldtypes">10. Field Types</h2>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<p>The Modbus register bytes are decoded using 14 typed field definitions (<code>struct.py</code>):</p>
+
+<table>
+  <tr><th>Type</th><th>Size (regs)</th><th>Description</th><th>Example output</th></tr>
+  <tr><td><code>UintField</code></td><td>1</td><td>Unsigned 16-bit integer</td><td><code>85</code></td></tr>
+  <tr><td><code>Uint8Field</code></td><td>1</td><td>Single byte (hi or lo) of a register</td><td><code>1</code></td></tr>
+  <tr><td><code>Uint32Field</code></td><td>2</td><td>Unsigned 32-bit integer (2 registers)</td><td><code>15234</code></td></tr>
+  <tr><td><code>Signed32Field</code></td><td>2</td><td>Signed 32-bit integer (neg=export for AC power)</td><td><code>145</code> or <code>-50</code></td></tr>
+  <tr><td><code>DecimalField</code></td><td>1</td><td>Integer ÷ scale (e.g. scale=2 → val/100)</td><td><code>26.3</code> (when raw=2630, scale=2)</td></tr>
+  <tr><td><code>Decimal32Field</code></td><td>2</td><td>32-bit ÷ scale (for energy totals)</td><td><code>1523.4</code></td></tr>
+  <tr><td><code>BoolField</code></td><td>1</td><td>0 = off, any other value = on</td><td><code>"ON"</code> / <code>"OFF"</code></td></tr>
+  <tr><td><code>EnumField</code></td><td>1</td><td>Integer → named mapping</td><td><code>"Turbo"</code></td></tr>
+  <tr><td><code>StringField</code></td><td>varies</td><td>ASCII byte sequence, big-endian 16-bit words</td><td><code>"AC2A"</code></td></tr>
+  <tr><td><code>SwapStringField</code></td><td>varies</td><td>Like StringField but bytes swapped per word</td><td><code>"24090001234"</code></td></tr>
+  <tr><td><code>VersionField</code></td><td>2</td><td>Software version: reg[0]=major.minor, reg[1]=major.minor</td><td><code>"v2.1.0.3"</code></td></tr>
+  <tr><td><code>BcdSerialField</code></td><td>varies</td><td>BCD-encoded serial number</td><td><code>"24090001234"</code></td></tr>
+  <tr><td><code>TemperatureField</code></td><td>1</td><td>Raw value − 40 = °C</td><td><code>35</code> (when raw=75)</td></tr>
+  <tr><td><code>SignedDecimalField</code></td><td>1</td><td>Signed 16-bit ÷ scale</td><td><code>-5.2</code></td></tr>
+</table>
+
+<hr style="border-color: var(--border); margin: 2rem 0;">
+
+<p class="note">Last updated: May 2026 &nbsp;|&nbsp; Built from reverse-engineering the official Bluetti Android APK using JADX, Frida, and BLE snoop logs.</p>
+
+</body>
+</html>
