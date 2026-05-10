@@ -1145,7 +1145,14 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
 @click.argument("address")
 @click.option("-o", "--output", default="profile.yaml", help="Output YAML file path")
 def probe(address: str, output: str) -> None:
-    """Probe a Bluetti device and emit a draft profile YAML."""
+    """Probe a Bluetti device and emit a draft profile YAML.
+
+    The serial number in the saved YAML is replaced with a synthetic
+    placeholder so the file is safe to commit or share.  The real SN
+    is shown to you on stdout.
+    """
+    from .scrub import SYNTHETIC_SN_STR, scrub_profile, split_model_sn
+
     address = address.upper()
 
     loop = asyncio.new_event_loop()
@@ -1156,8 +1163,16 @@ def probe(address: str, output: str) -> None:
         loop.close()
 
     profile = asyncio.run(probe_device(address, sr.name, encrypted=bool(sr.encrypted)))
-    emit_yaml(profile, output)
-    click.echo(f"Wrote profile draft to {output}")
+
+    parts = split_model_sn(sr.name or "")
+    if parts:
+        model, real_sn = parts
+        click.echo(f"Probed {model} SN {real_sn} ({len(profile.get('blocks', {}))} blocks)")
+    else:
+        click.echo(f"Probed {sr.name or address} ({len(profile.get('blocks', {}))} blocks)")
+
+    emit_yaml(scrub_profile(profile), output)
+    click.echo(f"Wrote profile draft to {output} (SN scrubbed to {SYNTHETIC_SN_STR} for privacy)")
 
 
 @cli.command("annotate")

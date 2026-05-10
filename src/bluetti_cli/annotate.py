@@ -12,6 +12,7 @@ import yaml
 from .bluetooth.client import BluetoothClient
 from .core.commands import ReadHoldingRegisters
 from .probe import V1_BLOCKS, V2_BLOCKS, _detect_protocol
+from .scrub import SYNTHETIC_SN_STR, scrub_profile, split_model_sn
 
 # ── Diff helper ───────────────────────────────────────────────────────
 
@@ -62,6 +63,16 @@ def _save(profile: dict, profile_path: Path) -> None:
     os.replace(tmp_path, profile_path)
 
 
+def _save_scrubbed(profile: dict, profile_path: Path) -> None:
+    """Save *profile* with the SN replaced by a synthetic placeholder.
+
+    Use this for any annotate persistence: the in-memory dict keeps the
+    real BLE name for registry-shortcut lookups across sessions, while
+    the on-disk YAML is privacy-safe to share.
+    """
+    _save(scrub_profile(profile), profile_path)
+
+
 # ── Annotate loop ─────────────────────────────────────────────────────
 
 
@@ -109,7 +120,16 @@ async def annotate_loop(
         profile.setdefault("encrypted", encrypted)
         if detect_name:
             profile.setdefault("name", detect_name)
-        _save(profile, profile_path)
+        _save_scrubbed(profile, profile_path)
+
+        # Show the real device identity to the user; the on-disk YAML has
+        # a synthetic SN so it's safe to share/commit.
+        parts = split_model_sn(detect_name)
+        if parts:
+            model, real_sn = parts
+            click.echo(
+                f"Annotating {model} SN {real_sn} → {profile_path} (SN scrubbed to {SYNTHETIC_SN_STR} in saved file)"
+            )
 
         last: dict[str, bytes] = {}
         click.echo(f"Polling {len(blocks)} register blocks. Press Ctrl-C to stop.\n")
@@ -131,7 +151,7 @@ async def annotate_loop(
                         profile.setdefault("annotations", []).append(
                             {"block": block_name, "offset": offset, "name": field_name.strip()}
                         )
-                        _save(profile, profile_path)
+                        _save_scrubbed(profile, profile_path)
                 last[block_name] = resp
 
             await asyncio.sleep(1)
