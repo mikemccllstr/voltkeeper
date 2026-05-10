@@ -90,6 +90,85 @@ def _registry_field_hints() -> list[str]:
     return sorted(names)
 
 
+BASELINE_POLLS = 10
+"""Cycles to observe at session start before listening for user-driven changes.
+
+At ~1 second per cycle, ~10 polls is enough to catch the obvious noise
+(currents, energy counters, frequency drift) without making the user wait
+forever before they can interact with the device. Slowly-changing fields
+(SOC ticks every few minutes, chgFullTime once a minute) won't show up
+during baseline and will trigger one-off "spurious" changes during the
+listening phase — acceptable cost.
+"""
+
+
+def _annotation_index(profile: dict) -> dict[tuple[str, int], str]:
+    """Build a ``(block_name, offset) → name`` lookup from ``profile['annotations']``.
+
+    Used to surface the existing label for an already-labelled byte
+    when it changes again. Last entry wins on duplicate keys, matching
+    the latest-wins semantics enforced by ``_replace_annotation``.
+    """
+    out: dict[tuple[str, int], str] = {}
+    for entry in profile.get("annotations", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        block = entry.get("block")
+        offset = entry.get("offset")
+        name = entry.get("name")
+        if isinstance(block, str) and isinstance(offset, int) and isinstance(name, str):
+            out[(block, offset)] = name
+    return out
+
+
+def _replace_annotation(profile: dict, block: str, offset: int, name: str) -> None:
+    """Set the annotation for ``(block, offset)`` to *name*, removing any prior entry.
+
+    Latest-wins: typing a new name for an already-labelled byte replaces
+    the old label rather than stacking another entry alongside it. Keeps
+    the YAML clean for downstream maintainer consumption.
+    """
+    annotations = profile.setdefault("annotations", [])
+    profile["annotations"] = [
+        e for e in annotations if not (isinstance(e, dict) and e.get("block") == block and e.get("offset") == offset)
+    ]
+    profile["annotations"].append({"block": block, "offset": offset, "name": name})
+
+
+async def _capture_baseline(
+    client: BluetoothClient,
+    blocks: list[tuple[int, int, str]],
+    polls: int = BASELINE_POLLS,
+) -> tuple[dict[str, bytes], dict[str, set[int]]]:
+    """Sample blocks for *polls* cycles. Return (last snapshot, volatile bytes).
+
+    A byte offset is "volatile" if its value changed at any point during
+    the baseline window — the listening loop suppresses changes at
+    those offsets so the user only sees signal from their own actions.
+    """
+    history: dict[str, list[bytes]] = {}
+    for cycle in range(polls):
+        for addr, size, block_name in blocks:
+            resp = await client.execute(ReadHoldingRegisters(addr, size))
+            history.setdefault(block_name, []).append(resp)
+        # In-place progress; final newline printed by caller.
+        click.echo(f"  baseline poll {cycle + 1}/{polls}\r", nl=False)
+        if cycle < polls - 1:
+            await asyncio.sleep(1)
+    click.echo()  # finalize the progress line
+
+    last: dict[str, bytes] = {}
+    volatile: dict[str, set[int]] = {}
+    for block_name, snapshots in history.items():
+        last[block_name] = snapshots[-1]
+        offsets: set[int] = set()
+        for i in range(1, len(snapshots)):
+            for offset, _, _ in _diff(snapshots[i - 1], snapshots[i]):
+                offsets.add(offset)
+        volatile[block_name] = offsets
+    return last, volatile
+
+
 def _format_change(block_name: str, addr: int, offset: int, old_byte: int, new_byte: int) -> str:
     """Render a one-line description of a changed byte using register coords.
 
@@ -188,27 +267,37 @@ async def annotate_loop(
             hints=_registry_field_hints(),
         )
 
-        last: dict[str, bytes] = {}
-        # First poll establishes the baseline; no diffs reported.
-        first_pass = True
+        click.echo(f"Capturing baseline ({BASELINE_POLLS} polls) to identify noisy fields...")
+        last, volatile = await _capture_baseline(client, blocks, polls=BASELINE_POLLS)
+        suppressed = sum(len(s) for s in volatile.values())
+        click.echo(f"Baseline captured. Suppressing {suppressed} volatile byte(s) from change detection.")
+        click.echo("Make a change on the device now.\n")
+
+        # Lookup of (block, offset) → name from any prior session's annotations.
+        # Refreshed in-place as the user adds new labels.
+        annotations_index = _annotation_index(profile)
 
         while True:
             cycle_changes: list[tuple[str, int, int, int, int]] = []
             for addr, size, block_name in blocks:
                 resp = await client.execute(ReadHoldingRegisters(addr, size))
                 prev = last.get(block_name)
+                vol = volatile.get(block_name, set())
                 for offset, old_byte, new_byte in _diff(prev, resp):
+                    if offset in vol:
+                        continue
                     cycle_changes.append((block_name, addr, offset, old_byte, new_byte))
                 last[block_name] = resp
 
-            if first_pass:
-                first_pass = False
-                click.echo("Baseline captured. Make a change on the device now.\n")
-            elif cycle_changes:
+            if cycle_changes:
                 click.echo("─" * 60)
                 click.echo(f"{len(cycle_changes)} byte(s) changed:")
-                for change in cycle_changes:
-                    click.echo(_format_change(*change))
+                for block_name, addr, offset, old, new in cycle_changes:
+                    line = _format_change(block_name, addr, offset, old, new)
+                    existing = annotations_index.get((block_name, offset))
+                    if existing:
+                        line += click.style(f"   (currently: {existing})", fg="cyan")
+                    click.echo(line)
                 try:
                     field_name = click.prompt(
                         "\nField name for these changes (Enter to skip)",
@@ -221,9 +310,8 @@ async def annotate_loop(
                 if field_name.strip():
                     name_clean = field_name.strip()
                     for block_name, _addr, offset, _old, _new in cycle_changes:
-                        profile.setdefault("annotations", []).append(
-                            {"block": block_name, "offset": offset, "name": name_clean}
-                        )
+                        _replace_annotation(profile, block_name, offset, name_clean)
+                        annotations_index[(block_name, offset)] = name_clean
                     _save_scrubbed(profile, profile_path)
                     click.echo(f"  ✓ recorded {len(cycle_changes)} entries as {name_clean!r}\n")
                 else:

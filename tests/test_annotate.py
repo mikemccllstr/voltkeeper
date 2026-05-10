@@ -4,10 +4,12 @@
 import yaml
 
 from src.bluetti_cli.annotate import (
+    _annotation_index,
     _diff,
     _format_change,
     _load_or_init,
     _registry_field_hints,
+    _replace_annotation,
     _save,
 )
 
@@ -169,3 +171,140 @@ def test_format_change_byte_zero_is_high_byte():
     """Modbus byte 0 of register N is the high byte; verify coords align."""
     line = _format_change("INV_BASE_INFO", 1100, 0, 0xAA, 0xBB)
     assert "reg 1100 byte 0" in line
+
+
+# ── Annotation index + latest-wins replacement ────────────────────────
+
+
+def test_annotation_index_builds_lookup_from_profile():
+    profile = {
+        "annotations": [
+            {"block": "APP_HOME_DATA", "offset": 48, "name": "ac_output"},
+            {"block": "APP_HOME_DATA", "offset": 49, "name": "ac_output"},
+            {"block": "INV_INV_INFO", "offset": 0, "name": "inv_voltage"},
+        ]
+    }
+    idx = _annotation_index(profile)
+    assert idx == {
+        ("APP_HOME_DATA", 48): "ac_output",
+        ("APP_HOME_DATA", 49): "ac_output",
+        ("INV_INV_INFO", 0): "inv_voltage",
+    }
+
+
+def test_annotation_index_handles_missing_or_malformed_entries():
+    # No annotations key, malformed entries, type mismatches — all skipped.
+    assert _annotation_index({}) == {}
+    assert _annotation_index({"annotations": None}) == {}
+    assert (
+        _annotation_index(
+            {
+                "annotations": [
+                    "not a dict",
+                    {"block": "X"},  # missing offset/name
+                    {"block": "X", "offset": "not int", "name": "y"},
+                    {"block": "X", "offset": 0, "name": 42},  # name not str
+                ]
+            }
+        )
+        == {}
+    )
+
+
+def test_annotation_index_last_entry_wins_on_duplicate_key():
+    """If the YAML has duplicates, _annotation_index uses the last one.
+
+    Matches the latest-wins semantics enforced by _replace_annotation.
+    """
+    profile = {
+        "annotations": [
+            {"block": "B", "offset": 0, "name": "old"},
+            {"block": "B", "offset": 0, "name": "new"},
+        ]
+    }
+    assert _annotation_index(profile) == {("B", 0): "new"}
+
+
+def test_replace_annotation_adds_when_absent():
+    profile: dict = {}
+    _replace_annotation(profile, "APP_HOME_DATA", 48, "ac_output")
+    assert profile["annotations"] == [{"block": "APP_HOME_DATA", "offset": 48, "name": "ac_output"}]
+
+
+def test_replace_annotation_removes_prior_entry_for_same_byte():
+    """Calling twice for the same (block, offset) leaves only the latest entry."""
+    profile = {
+        "annotations": [
+            {"block": "APP_HOME_DATA", "offset": 48, "name": "ac_output"},
+            {"block": "APP_HOME_DATA", "offset": 49, "name": "ac_output"},  # untouched
+        ]
+    }
+    _replace_annotation(profile, "APP_HOME_DATA", 48, "ac_switch_state")
+    # Only the offset-48 entry should be replaced; offset 49 untouched.
+    names_at_48 = [e for e in profile["annotations"] if e["offset"] == 48]
+    assert names_at_48 == [{"block": "APP_HOME_DATA", "offset": 48, "name": "ac_switch_state"}]
+    names_at_49 = [e for e in profile["annotations"] if e["offset"] == 49]
+    assert names_at_49 == [{"block": "APP_HOME_DATA", "offset": 49, "name": "ac_output"}]
+
+
+def test_replace_annotation_only_matches_same_block():
+    """Same offset in a different block is not replaced."""
+    profile = {
+        "annotations": [
+            {"block": "APP_HOME_DATA", "offset": 48, "name": "in_home"},
+            {"block": "INV_INV_INFO", "offset": 48, "name": "in_inv"},
+        ]
+    }
+    _replace_annotation(profile, "APP_HOME_DATA", 48, "renamed")
+    by_block = {e["block"]: e["name"] for e in profile["annotations"]}
+    assert by_block == {"APP_HOME_DATA": "renamed", "INV_INV_INFO": "in_inv"}
+
+
+# ── Baseline volatile-byte capture ────────────────────────────────────
+
+
+def test_capture_baseline_marks_changing_bytes_as_volatile(monkeypatch):
+    """A byte that flips during baseline ends up in the volatile set."""
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from src.bluetti_cli.annotate import _capture_baseline
+
+    # No real waiting between polls.
+    monkeypatch.setattr("src.bluetti_cli.annotate.asyncio.sleep", AsyncMock())
+
+    # 4-byte block. Byte 1 wiggles every cycle; byte 3 stays constant.
+    snapshots = [
+        b"\x00\x00\xff\xaa",
+        b"\x00\x10\xff\xaa",
+        b"\x00\x00\xff\xaa",
+    ]
+    client = AsyncMock()
+    client.execute = AsyncMock(side_effect=snapshots)
+
+    blocks = [(100, 4, "APP_HOME_DATA")]
+    last, volatile = asyncio.run(_capture_baseline(client, blocks, polls=3))
+
+    assert last["APP_HOME_DATA"] == b"\x00\x00\xff\xaa"
+    # Byte 1 flipped 0→0x10→0; bytes 0/2/3 stayed put.
+    assert volatile["APP_HOME_DATA"] == {1}
+
+
+def test_capture_baseline_with_stable_data_no_volatile_bytes(monkeypatch):
+    """If nothing changes during baseline, the volatile set is empty."""
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from src.bluetti_cli.annotate import _capture_baseline
+
+    monkeypatch.setattr("src.bluetti_cli.annotate.asyncio.sleep", AsyncMock())
+
+    stable = b"\xde\xad\xbe\xef"
+    client = AsyncMock()
+    client.execute = AsyncMock(return_value=stable)
+
+    blocks = [(200, 4, "INV_INV_INFO")]
+    last, volatile = asyncio.run(_capture_baseline(client, blocks, polls=4))
+
+    assert last["INV_INV_INFO"] == stable
+    assert volatile["INV_INV_INFO"] == set()
