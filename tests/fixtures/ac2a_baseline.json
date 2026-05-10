@@ -3,7 +3,7 @@
     "chargingMode": 0,
     "ctrl_event": 0,
     "deviceModel": "",
-    "deviceSN": "",
+    "deviceSN": "0",
     "gridParallelSoC": 0,
     "invNumber": 0,
     "invPowerType": 0,
@@ -32,7 +32,7 @@
   "inv_base": {
     "invId": 0,
     "invPowerType": 0,
-    "invSN": "",
+    "invSN": "0",
     "invType": "",
     "softwareNumber": 0
   },

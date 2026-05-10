@@ -194,11 +194,20 @@ class BcdSerialField(DeviceField):
         super().__init__(name, address, size)
 
     def parse(self, data: bytes) -> str:
-        chars = []
-        for i in range(0, len(data), 2):
-            if i + 1 < len(data):
-                chars.append(f"{data[i + 1]:02X}{data[i]:02X}")
-        return "".join(chars).lstrip("0")
+        # Mirror APK ProtocolParse.getDeviceSN: walk byte pairs end-to-start,
+        # append each pair in original byte order (no swap), then parse the
+        # concatenated hex as a ULong and stringify in decimal. The byte data
+        # is little-endian-by-register (low register holds low bytes), so
+        # reading end-to-start produces the high-order digits first.
+        if len(data) < 2:
+            return "0"
+        hex_chars = []
+        i = len(data) - 1
+        while i >= 1:
+            hex_chars.append(f"{data[i - 1]:02x}{data[i]:02x}")
+            i -= 2
+        joined = "".join(hex_chars)
+        return str(int(joined, 16))
 
 
 class DeviceStruct:
