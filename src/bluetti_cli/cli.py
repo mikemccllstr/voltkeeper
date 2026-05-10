@@ -1,8 +1,7 @@
 # ABOUTME: Click CLI for Bluetti power stations — scan, status, verbose status. Uses layered architecture.
 
 import asyncio
-import os
-import pwd
+import getpass
 import shutil
 import sys
 
@@ -816,7 +815,7 @@ def mqtt_publish_service(
         run_user = user
     else:
         try:
-            run_user = pwd.getpwuid(os.getuid()).pw_name
+            run_user = getpass.getuser()
         except Exception:
             run_user = "root"
 
