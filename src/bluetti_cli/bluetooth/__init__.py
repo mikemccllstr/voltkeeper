@@ -120,6 +120,7 @@ def _device_registry() -> dict[str, type]:
     from ..core.devices.ac300 import AC300
     from ..core.devices.ac500 import AC500
     from ..core.devices.eb3a import EB3A
+    from ..core.devices.ep500 import EP500
     from ..core.devices.ep600 import EP600
 
     return {
@@ -131,6 +132,7 @@ def _device_registry() -> dict[str, type]:
         "AC300": AC300,
         "AC500": AC500,
         "EB3A": EB3A,
+        "EP500": EP500,
         "EP600": EP600,
     }
 
