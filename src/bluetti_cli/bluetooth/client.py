@@ -1,4 +1,5 @@
 # ABOUTME: BLE client for Bluetti devices — connect, execute Modbus commands, disconnect. No auto-reconnect.
+# ABOUTME: Supports optional AES-CBC encryption via handshake (Unit 7).
 
 import asyncio
 from typing import Optional
@@ -6,18 +7,21 @@ from typing import Optional
 from bleak import BleakClient, BleakError
 
 from ..core.commands import DeviceCommand
+from . import NOTIFY_UUID, WRITE_UUID
+from .cipher import CbcSession
 from .exc import BadConnectionError, ModbusError, ParseError
+from .handshake import HandshakeSession
 
 RESPONSE_TIMEOUT = 5
-WRITE_UUID = "0000ff02-0000-1000-8000-00805f9b34fb"
-NOTIFY_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
 MAX_RETRIES = 5
 
 
 class BluetoothClient:
-    def __init__(self, address: str):
+    def __init__(self, address: str, *, encrypted: bool = False):
         self.address = address
+        self.encrypted = encrypted
         self.client: Optional[BleakClient] = None
+        self._session: Optional[CbcSession] = None
         self._notify_response = bytearray()
         self._notify_future: Optional[asyncio.Future] = None
         self._current_cmd: Optional[DeviceCommand] = None
@@ -25,6 +29,8 @@ class BluetoothClient:
     async def connect(self, timeout: float = 15.0) -> None:
         self.client = BleakClient(self.address)
         await self.client.connect(timeout=timeout)
+        if self.encrypted:
+            self._session = await HandshakeSession().run(self.client)
         await self.client.start_notify(NOTIFY_UUID, self._on_notification)  # type: ignore[arg-type]
 
     @property
@@ -49,12 +55,11 @@ class BluetoothClient:
 
             try:
                 assert self.client is not None
-                await self.client.write_gatt_char(
-                    WRITE_UUID, bytes(cmd), response=False
-                )
-                resp = await asyncio.wait_for(
-                    self._notify_future, timeout=RESPONSE_TIMEOUT
-                )
+                outgoing = bytes(cmd)
+                if self._session:
+                    outgoing = self._session.encrypt(outgoing)
+                await self.client.write_gatt_char(WRITE_UUID, outgoing, response=False)
+                resp = await asyncio.wait_for(self._notify_future, timeout=RESPONSE_TIMEOUT)
             except ParseError:
                 retries += 1
                 if retries >= MAX_RETRIES:
@@ -65,6 +70,20 @@ class BluetoothClient:
                 if retries >= MAX_RETRIES:
                     raise BadConnectionError(f"Timeout on {cmd} after {MAX_RETRIES} retries")
                 continue
+
+            if self._session:
+                resp = self._session.decrypt(resp)
+                resp = resp[: cmd.response_size()]
+                if not cmd.is_valid_response(resp):
+                    retries += 1
+                    if retries >= MAX_RETRIES:
+                        raise BadConnectionError(
+                            "Encrypted handshake completed but Modbus responses do not validate. "
+                            "This device may require the per-SN key-binding step that Bluetti's "
+                            "licensed library performs (status 3 in ble_crypt_link_handler). "
+                            "Run with -v to capture the handshake transcript and open an issue."
+                        )
+                    continue
 
             if cmd.is_exception_response(resp):
                 raise ModbusError(f"Modbus exception code: {resp[2]}")
@@ -78,16 +97,18 @@ class BluetoothClient:
             return
 
         if data == b"AT+NAME?\r" or data == b"AT+ADV?\r":
-            self._notify_future.set_exception(
-                BadConnectionError("Got AT+ notification")
-            )
+            self._notify_future.set_exception(BadConnectionError("Got AT+ notification"))
             return
 
         self._notify_response.extend(data)
 
         assert self._current_cmd is not None
-        if len(self._notify_response) == self._current_cmd.response_size():
-            if self._current_cmd.is_valid_response(self._notify_response):
-                self._notify_future.set_result(bytes(self._notify_response))
-            else:
+        response_size = self._current_cmd.response_size()
+        expected = ((response_size + 15) // 16) * 16 if self._session else response_size
+
+        if len(self._notify_response) >= expected:
+            raw = bytes(self._notify_response[:expected])
+            if not self._session and not self._current_cmd.is_valid_response(raw):
                 self._notify_future.set_exception(ParseError("CRC check failed"))
+            else:
+                self._notify_future.set_result(raw)

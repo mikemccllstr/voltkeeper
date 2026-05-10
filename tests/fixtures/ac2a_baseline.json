@@ -1,0 +1,71 @@
+{
+  "home": {
+    "chargingMode": 0,
+    "ctrl_event": 0,
+    "deviceModel": "",
+    "deviceSN": "0",
+    "gridParallelSoC": 0,
+    "invNumber": 0,
+    "invPowerType": 0,
+    "invWorkingStatus": 0,
+    "packAgingInfo": 0,
+    "packChargingStatus": 0,
+    "packChgFullTime": 0,
+    "packCnts": 0,
+    "packDsgEmptyTime": 0,
+    "packNumShow": 0,
+    "packOnline": 0,
+    "packTotalCurrent": 0.0,
+    "packTotalSoc": 0,
+    "packTotalVoltage": 0.0,
+    "totalACEnergy": 0.0,
+    "totalACPower": 0,
+    "totalDCEnergy": 0.0,
+    "totalDCPower": 0,
+    "totalFeedbackEnergy": 0.0,
+    "totalGridChargingEnergy": 0.0,
+    "totalGridPower": 0,
+    "totalInvPower": 0,
+    "totalPVChargingEnergy": 0.0,
+    "totalPVPower": 0
+  },
+  "inv_base": {
+    "invId": 0,
+    "invPowerType": 0,
+    "invSN": "0",
+    "invType": "",
+    "softwareNumber": 0
+  },
+  "inv_grid": {
+    "frequency": 0.0,
+    "sysPhaseNumber": 0,
+    "totalChgEnergy": 0.0,
+    "totalChgPower": 0
+  },
+  "inv_inv": {
+    "frequency": 0.0,
+    "sysPhaseNumber": 0,
+    "totalEnergy": 0.0
+  },
+  "inv_load": {
+    "acLoadTotalEnergy": 0.0,
+    "acLoadTotalPower": 0,
+    "dc12VCurrent": 0.0,
+    "dc12VPower": 0,
+    "dc24VCurrent": 0.0,
+    "dc24VPower": 0,
+    "dc5VCurrent": 0.0,
+    "dc5VPower": 0,
+    "dcCurrentTotal": 0.0,
+    "dcLoadTotalEnergy": 0.0,
+    "dcLoadTotalPower": 0,
+    "dcVoltTotal": 0.0,
+    "sysPhaseNumber": 0
+  },
+  "inv_pv": {
+    "acPvNumber": 0,
+    "dcPvNumber": 0,
+    "totalChgEnergy": 0.0,
+    "totalChgPower": 0
+  }
+}

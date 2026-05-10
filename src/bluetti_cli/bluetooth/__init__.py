@@ -1,13 +1,33 @@
-# ABOUTME: BLE scan utilities — service-UUID-based scan, device factory.
+# ABOUTME: BLE scan utilities — service-UUID-based scan, device factory, encryption classification.
 
 import re
 import sys
+from dataclasses import dataclass
 
 import click
 from bleak import BleakScanner
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
-_DEVICE_NAME_SN_RE = re.compile(r"^(AC2A|AC60|EP600|EP500|EB3A)(\d+)$")
+WRITE_UUID = "0000ff02-0000-1000-8000-00805f9b34fb"
+NOTIFY_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
+_DEVICE_NAME_SN_RE = re.compile(r"^(AC2A|AC60|EP600|EP500|EB3A|AC300|AC500|AC200L|AC200PL|AC200M)(\d+)$")
+
+PREFIX_PLAINTEXT = bytes.fromhex("424c5545545449")
+PREFIX_ENCRYPTED = (
+    bytes.fromhex("424c5545545445"),
+    bytes.fromhex("424c5545545446"),
+)
+
+
+@dataclass(frozen=True)
+class ScanResult:
+    address: str
+    name: str
+    encrypted: bool | None
+
+    def display(self) -> str:
+        flag = "encrypted" if self.encrypted else "plaintext" if self.encrypted is False else "unknown"
+        return f"{self.address}  —  {self.name}  [{flag}]"
 
 
 def _parse_sn(name: str) -> str:
@@ -17,7 +37,7 @@ def _parse_sn(name: str) -> str:
     return name.replace(":", "").replace("-", "")
 
 
-async def lookup_device_name(address: str, timeout: float = 5.0) -> str:
+async def lookup_scan_result(address: str, timeout: float = 5.0) -> ScanResult:
     devices = await BleakScanner.discover(
         timeout=timeout,
         service_uuids=[SERVICE_UUID],
@@ -26,11 +46,23 @@ async def lookup_device_name(address: str, timeout: float = 5.0) -> str:
     for addr, (device, adv) in devices.items():
         if addr.upper() == address.upper():
             name = (device.name or adv.local_name or "").strip()
-            if name:
-                return name
-    return address
+            if not name:
+                name = address
+            encrypted = _classify(adv)
+            return ScanResult(address=address, name=name, encrypted=encrypted)
+    return ScanResult(address=address, name=address, encrypted=None)
 
-async def scan_devices(timeout: float = 10.0) -> list[tuple[str, str]]:
+
+def _classify(adv) -> bool | None:
+    for blob in adv.manufacturer_data.values():
+        if blob.startswith(PREFIX_PLAINTEXT):
+            return False
+        if any(blob.startswith(p) for p in PREFIX_ENCRYPTED):
+            return True
+    return None
+
+
+async def scan_devices(timeout: float = 10.0) -> list[ScanResult]:
     click.echo(f"Scanning for Bluetti devices (service {SERVICE_UUID}) ...")
     devices = await BleakScanner.discover(
         timeout=timeout,
@@ -38,17 +70,18 @@ async def scan_devices(timeout: float = 10.0) -> list[tuple[str, str]]:
         return_adv=True,
     )
 
-    found: list[tuple[str, str]] = []
+    found: list[ScanResult] = []
     for address, (device, adv) in devices.items():
         name = (device.name or adv.local_name or "").strip()
         if not name:
             name = "(unknown)"
-        found.append((address, name))
+        encrypted = _classify(adv)
+        found.append(ScanResult(address=address, name=name, encrypted=encrypted))
 
-    return sorted(found, key=lambda x: x[0])
+    return sorted(found, key=lambda x: x.address)
 
 
-async def pick_address_after_scan() -> tuple[str, str]:
+async def pick_address_after_scan() -> ScanResult:
     devices = await scan_devices()
 
     if not devices:
@@ -57,16 +90,13 @@ async def pick_address_after_scan() -> tuple[str, str]:
         sys.exit(1)
 
     if len(devices) == 1:
-        address, name = devices[0]
-        click.echo(f"\nFound 1 device \u2192 auto-selecting: {address} ({name})")
-        return address, name
+        sr = devices[0]
+        click.echo(f"\nFound 1 device \u2192 auto-selecting: {sr.display()}")
+        return sr
 
     click.echo(f"\nFound {len(devices)} Bluetti devices:\n")
-    for i, (addr, name) in enumerate(devices, 1):
-        click.echo(
-            f"  [{click.style(str(i), fg='cyan')}] "
-            f"{click.style(addr, fg='green')}  \u2014  {name}"
-        )
+    for i, sr in enumerate(devices, 1):
+        click.echo(f"  [{click.style(str(i), fg='cyan')}] {sr.display()}")
 
     click.echo()
     while True:
@@ -81,8 +111,44 @@ async def pick_address_after_scan() -> tuple[str, str]:
         click.echo(f"Enter a number between 1 and {len(devices)}.")
 
 
-def build_device(address: str, name: str):
+def _device_registry() -> dict[str, type]:
     from ..core.devices.ac2a import AC2A
+    from ..core.devices.ac60 import AC60
+    from ..core.devices.ac200l import AC200L
+    from ..core.devices.ac200m import AC200M
+    from ..core.devices.ac200pl import AC200PL
+    from ..core.devices.ac300 import AC300
+    from ..core.devices.ac500 import AC500
+    from ..core.devices.eb3a import EB3A
+    from ..core.devices.ep600 import EP600
 
+    return {
+        "AC2A": AC2A,
+        "AC60": AC60,
+        "AC200L": AC200L,
+        "AC200M": AC200M,
+        "AC200PL": AC200PL,
+        "AC300": AC300,
+        "AC500": AC500,
+        "EB3A": EB3A,
+        "EP600": EP600,
+    }
+
+
+def device_registry() -> dict[str, type]:
+    return _device_registry()
+
+
+def is_supported_device_type(prefix: str) -> bool:
+    return prefix in _device_registry()
+
+
+def build_device(address: str, name: str):
     sn = _parse_sn(name)
-    return AC2A(address, sn)
+    prefix_match = _DEVICE_NAME_SN_RE.match(name.strip())
+    prefix: str | None = prefix_match[1] if prefix_match else None
+    registry = _device_registry()
+    cls = registry.get(prefix) if prefix else None
+    if cls is None:
+        raise ValueError(f"Unsupported device model: {name!r}. Known prefixes: {sorted(registry)}")
+    return cls(address, sn)

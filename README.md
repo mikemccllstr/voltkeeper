@@ -52,6 +52,34 @@ Options:
 - `-t, --timeout FLOAT`  Scan timeout in seconds (default: 10.0, used only when no address given)
 - `-v, --verbose`         Display all available device information (power meters, energy totals, PV strings, grid, loads, temperatures, software versions, writable controls, and device capabilities)
 
+### Probe a device (register sweep)
+
+```bash
+bluetti-cli probe AA:BB:CC:DD:EE:FF -o device.yaml
+```
+
+Connects to the device, sweeps all known register blocks, and writes a
+YAML profile. Useful for device reverse-engineering and new-model support.
+
+### Validate a profile
+
+```bash
+bluetti-cli validate-profile device.yaml
+```
+
+Parses the register blocks in a probe YAML and flags fields with suspect
+values (stuck-at-zero, all-0xFFFF, out of range).
+
+### Annotate changing registers (interactive)
+
+```bash
+bluetti-cli annotate AA:BB:CC:DD:EE:FF -o draft.yaml
+```
+
+Live-polls the device and highlights byte-level changes in real time.
+Prompts for field names at each changed offset, saving annotations
+incrementally to a YAML draft. Press Ctrl-C to stop.
+
 ### Write device settings
 
 ```bash
@@ -193,6 +221,7 @@ sudo systemctl enable --now bluetti-mqtt-*.service
 bluetti-cli --help
 bluetti-cli status --help
 bluetti-cli scan --help
+bluetti-cli probe --help
 bluetti-cli mqtt-publish --help
 bluetti-cli mqtt-listen --help
 bluetti-cli load-test --help
@@ -202,11 +231,16 @@ bluetti-cli --version
 ## Requirements
 
 - Python 3.13+
-- Linux with BlueZ (BLE support)
-- Bluetooth adapter with scan capability (`CAP_NET_ADMIN` or run with `sudo`)
+- Linux with BlueZ, macOS 11+, or Windows 10 build 19041+ (BLE support)
+- Bluetooth adapter with scan capability
 
-The tool reads plain Modbus RTU over BLE from Bluetti AC2A power stations.
-Encrypted ESP32 devices are not yet supported.
+On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or
+`sudo`). On macOS, the device's BLE MAC address may be reported as a UUID
+rather than a hardware address — use the UUID directly with `bluetti-cli`.
+
+The tool reads plain Modbus RTU over BLE from Bluetti power stations.
+Encrypted devices (AES-CBC over BLE) are supported; the handshake is handled
+automatically.
 
 ## Testing
 
@@ -217,5 +251,12 @@ uv run pytest -m integration  # integration tests (requires BLE adapter)
 
 ## Development
 
-See [docs/FINDINGS.md](docs/FINDINGS.md) for reverse-engineering notes and protocol details helpful when enhancing this tool.
-```
+See [docs/FINDINGS.md](docs/FINDINGS.md) for reverse-engineering notes
+and protocol details helpful when enhancing this tool.
+
+## Contributing a new device
+
+See [docs/CONTRIBUTING_DEVICES.md](docs/CONTRIBUTING_DEVICES.md) for the
+step-by-step guide to capturing the data needed to add support for a
+new Bluetti device model. Maintainers receiving such a submission
+should follow [docs/MAINTAINING.md](docs/MAINTAINING.md).

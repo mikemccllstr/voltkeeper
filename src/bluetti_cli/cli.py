@@ -9,10 +9,20 @@ import sys
 import click
 
 from . import load_test
-from .bluetooth import build_device, lookup_device_name, pick_address_after_scan
+from .annotate import annotate_loop
+from .bluetooth import (
+    ScanResult,
+    build_device,
+    device_registry,
+    is_supported_device_type,
+    lookup_scan_result,
+    pick_address_after_scan,
+)
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .core.commands import ReadHoldingRegisters
+from .probe import emit_yaml, probe_device
+from .validate import validate_profile
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 
@@ -24,9 +34,7 @@ def _close_loop(loop: asyncio.AbstractEventLoop) -> None:
         for task in tasks:
             task.cancel()
         if tasks:
-            loop.run_until_complete(
-                asyncio.gather(*tasks, return_exceptions=True)
-            )
+            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
     finally:
         loop.close()
 
@@ -90,19 +98,17 @@ def scan(timeout):
 
     label = click.style(str(len(devices)), fg="cyan", bold=True)
     click.echo(f"\n{label} device(s) found:\n")
-    for addr, name in devices:
-        click.echo(f"  {click.style(addr, fg='green')}  \u2014  {name}")
+    for sr in devices:
+        click.echo(f"  {sr.display()}")
 
     click.echo()
     if len(devices) == 1:
         click.echo("To read data from this device:")
-        click.echo(
-            f"  {click.style(f'bluetti-cli status {devices[0][0]}', bold=True)}"
-        )
+        click.echo(f"  {click.style(f'bluetti-cli status {devices[0].address}', bold=True)}")
     else:
         click.echo("To read data from a specific device:")
-        for addr, _ in devices:
-            cmd = click.style(f"bluetti-cli status {addr}", bold=True)
+        for sr in devices:
+            cmd = click.style(f"bluetti-cli status {sr.address}", bold=True)
             click.echo(f"  {cmd}")
 
 
@@ -134,9 +140,12 @@ def status(address, timeout, verbose):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            address, device_name = loop.run_until_complete(pick_address_after_scan())
+            sr = loop.run_until_complete(pick_address_after_scan())
         finally:
             loop.close()
+        address = sr.address
+        device_name = sr.name
+        encrypted = sr.encrypted or False
         tip = click.style(f"bluetti-cli status {address}", bold=True)
         click.echo(f"\nTip: next time, run directly with:\n  {tip}")
     else:
@@ -144,12 +153,14 @@ def status(address, timeout, verbose):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address))
+            sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
+        device_name = sr.name
+        encrypted = sr.encrypted or False
 
     device = build_device(address, device_name)
-    client = BluetoothClient(address)
+    client = BluetoothClient(address, encrypted=encrypted)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -189,10 +200,7 @@ def status(address, timeout, verbose):
                     # read attempts return Modbus exceptions — expected.
                     pass
                 except (ParseError, BadConnectionError) as exc:
-                    click.secho(
-                        f"  ⚠  control read at {cmd_obj.starting_address} "
-                        f"failed: {exc}", fg="yellow"
-                    )
+                    click.secho(f"  ⚠  control read at {cmd_obj.starting_address} failed: {exc}", fg="yellow")
         else:
             cmd = ReadHoldingRegisters(100, 6)
             raw = loop.run_until_complete(client.execute(cmd))
@@ -217,7 +225,7 @@ def status(address, timeout, verbose):
         sys.exit(1)
 
     if verbose:
-        _print_verbose(home, inv_base, pv, grid, load, inv_info, controls)
+        _print_verbose(device, home, inv_base, pv, grid, load, inv_info, controls)
     else:
         _print_status(home)
 
@@ -250,7 +258,13 @@ def _print_status(home: dict) -> None:
 
 
 def _print_verbose(
-    home: dict, inv_base: dict, pv: dict, grid: dict, load: dict, inv_info: dict,
+    device,
+    home: dict,
+    inv_base: dict,
+    pv: dict,
+    grid: dict,
+    load: dict,
+    inv_info: dict,
     controls: dict | None = None,
 ) -> None:
     sep = "\u2500" * 56
@@ -280,17 +294,11 @@ def _print_verbose(
     cs = home.get("packChargingStatus", 0)
     click.echo(f"    Status:               {status_map.get(cs, str(cs))} ({cs})")
     if cs == 1:
-        click.echo(
-            f"    Time to Full:         {home.get('packChgFullTime', 0) * 6:>5.0f} min"
-        )
+        click.echo(f"    Time to Full:         {home.get('packChgFullTime', 0) * 6:>5.0f} min")
     else:
-        click.echo(
-            f"    Time to Empty:        {home.get('packDsgEmptyTime', 0) * 6:>5.0f} min"
-        )
+        click.echo(f"    Time to Empty:        {home.get('packDsgEmptyTime', 0) * 6:>5.0f} min")
     if "packDsgEnergyTotal" in home:
-        click.echo(
-            f"    Total Discharged:     {home['packDsgEnergyTotal']:>8.1f} Wh"
-        )
+        click.echo(f"    Total Discharged:     {home['packDsgEnergyTotal']:>8.1f} Wh")
 
     # ── Power Meters ──
     if any(k in home for k in ("totalPVPower", "totalACPower", "totalDCPower")):
@@ -309,21 +317,13 @@ def _print_verbose(
 
     # ── Energy Totals ──
     if any(k in home for k in ("totalPVChargingEnergy", "totalDCEnergy")):
-        click.echo(
-            f"\n  {click.style('ENERGY (lifetime)', bold=True, fg='yellow')}"
-        )
+        click.echo(f"\n  {click.style('ENERGY (lifetime)', bold=True, fg='yellow')}")
         if "totalPVChargingEnergy" in home:
-            click.echo(
-                f"    PV Charging:          {home['totalPVChargingEnergy']:>8.1f} Wh"
-            )
+            click.echo(f"    PV Charging:          {home['totalPVChargingEnergy']:>8.1f} Wh")
         if "totalGridChargingEnergy" in home:
-            click.echo(
-                f"    Grid Charging:        {home['totalGridChargingEnergy']:>8.1f} Wh"
-            )
+            click.echo(f"    Grid Charging:        {home['totalGridChargingEnergy']:>8.1f} Wh")
         if "totalFeedbackEnergy" in home:
-            click.echo(
-                f"    Feed-back:            {home['totalFeedbackEnergy']:>8.1f} Wh"
-            )
+            click.echo(f"    Feed-back:            {home['totalFeedbackEnergy']:>8.1f} Wh")
         if "totalDCEnergy" in home:
             click.echo(f"    DC Output:            {home['totalDCEnergy']:>8.1f} Wh")
         if "totalACEnergy" in home:
@@ -350,18 +350,12 @@ def _print_verbose(
     # ── Software Versions ──
     soft_keys = [k for k in inv_base if k.startswith("software[")]
     if soft_keys:
-        click.echo(
-            f"\n  {click.style('SOFTWARE VERSIONS', bold=True, fg='magenta')}"
-        )
+        click.echo(f"\n  {click.style('SOFTWARE VERSIONS', bold=True, fg='magenta')}")
         for k in sorted(soft_keys):
             click.echo(f"    {k}: {inv_base[k]}")
 
     # ── PV Details ──
-    pv_keys = [
-        k
-        for k in pv
-        if k.startswith("pv[") and k.endswith(".type") and pv.get(k, 0) != 0
-    ]
+    pv_keys = [k for k in pv if k.startswith("pv[") and k.endswith(".type") and pv.get(k, 0) != 0]
     if pv_keys:
         click.echo(f"\n  {click.style('PV STRINGS', bold=True, fg='cyan')}")
         for pk in sorted(set(k.split(".")[0] for k in pv_keys)):
@@ -371,8 +365,7 @@ def _print_verbose(
             pv_volt = pv.get(f"{pk}.inputVoltage", 0)
             pv_curr = pv.get(f"{pk}.inputCurrent", 0)
             click.echo(
-                f"    {pk}: Power={pv_power}W  V={pv_volt:.1f}V  "
-                f"I={pv_curr:.1f}A  Status={pv_status}  Type={pv_type}"
+                f"    {pk}: Power={pv_power}W  V={pv_volt:.1f}V  I={pv_curr:.1f}A  Status={pv_status}  Type={pv_type}"
             )
 
     # ── Grid ──
@@ -396,9 +389,7 @@ def _print_verbose(
         dc_parts = []
         for v in ("5V", "12V", "24V"):
             if f"dc{v}Power" in load:
-                dc_parts.append(
-                    f"DC{v}={load[f'dc{v}Power']}W/{load[f'dc{v}Current']:.1f}A"
-                )
+                dc_parts.append(f"DC{v}={load[f'dc{v}Power']}W/{load[f'dc{v}Current']:.1f}A")
         if dc_parts:
             click.echo(f"    {'  '.join(dc_parts)}")
         if "dcLoadTotalPower" in load:
@@ -435,9 +426,7 @@ def _print_verbose(
     misc_parts = []
     if "chargingMode" in home:
         mode_map = {0: "Standard", 1: "Turbo", 2: "Silent"}
-        misc_parts.append(
-            f"Charge Mode={mode_map.get(home['chargingMode'], str(home['chargingMode']))}"
-        )
+        misc_parts.append(f"Charge Mode={mode_map.get(home['chargingMode'], str(home['chargingMode']))}")
     if home.get("invWorkingStatus", 0):
         misc_parts.append(f"Inv Status={home['invWorkingStatus']}")
     if home.get("packAgingInfo", 0):
@@ -445,9 +434,7 @@ def _print_verbose(
     if home.get("gridParallelSoC", 0):
         misc_parts.append(f"Grid Parallel SoC={home['gridParallelSoC']}%")
     if home.get("rateVoltage") or home.get("rateFrequency"):
-        misc_parts.append(
-            f"Rated={home.get('rateVoltage', '?')}V/{home.get('rateFrequency', '?')}Hz"
-        )
+        misc_parts.append(f"Rated={home.get('rateVoltage', '?')}V/{home.get('rateFrequency', '?')}Hz")
     if "selfSufficiencyRate" in home:
         misc_parts.append(f"Self-Sufficiency={home['selfSufficiencyRate']}%")
     if "pvToAcEnergy" in home:
@@ -480,14 +467,23 @@ def _print_verbose(
 
         ctrl_event = home.get("ctrl_event") or (controls or {}).get("ctrl_event")
         if ctrl_event is not None:
-            from .core.devices.ac2a import AC2A
-            caps = AC2A.decode_ctrl_event(ctrl_event)
-            click.echo(
-                f"\n  {click.style(f'CAPABILITIES (CTRL_EVENT @ 124: {ctrl_event:#018b})', bold=True, fg='magenta')}"
-            )
-            for name, _ in AC2A.CTRL_EVENT_BITS:
-                if name in caps:
-                    click.echo(f"    {name:<20s}  {'yes' if caps[name] else 'no'}")
+            caps = device.decode_ctrl_event(ctrl_event)
+            if caps is None:
+                click.echo(
+                    f"\n  {click.style(f'CTRL_EVENT (register 124: {ctrl_event:#018b})', bold=True, fg='magenta')}"
+                )
+            else:
+                click.echo(
+                    "\n  "
+                    + click.style(
+                        f"CAPABILITIES (CTRL_EVENT @ 124: {ctrl_event:#018b})",
+                        bold=True,
+                        fg="magenta",
+                    )
+                )
+                for name, _ in device.ctrl_event_bits:
+                    if name in caps:
+                        click.echo(f"    {name:<20s}  {'yes' if caps[name] else 'no'}")
 
     click.echo(f"\n{sep}")
 
@@ -515,11 +511,11 @@ def write(address, field, value):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        device_name = loop.run_until_complete(lookup_device_name(address))
+        sr = loop.run_until_complete(lookup_scan_result(address))
     finally:
         loop.close()
 
-    device = build_device(address, device_name)
+    device = build_device(address, sr.name)
 
     if not device.has_field_setter(field):
         click.secho(f"Unknown writable field: {field}", fg="red")
@@ -532,7 +528,7 @@ def write(address, field, value):
         click.secho(f"Invalid value for {field}: {value} ({e})", fg="red")
         sys.exit(1)
 
-    client = BluetoothClient(address)
+    client = BluetoothClient(address, encrypted=sr.encrypted or False)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -639,12 +635,14 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address))
+            sr = loop.run_until_complete(lookup_scan_result(address, timeout=1.0))
+        except Exception:
+            sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, device_name)
+        device = build_device(address, sr.name)
     bus = EventBus()
-    handler = DeviceHandler(address, device, interval, bus)
+    handler = DeviceHandler(address, device, interval, bus, encrypted=sr.encrypted or False)
     mqtt_client = MQTTClient(
         bus=bus,
         hostname=broker,
@@ -657,12 +655,14 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
     watcher = None
     if restart_on_source_change:
         from pathlib import Path
+
         watcher = SourceChangeWatcher(Path(__file__).resolve().parent)
         watcher.start()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
+
         async def run_bridge():
             tasks = [bus.run(), handler.run(), mqtt_client.run()]
             if watcher:
@@ -688,24 +688,28 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
 @cli.command("load-test")
 @click.argument("address")
 @click.option(
-    "-o", "--output",
+    "-o",
+    "--output",
     type=click.Path(),
     help="CSV output file (default: ac2a_load_test_YYYYMMDD_HHMMSS.csv)",
 )
 @click.option(
-    "-i", "--interval",
+    "-i",
+    "--interval",
     type=int,
     default=60,
     show_default=True,
     help="Sample interval in seconds (minimum 15).",
 )
 @click.option(
-    "-l", "--expected-load",
+    "-l",
+    "--expected-load",
     type=float,
     help="Known constant load in watts for analysis reference.",
 )
 @click.option(
-    "-p", "--phase",
+    "-p",
+    "--phase",
     type=str,
     help="Label for this test phase.",
 )
@@ -722,20 +726,18 @@ def load_test_command(address, output, interval, expected_load, phase):
     from datetime import datetime
 
     if interval < load_test.MIN_INTERVAL:
-        raise click.BadParameter(
-            f"Interval must be at least {load_test.MIN_INTERVAL} seconds."
-        )
+        raise click.BadParameter(f"Interval must be at least {load_test.MIN_INTERVAL} seconds.")
 
     address = address.upper()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        device_name = loop.run_until_complete(lookup_device_name(address))
+        sr = loop.run_until_complete(lookup_scan_result(address))
     finally:
         loop.close()
 
-    device = build_device(address, device_name)
+    device = build_device(address, sr.name)
 
     if output is None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -745,7 +747,7 @@ def load_test_command(address, output, interval, expected_load, phase):
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(
-            load_test.run_load_test(device, output, interval, expected_load, phase)
+            load_test.run_load_test(device, output, interval, expected_load, phase, encrypted=sr.encrypted or False)
         )
     except KeyboardInterrupt:
         click.echo("\nInterrupted.")
@@ -769,8 +771,11 @@ def load_test_command(address, output, interval, expected_load, phase):
 @click.option("--password", help="MQTT broker password (visible in service file).")
 @click.option("--interval", type=int, default=0, show_default=True, help="Poll interval in seconds.")
 @click.option(
-    "--ha-config", type=click.Choice(["normal", "none", "advanced"]),
-    default="normal", show_default=True, help="Home Assistant discovery mode.",
+    "--ha-config",
+    type=click.Choice(["normal", "none", "advanced"]),
+    default="normal",
+    show_default=True,
+    help="Home Assistant discovery mode.",
 )
 @click.option("--user", help="System user to run service as (default: current user).")
 @click.option("--exec", "exec_path", help="Path to bluetti-cli executable (default: auto-detect).")
@@ -793,12 +798,12 @@ def mqtt_publish_service(
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address, timeout=1.0))
+            sr = loop.run_until_complete(lookup_scan_result(address, timeout=1.0))
         except Exception:
-            device_name = address
+            sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, device_name)
+        device = build_device(address, sr.name)
 
     # Executable path
     if exec_path:
@@ -898,24 +903,48 @@ def mqtt_publish_service(
     "--serial",
     help="Device serial number (required if ADDRESS not given).",
 )
+@click.option(
+    "--device-type",
+    type=str,
+    default=None,
+    help="Device model (e.g. AC2A). Required when --serial is given without ADDRESS.",
+)
 @click.option("--broker", required=True, help="MQTT broker hostname.")
 @click.option("--port", type=int, default=1883, show_default=True, help="MQTT broker port.")
 @click.option("--username", help="MQTT broker username.")
 @click.option("--password", help="MQTT broker password (visible in service file).")
 @click.option(
-    "--shutdown-at", type=int, default=10, show_default=True,
+    "--shutdown-at",
+    type=int,
+    default=10,
+    show_default=True,
     help="SOC %% threshold for initiating shutdown.",
 )
 @click.option(
-    "--grace-period", type=int, default=60, show_default=True,
+    "--grace-period",
+    type=int,
+    default=60,
+    show_default=True,
     help="Seconds below threshold before shutdown triggers.",
 )
 @click.option(
     "--restart-on-source-change/--no-restart-on-source-change",
-    default=False, show_default=True,
+    default=False,
+    show_default=True,
     help="Exit cleanly when source code changes, so systemd restarts the process.",
 )
-def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, grace_period, restart_on_source_change):
+def mqtt_listen(
+    address,
+    serial,
+    device_type,
+    broker,
+    port,
+    username,
+    password,
+    shutdown_at,
+    grace_period,
+    restart_on_source_change,
+):
     """Watch battery SOC via MQTT and trigger system shutdown.
 
     Subscribes to the device's MQTT topic and watches total_battery_percent.
@@ -941,31 +970,43 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
     if not address and not serial:
         raise click.UsageError("Provide ADDRESS, --serial, or both.")
 
-    sn = serial
-    device_type = "AC2A"
-    if sn is None:
+    if address:
         address = address.upper()
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            device_name = loop.run_until_complete(lookup_device_name(address))
+            sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
-        _device = build_device(address, device_name)
+        _device = build_device(address, sr.name)
         sn = _device.sn
-        device_type = _device.type
+        device_type_resolved = _device.type
+    elif device_type:
+        if not is_supported_device_type(device_type):
+            raise click.BadParameter(
+                f"Unknown device type {device_type!r}. Known: {sorted(device_registry())}",
+                param_hint="--device-type",
+            )
+        device_type_resolved = device_type
+        sn = serial
+    else:
+        raise click.UsageError(
+            "When ADDRESS is omitted, pass --device-type so the MQTT topic is correct (e.g. --device-type AC2A)."
+        )
 
-    topic = f"bluetti/state/{device_type}-{sn}/total_battery_percent"
+    topic = f"bluetti/state/{device_type_resolved}-{sn}/total_battery_percent"
 
     watcher = None
     if restart_on_source_change:
         from pathlib import Path
+
         watcher = SourceChangeWatcher(Path(__file__).resolve().parent)
         watcher.start()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
+
         async def run():
             tasks = [
                 run_shutdown_listener(topic, broker, port, username, password, shutdown_at, grace_period),
@@ -996,11 +1037,17 @@ def mqtt_listen(address, serial, broker, port, username, password, shutdown_at, 
 @click.option("--username", help="MQTT broker username.")
 @click.option("--password", help="MQTT broker password (visible in service file).")
 @click.option(
-    "--shutdown-at", type=int, default=10, show_default=True,
+    "--shutdown-at",
+    type=int,
+    default=10,
+    show_default=True,
     help="SOC %% threshold for initiating shutdown.",
 )
 @click.option(
-    "--grace-period", type=int, default=60, show_default=True,
+    "--grace-period",
+    type=int,
+    default=60,
+    show_default=True,
     help="Seconds below threshold before shutdown triggers.",
 )
 @click.option("--user", help="System user to run service as (default: root).")
@@ -1038,7 +1085,7 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
     service_name = f"bluetti-shutdown-{serial}"
 
     lines = [
-        "# Bluetti AC2A shutdown watchdog — systemd service",
+        "# Bluetti shutdown watchdog — systemd service",
         f"# Generated by: bluetti-cli mqtt-listen-service --serial {serial} --broker {broker}",
         "#",
         "# To install:",
@@ -1067,7 +1114,7 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
     lines += [
         "",
         "[Unit]",
-        f"Description=Bluetti AC2A shutdown watchdog ({serial})",
+        f"Description=Bluetti shutdown watchdog ({serial})",
         "After=network-online.target",
         "Wants=network-online.target",
         "",
@@ -1092,6 +1139,100 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
         click.echo(f"Service file written to {output}")
     else:
         click.echo(content, nl=False)
+
+
+@cli.command()
+@click.argument("address")
+@click.option("-o", "--output", default="profile.yaml", help="Output YAML file path")
+def probe(address: str, output: str) -> None:
+    """Probe a Bluetti device and emit a draft profile YAML.
+
+    The serial number in the saved YAML is replaced with a synthetic
+    placeholder so the file is safe to commit or share.  The real SN
+    is shown to you on stdout.
+    """
+    from .scrub import SYNTHETIC_SN_STR, scrub_profile, split_model_sn
+
+    address = address.upper()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        sr = loop.run_until_complete(lookup_scan_result(address))
+    finally:
+        loop.close()
+
+    profile = asyncio.run(probe_device(address, sr.name, encrypted=bool(sr.encrypted)))
+
+    parts = split_model_sn(sr.name or "")
+    if parts:
+        model, real_sn = parts
+        click.echo(f"Probed {model} SN {real_sn} ({len(profile.get('blocks', {}))} blocks)")
+    else:
+        click.echo(f"Probed {sr.name or address} ({len(profile.get('blocks', {}))} blocks)")
+
+    emit_yaml(scrub_profile(profile), output)
+    click.echo(f"Wrote profile draft to {output} (SN scrubbed to {SYNTHETIC_SN_STR} for privacy)")
+
+
+@cli.command("annotate")
+@click.argument("address")
+@click.option("-o", "--output", default="draft.yaml", help="Output YAML draft file")
+def annotate(address: str, output: str) -> None:
+    """Live-poll a device and annotate changing register values.
+
+    Connect, sweep register blocks, and highlight byte-level
+    changes in real time.  At each changed register offset you
+    are prompted for a field name; type a name to record the
+    annotation, or press Enter to skip.
+
+    Saves to *output* incrementally (Ctrl-C safe).
+    """
+    from pathlib import Path
+
+    address = address.upper()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        sr = loop.run_until_complete(lookup_scan_result(address))
+    finally:
+        loop.close()
+
+    asyncio.run(annotate_loop(address, Path(output), encrypted=bool(sr.encrypted), device_name=sr.name))
+
+
+@cli.command("validate-profile")
+@click.argument("yaml_path")
+def validate_profile_cmd(yaml_path: str) -> None:
+    """Validate a probe YAML against field sanity checks.
+
+    Loads a profile YAML (from ``bluetti-cli probe``), parses
+    each register block with the device model's parser, and flags
+    fields with stuck-at values (0, 0xFFFF, 0xFFFFFFFF) or
+    out-of-range values.
+    """
+    verdicts = validate_profile(yaml_path)
+    if not verdicts:
+        click.echo("No fields to validate (unknown model or empty profile).")
+        return
+
+    ok = sum(1 for v in verdicts if v.status == "ok")
+    suspect = sum(1 for v in verdicts if v.status == "suspect")
+    error = sum(1 for v in verdicts if v.status == "error")
+
+    click.echo(f"Fields: {ok} ok, {suspect} suspect, {error} error\n")
+
+    for v in verdicts:
+        line = f"  [{v.status.upper()}] {v.name}: {v.value}"
+        if v.note:
+            line += f"  ({v.note})"
+        if v.status == "ok":
+            click.secho(line, fg="green")
+        elif v.status == "suspect":
+            click.secho(line, fg="yellow")
+        else:
+            click.secho(line, fg="red", bold=True)
 
 
 if __name__ == "__main__":

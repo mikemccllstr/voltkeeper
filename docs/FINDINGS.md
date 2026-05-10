@@ -1608,8 +1608,8 @@ Response format (`ProtocolParse.getDeviceRealtimeData()`): a `List<String>` of h
 | 82–83 | `grid2LoadEnergyLine` | int | Grid→Load flow |
 | 84–85 | `pv2GridEnergyLine` | int | PV→Grid flow |
 | 86–87 | `batteryDischargingStatus` | int | Discharge status flag |
-| 88–95 | `alarmInfo` | bitmask | 4× 16-bit alarm flags |
-| 96–109 | `faultInfo` | bitmask | 7× 16-bit fault flags (low-power: different map) |
+| 88–95 | `alarmInfo` | bitmask | 4× 16-bit alarm flags (V1 reg 54–57) |
+| 96–109 | `faultInfo` | bitmask | 7× 16-bit fault flags (V1 reg 58–64) |
 | 106–107 | `chgFullTime` | int | Minutes until full (if present) |
 | 108–109 | `dsgEmptyTime` | int | Minutes until empty (if present) |
 | 111 | `sysIsHighVolt` | int | High voltage system flag |
@@ -1618,10 +1618,35 @@ Response format (`ProtocolParse.getDeviceRealtimeData()`): a `List<String>` of h
 | 114–115 | `rateVoltage` | int | Rated voltage (if present) |
 | 116–117 | `rateFrequency` | int | Rated frequency (if present) |
 
-The alarm/fault bitmasks map set bits to alarm codes from `ConnConstantsV2` fault name maps:
-- **High-power inverters**: `highPowerWarnNames`, `highPowerFaultNames`
-- **Low-power devices**: `lowPowerWarnNames`, `lowPowerFaultNames`
-- **Battery packs**: `packHighVoltAlarmNames`, `packHighVoltErrorNames`, `bmuWarnNames`
+The alarm/fault bitmasks decode against different name maps depending on the
+protocol path and the model's `DeviceFunction.isLowPower` flag.
+
+**V1 path (`ProtocolParse.getDeviceRealtimeData`, protocolVer < 2000):**
+
+```java
+zIsLowPower ? ConnConstantsV2.lowPowerWarnNames  : ConnectConstants.alarmInfoNames
+zIsLowPower ? ConnConstantsV2.lowPowerFaultNames : ConnectConstants.faultInfoNames
+```
+
+- `isLowPower == false` (default — EB3A, AC200M, AC300, AC500, etc.):
+  `ConnectConstants.alarmInfoNames` (1 word, 9 bits — grid voltage/frequency/
+  oscillation, meter comm, PV voltage, generator voltage) and
+  `ConnectConstants.faultInfoNames` (5 words: inverter/AC charger/battery pack/
+  generic fault4/fault5).
+- `isLowPower == true` (AC240/AC200L/AC200PL, plus PES_BASE-derived models):
+  `ConnConstantsV2.lowPowerWarnNames` (2 words) and
+  `ConnConstantsV2.lowPowerFaultNames` (5 words).
+
+**V2 path (`ProtocolParserV2.parseDeviceData`, protocolVer ≥ 2000):**
+
+- Inverter type 3 (high-power): `ConnConstantsV2.highPowerWarnNames` /
+  `highPowerFaultNames`.
+- Micro-inverter type: `ConnConstantsV2.microInvWarnNames` / `microInvFaultNames`.
+- Otherwise: `ConnConstantsV2.lowPowerWarnNames` / `lowPowerFaultNames`.
+
+**BMS_PACK (V2 only, address 6000/6100/7200) is a separate path** that uses
+`ConnConstantsV2.packHighVoltAlarmNames`, `packHighVoltErrorNames`, and
+`bmuWarnNames`. It does **not** decode the BASE_REAL_DATA alarm/fault region.
 
 ### 15.7 Base Config Parsing (`parseBaseConfig()`)
 

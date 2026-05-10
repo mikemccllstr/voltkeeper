@@ -14,6 +14,7 @@ dependencies = [
     "cryptography>=47.0.0",
     "paho-mqtt>=2.0",
     "aiomqtt>=2.0",
+    "pyyaml>=6.0",
     "watchdog>=6.0",
 ]
 

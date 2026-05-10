@@ -60,7 +60,7 @@ class DecimalField(DeviceField):
 
     def parse(self, data: bytes) -> Decimal:
         val = Decimal(struct.unpack("!H", data)[0])
-        return val / 10 ** self.scale
+        return val / 10**self.scale
 
     def in_range(self, val: Decimal) -> bool:
         if self.range is None:
@@ -80,7 +80,7 @@ class SignedDecimalField(DeviceField):
         val = (hi << 16) | lo
         if val >= 0x80000000:
             val -= 0x100000000
-        return Decimal(val) / 10 ** self.scale
+        return Decimal(val) / 10**self.scale
 
     def in_range(self, val: Decimal) -> bool:
         if self.range is None:
@@ -172,7 +172,7 @@ class Decimal32Field(DeviceField):
         lo = struct.unpack("!H", data[0:2])[0]
         hi = struct.unpack("!H", data[2:4])[0]
         val = (hi << 16) | lo
-        return Decimal(val) / 10 ** self.scale
+        return Decimal(val) / 10**self.scale
 
     def in_range(self, val: Decimal) -> bool:
         if self.range is None:
@@ -194,11 +194,20 @@ class BcdSerialField(DeviceField):
         super().__init__(name, address, size)
 
     def parse(self, data: bytes) -> str:
-        chars = []
-        for i in range(0, len(data), 2):
-            if i + 1 < len(data):
-                chars.append(f"{data[i + 1]:02X}{data[i]:02X}")
-        return "".join(chars).lstrip("0")
+        # Mirror APK ProtocolParse.getDeviceSN: walk byte pairs end-to-start,
+        # append each pair in original byte order (no swap), then parse the
+        # concatenated hex as a ULong and stringify in decimal. The byte data
+        # is little-endian-by-register (low register holds low bytes), so
+        # reading end-to-start produces the high-order digits first.
+        if len(data) < 2:
+            return "0"
+        hex_chars = []
+        i = len(data) - 1
+        while i >= 1:
+            hex_chars.append(f"{data[i - 1]:02x}{data[i]:02x}")
+            i -= 2
+        joined = "".join(hex_chars)
+        return str(int(joined, 16))
 
 
 class DeviceStruct:
@@ -263,7 +272,7 @@ class DeviceStruct:
             if f.word_offset is not None:
                 field_data = bytes([data[data_start + f.word_offset]])
             else:
-                field_data = data[data_start:data_start + 2 * f.size]
+                field_data = data[data_start : data_start + 2 * f.size]
             val = f.parse(field_data)
             if not f.in_range(val):
                 continue

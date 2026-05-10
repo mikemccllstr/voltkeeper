@@ -45,7 +45,7 @@ def _ascii(data: bytes, offset: int, length: int, byte_swap: bool = False) -> st
             chars.append(data[offset + length - 1])
         raw = bytes(chars)
     else:
-        raw = data[offset: offset + length]
+        raw = data[offset : offset + length]
     return raw.decode("ascii", errors="replace").rstrip("\x00").strip()
 
 

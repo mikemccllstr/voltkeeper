@@ -1,12 +1,21 @@
-# ABOUTME: AC2A device definition — V2 register map with 6 per-block sub-structs + custom array helpers.
+# ABOUTME: AC2A device definition — V2 register map, inherits from V2Base with custom array helpers.
+# ABOUTME: Unit 8 per IMPLEMENTATION_UNITS.md.
 
 from enum import Enum, unique
-from typing import Any, List
+from typing import List
 
-from ..commands import ReadHoldingRegisters, WriteSingleRegister
-from ..struct import BoolField, DeviceStruct, EnumField
+from ..commands import ReadHoldingRegisters
 from ..utils import _format_version, _s16, _u16
-from .bluetti_device import BluettiDevice
+from .v2_base import (
+    INV_ADVANCE_SETTINGS,
+    INV_BASE_INFO,
+    INV_BASE_SETTINGS,
+    INV_GRID_INFO,
+    INV_INV_INFO,
+    INV_LOAD_INFO,
+    INV_PV_INFO,
+    V2Base,
+)
 
 
 @unique
@@ -16,145 +25,17 @@ class ChargingMode(Enum):
     SILENT = 2
 
 
-APP_HOME_DATA = 100
-INV_BASE_INFO = 1100
-INV_PV_INFO = 1200
-INV_GRID_INFO = 1300
-INV_LOAD_INFO = 1400
-INV_INV_INFO = 1500
-INV_BASE_SETTINGS = 2000
-INV_ADVANCE_SETTINGS = 2200
+class AC2A(V2Base):
+    # AC2A is an 8S LiFePO4 pack (~25.6 V nominal); raw register × 0.01 = volts.
+    # All other documented V2 models use ÷10. If a future model also reads 10×
+    # high, follow this override pattern.
+    DEFAULT_PACK_VOLTAGE_SCALE = 2
 
-
-class AC2A(BluettiDevice):
     def __init__(self, address: str, sn: str):
-        self.protocol_version = 2000
-
-        self.home_struct = DeviceStruct()
-        self._build_home_struct()
-
-        self.inv_base_struct = DeviceStruct()
-        self._build_inv_base_struct()
-
-        self.inv_pv_struct = DeviceStruct()
-        self._build_inv_pv_struct()
-
-        self.inv_grid_struct = DeviceStruct()
-        self._build_inv_grid_struct()
-
-        self.inv_load_struct = DeviceStruct()
-        self._build_inv_load_struct()
-
-        self.inv_inv_struct = DeviceStruct()
-        self._build_inv_inv_struct()
-
-        self.control_struct = DeviceStruct()
+        super().__init__(address, "AC2A", sn)
         self._build_control_struct()
 
-        super().__init__(address, "AC2A", sn)
-
-    # ── Field definitions per register block ────────────────────────────
-
-    def _build_home_struct(self):
-        s = self.home_struct
-        # Scale 2 (÷100) — AC2A is newer than the APK we decompiled;
-        # the generic V2 parser uses ÷10 for high-voltage packs (EP500/EP600),
-        # but AC2A's 8S LiFePO4 architecture (~25.6 V nominal) requires ÷100.
-        # Verify against a multimeter if readings look off.
-        s.add_decimal_field("packTotalVoltage", 100, 2)
-        s.add_decimal_field("packTotalCurrent", 101, 2)
-        s.add_uint_field("packTotalSoc", 102)
-        s.add_uint_field("packChargingStatus", 103)
-        # Time fields are in 0.1-hour units (raw × 0.1 = hours, raw × 6 = minutes).
-        s.add_uint_field("packChgFullTime", 104)
-        s.add_uint_field("packDsgEmptyTime", 105)
-        s.add_uint_field("packAgingInfo", 106)
-        s.add_uint8_field("packCnts", 107, 0)
-        s.add_uint8_field("packNumShow", 107, 1)
-        s.add_uint_field("packOnline", 108)
-        s.add_swap_string_field("deviceModel", 110, 6)
-        s.add_bcd_sn_field("deviceSN", 116, 4)
-        s.add_uint8_field("invNumber", 120, 1)
-        s.add_uint8_field("invPowerType", 122, 1)
-        s.add_uint_field("ctrl_event", 124)
-        s.add_uint8_field("gridParallelSoC", 125, 1)
-        s.add_uint32_field("totalDCPower", 140)
-        s.add_signed32_field("totalACPower", 142)
-        s.add_uint32_field("totalPVPower", 144)
-        s.add_signed32_field("totalGridPower", 146)
-        s.add_signed32_field("totalInvPower", 148)
-        s.add_decimal32_field("totalDCEnergy", 150, 1)
-        s.add_decimal32_field("totalACEnergy", 152, 1)
-        s.add_decimal32_field("totalPVChargingEnergy", 154, 1)
-        s.add_decimal32_field("totalGridChargingEnergy", 156, 1)
-        s.add_decimal32_field("totalFeedbackEnergy", 158, 1)
-        s.add_uint8_field("chargingMode", 160, 1)
-        s.add_uint8_field("invWorkingStatus", 161, 1)
-        s.add_decimal32_field("pvToAcEnergy", 162, 1)
-        s.add_uint8_field("selfSufficiencyRate", 164, 1)
-        s.add_uint32_field("pvToAcPower", 165)
-        s.add_decimal32_field("packDsgEnergyTotal", 167, 1)
-        s.add_uint_field("rateVoltage", 169)
-        s.add_uint_field("rateFrequency", 170)
-
-    HOME_DATA_REGS = 62
-    STATUS_HOME_REGS = 6
-
-    def _build_inv_base_struct(self):
-        s = self.inv_base_struct
-        s.add_uint8_field("invId", 1100, 1)
-        s.add_swap_string_field("invType", 1101, 6)
-        s.add_bcd_sn_field("invSN", 1107, 4)
-        s.add_uint8_field("invPowerType", 1111, 1)
-        s.add_uint8_field("softwareNumber", 1112, 1)
-        s.add_temperature_field("ambientTemp", 1151, 0)
-        s.add_temperature_field("invMaxTemp", 1152, 0)
-        s.add_temperature_field("pvDcdcMaxTemp", 1153, 0)
-        s.add_uint_field("inputRateCurrentL1", 1161)
-        s.add_uint_field("inputRateCurrentL2", 1162)
-        s.add_uint_field("inputRateCurrentL3", 1163)
-        s.add_uint_field("outputRateCurrentL1", 1164)
-        s.add_uint_field("outputRateCurrentL2", 1165)
-        s.add_uint_field("outputRateCurrentL3", 1166)
-        s.add_uint_field("gridInputRateCurrentL1", 1167)
-        s.add_uint_field("gridInputRateCurrentL2", 1168)
-        s.add_uint_field("gridInputRateCurrentL3", 1169)
-
-    def _build_inv_pv_struct(self):
-        s = self.inv_pv_struct
-        s.add_uint32_field("totalChgPower", 1200)
-        s.add_decimal32_field("totalChgEnergy", 1202, 1)
-        s.add_uint8_field("acPvNumber", 1209, 0, range=(0, 16))
-        s.add_uint8_field("dcPvNumber", 1209, 1, range=(0, 16))
-
-    def _build_inv_grid_struct(self):
-        s = self.inv_grid_struct
-        s.add_decimal_field("frequency", 1300, 1)
-        s.add_signed32_field("totalChgPower", 1301)
-        s.add_decimal32_field("totalChgEnergy", 1303, 1)
-        s.add_uint8_field("sysPhaseNumber", 1312, 1, range=(0, 4))
-
-    def _build_inv_load_struct(self):
-        s = self.inv_load_struct
-        s.add_uint32_field("dcLoadTotalPower", 1400)
-        s.add_decimal32_field("dcLoadTotalEnergy", 1402, 1)
-        s.add_uint_field("dc5VPower", 1404)
-        s.add_decimal_field("dc5VCurrent", 1405, 1)
-        s.add_uint_field("dc12VPower", 1406)
-        s.add_decimal_field("dc12VCurrent", 1407, 1)
-        s.add_uint_field("dc24VPower", 1408)
-        s.add_decimal_field("dc24VCurrent", 1409, 1)
-        s.add_decimal_field("dcVoltTotal", 1412, 1)
-        s.add_decimal_field("dcCurrentTotal", 1413, 1)
-        s.add_uint32_field("acLoadTotalPower", 1420)
-        s.add_decimal32_field("acLoadTotalEnergy", 1422, 1)
-        s.add_uint8_field("sysPhaseNumber", 1429, 1, range=(0, 4))
-
-    def _build_inv_inv_struct(self):
-        s = self.inv_inv_struct
-        s.add_decimal_field("frequency", 1500, 1)
-        s.add_decimal32_field("totalEnergy", 1501, 1)
-        s.add_uint8_field("sysPhaseNumber", 1508, 1, range=(0, 4))
+    # ── Control struct (model-specific) ─────────────────────────────────
 
     def _build_control_struct(self):
         s = self.control_struct
@@ -179,10 +60,24 @@ class AC2A(BluettiDevice):
         s.add_uint_field("inv_freq", 2210)
 
     WRITABLE_FIELD_NAMES = [
-        "ac_output", "dc_output", "power_off", "dc_eco_mode", "ac_eco_mode",
-        "charging_mode", "power_lifting", "battery_range_start", "battery_range_end",
-        "alarm_sound", "lcd_timeout", "led_color", "soc_low", "soc_high",
-        "factory_reset", "inv_voltage", "inv_freq", "working_mode",
+        "ac_output",
+        "dc_output",
+        "power_off",
+        "dc_eco_mode",
+        "ac_eco_mode",
+        "charging_mode",
+        "power_lifting",
+        "battery_range_start",
+        "battery_range_end",
+        "alarm_sound",
+        "lcd_timeout",
+        "led_color",
+        "soc_low",
+        "soc_high",
+        "factory_reset",
+        "inv_voltage",
+        "inv_freq",
+        "working_mode",
     ]
 
     CTRL_EVENT_BITS = [
@@ -199,45 +94,30 @@ class AC2A(BluettiDevice):
         ("super_power", "super_power"),
     ]
 
-    @classmethod
-    def decode_ctrl_event(cls, ctrl_event: int) -> dict:
-        return {
-            name: bool(ctrl_event & (1 << i))
-            for i, (name, _) in enumerate(cls.CTRL_EVENT_BITS)
-        }
+    @property
+    def ctrl_event_bits(self) -> list[tuple[str, str]]:
+        return self.CTRL_EVENT_BITS
 
-    # ── Parse dispatch ─────────────────────────────────────────────────
+    def decode_ctrl_event(self, ctrl_event: int) -> dict[str, bool]:
+        return {name: bool(ctrl_event & (1 << i)) for i, (name, _) in enumerate(self.CTRL_EVENT_BITS)}
+
+    # ── Parse dispatch (adds array helpers on top of V2Base) ────────────
 
     def parse(self, address: int, data: bytes) -> dict:
-        if APP_HOME_DATA <= address < INV_BASE_INFO:
-            return self.home_struct.parse(address, data)
-        elif INV_BASE_INFO <= address < INV_PV_INFO:
-            result = self.inv_base_struct.parse(address, data)
+        result = super().parse(address, data)
+        if INV_BASE_INFO <= address < INV_PV_INFO:
             self._fill_software_versions(result, data)
-            return result
         elif INV_PV_INFO <= address < INV_GRID_INFO:
-            result = self.inv_pv_struct.parse(address, data)
             self._fill_pv_strings(result, data)
-            return result
         elif INV_GRID_INFO <= address < INV_LOAD_INFO:
-            result = self.inv_grid_struct.parse(address, data)
             self._fill_grid_phases(result, data)
-            return result
         elif INV_LOAD_INFO <= address < INV_INV_INFO:
-            result = self.inv_load_struct.parse(address, data)
             self._fill_load_phases(result, data)
-            return result
         elif INV_INV_INFO <= address < INV_BASE_SETTINGS:
-            result = self.inv_inv_struct.parse(address, data)
             self._fill_inv_phases(result, data)
-            return result
-        elif INV_BASE_SETTINGS <= address < INV_ADVANCE_SETTINGS:
-            return self.control_struct.parse(address, data)
-        elif INV_ADVANCE_SETTINGS <= address < 2300:
-            return self.control_struct.parse(address, data)
-        return {}
+        return result
 
-    # ── Custom array helpers (structured data beyond simple fields) ────
+    # ── Custom array helpers ────────────────────────────────────────────
 
     @staticmethod
     def _fill_software_versions(result: dict, data: bytes):
@@ -306,61 +186,9 @@ class AC2A(BluettiDevice):
     # ── Device properties ──────────────────────────────────────────────
 
     @property
-    def polling_commands(self) -> List[ReadHoldingRegisters]:
-        return [
-            ReadHoldingRegisters(APP_HOME_DATA, self.HOME_DATA_REGS),
-            ReadHoldingRegisters(INV_BASE_INFO, 51),
-            ReadHoldingRegisters(INV_PV_INFO, 70),
-            ReadHoldingRegisters(INV_GRID_INFO, 31),
-            ReadHoldingRegisters(INV_LOAD_INFO, 48),
-            ReadHoldingRegisters(INV_INV_INFO, 30),
-        ]
-
-    @property
     def control_commands(self) -> List[ReadHoldingRegisters]:
         return [
             ReadHoldingRegisters(INV_BASE_SETTINGS, 24),
             ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
             ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 12),
         ]
-
-    @property
-    def logging_commands(self) -> List[ReadHoldingRegisters]:
-        return self.polling_commands
-
-    @property
-    def writable_ranges(self) -> List[range]:
-        return [
-            range(INV_BASE_SETTINGS, 2087),
-            range(INV_ADVANCE_SETTINGS, 2272),
-        ]
-
-    def has_field(self, field: str) -> bool:
-        return field in self.WRITABLE_FIELD_NAMES or any(
-            f.name == field for fs in (
-                self.home_struct, self.inv_base_struct, self.inv_pv_struct,
-                self.inv_grid_struct, self.inv_load_struct, self.inv_inv_struct,
-            ) for f in fs.fields
-        )
-
-    def has_field_setter(self, field: str) -> bool:
-        return field in self.WRITABLE_FIELD_NAMES
-
-    def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
-        matches = [f for f in self.control_struct.fields if f.name == field]
-        if not matches:
-            raise ValueError(f"Unknown writable field: {field}")
-        device_field = matches[0]
-
-        if isinstance(device_field, EnumField):
-            if isinstance(value, str):
-                value = device_field.enum[value.upper()].value
-            else:
-                value = device_field.enum(value).value
-        elif isinstance(device_field, BoolField):
-            if isinstance(value, str):
-                value = 1 if value.lower() in ("on", "1", "true", "yes") else 0
-            else:
-                value = 1 if value else 0
-
-        return WriteSingleRegister(device_field.address, int(value))

@@ -20,10 +20,23 @@ PRE_CHECK_PV_MAX = 5
 MAX_BLE_RETRIES = 3
 
 CSV_COLUMNS = [
-    "timestamp", "elapsed_s", "soc_pct", "pack_v", "pack_a",
-    "dc_power_w", "ac_power_w", "total_power_w", "pv_power_w", "grid_power_w",
-    "charging_status", "est_remaining_min", "ambient_temp_c", "inv_temp_c",
-    "energy_computed_wh", "energy_register_wh", "phase",
+    "timestamp",
+    "elapsed_s",
+    "soc_pct",
+    "pack_v",
+    "pack_a",
+    "dc_power_w",
+    "ac_power_w",
+    "total_power_w",
+    "pv_power_w",
+    "grid_power_w",
+    "charging_status",
+    "est_remaining_min",
+    "ambient_temp_c",
+    "inv_temp_c",
+    "energy_computed_wh",
+    "energy_register_wh",
+    "phase",
 ]
 
 STATUS_MAP = {0: "Idle", 1: "Charging", 2: "Discharging", 3: "Floating"}
@@ -36,9 +49,9 @@ SOC_BAR_WIDTH = 20
 # ═══════════════════════════════════════════════════════════════════════
 
 
-async def run_load_test(device, output_path, interval, expected_load, phase):
+async def run_load_test(device, output_path, interval, expected_load, phase, *, encrypted: bool = False):
     """Run a full load-test cycle: coach → verify → poll → CSV → summary."""
-    client = BluetoothClient(device.address)
+    client = BluetoothClient(device.address, encrypted=encrypted)
     await client.connect()
 
     try:
@@ -84,7 +97,10 @@ async def run_load_test(device, output_path, interval, expected_load, phase):
 
             if prev_power is not None and elapsed > prev_elapsed:
                 energy_computed = _compute_energy(
-                    prev_power, curr_power, elapsed - prev_elapsed, energy_computed,
+                    prev_power,
+                    curr_power,
+                    elapsed - prev_elapsed,
+                    energy_computed,
                 )
 
             data["energy_computed_wh"] = round(energy_computed, 2)
@@ -189,19 +205,13 @@ def _check_prerequisites(home):
     warnings = []
     soc = home.get("packTotalSoc")
     if soc is None or soc < PRE_CHECK_SOC_MIN:
-        warnings.append(
-            f"SOC is {soc}% (need ≥ {PRE_CHECK_SOC_MIN}%). Charge the device first."
-        )
+        warnings.append(f"SOC is {soc}% (need ≥ {PRE_CHECK_SOC_MIN}%). Charge the device first.")
     grid = abs(home.get("totalGridPower", 0) or 0)
     if grid > PRE_CHECK_GRID_MAX:
-        warnings.append(
-            f"Grid power is {grid}W (must be ≤ {PRE_CHECK_GRID_MAX}W). Disconnect shore power."
-        )
+        warnings.append(f"Grid power is {grid}W (must be ≤ {PRE_CHECK_GRID_MAX}W). Disconnect shore power.")
     pv = home.get("totalPVPower", 0) or 0
     if pv > PRE_CHECK_PV_MAX:
-        warnings.append(
-            f"PV power is {pv}W (must be ≤ {PRE_CHECK_PV_MAX}W). Disconnect solar panels."
-        )
+        warnings.append(f"PV power is {pv}W (must be ≤ {PRE_CHECK_PV_MAX}W). Disconnect solar panels.")
     return warnings
 
 
@@ -266,9 +276,7 @@ def _display_status(data, sample_n, start_time):
     header += f" | Sample {sample_n} | {hours}h {minutes:02d}m {seconds:02d}s"
     click.echo(header)
     click.echo("─" * 60)
-    click.echo(
-        f"  SOC:       {soc:>3}% {_soc_bar(soc)}"
-    )
+    click.echo(f"  SOC:       {soc:>3}% {_soc_bar(soc)}")
     click.echo(
         f"  Load:      {data.get('ac_power_w', 0)} W (AC)  |  "
         f"{data.get('dc_power_w', 0)} W (DC)  |  "
@@ -276,16 +284,10 @@ def _display_status(data, sample_n, start_time):
     )
     pack_v = data.get("pack_v", "")
     pack_a = data.get("pack_a", "")
-    click.echo(
-        f"  Pack:      {pack_v if pack_v != '' else '--'} V  |  "
-        f"{pack_a if pack_a != '' else '--'} A"
-    )
+    click.echo(f"  Pack:      {pack_v if pack_v != '' else '--'} V  |  {pack_a if pack_a != '' else '--'} A")
     amb = data.get("ambient_temp_c", "")
     inv = data.get("inv_temp_c", "")
-    click.echo(
-        f"  Temp:      {amb if amb != '' else 'Not fitted'}  |  "
-        f"{inv if inv != '' else 'Not fitted'}"
-    )
+    click.echo(f"  Temp:      {amb if amb != '' else 'Not fitted'}  |  {inv if inv != '' else 'Not fitted'}")
     click.echo("  ────────────────────────────────────────────")
     click.echo(f"  Energy (computed):    {data.get('energy_computed_wh', 0):.1f} Wh")
     click.echo(f"  Energy (register):    {data.get('energy_register_wh', '--')} Wh")
@@ -313,7 +315,7 @@ def _print_summary(start_time, sample_count, energy_computed, final_data, output
         click.echo(f"  Measured capacity:          {analysis['capacity_wh']:.0f} Wh")
         reg_delta = analysis.get("register_delta_wh")
         if reg_delta is not None:
-            pct = abs(analysis['capacity_wh'] - reg_delta) / analysis['capacity_wh'] * 100
+            pct = abs(analysis["capacity_wh"] - reg_delta) / analysis["capacity_wh"] * 100
             click.echo(
                 f"  Register energy delta:      {reg_delta:.0f} Wh  "
                 f"({pct:.1f}% {'above' if reg_delta > analysis['capacity_wh'] else 'below'} computed)"
@@ -321,9 +323,7 @@ def _print_summary(start_time, sample_count, energy_computed, final_data, output
         eff = analysis.get("efficiency_pct")
         if eff is not None:
             click.echo(f"  Avg efficiency:             {eff:.1f}%")
-        click.echo(
-            f"  Avg load:                   {analysis.get('avg_load_w', 0):.0f} W"
-        )
+        click.echo(f"  Avg load:                   {analysis.get('avg_load_w', 0):.0f} W")
         peak = analysis.get("peak_load_w", 0)
         if peak:
             click.echo(f"  Peak load:                  {peak:.0f} W")
@@ -510,9 +510,7 @@ async def _verify_prerequisites(client, device):
 
     Prompts user to press Enter before reading.
     """
-    click.echo(
-        "\nConnect the load and disconnect all charging sources, then press Enter."
-    )
+    click.echo("\nConnect the load and disconnect all charging sources, then press Enter.")
     try:
         input()
     except (EOFError, KeyboardInterrupt):

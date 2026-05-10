@@ -24,7 +24,9 @@ class SourceChangeWatcher:
         self.changed = threading.Event()
         self._observer = Observer()
         self._observer.schedule(
-            _PyFileHandler(self.changed), str(watch_path), recursive=True,
+            _PyFileHandler(self.changed),
+            str(watch_path),
+            recursive=True,
         )
 
     def start(self):
@@ -53,12 +55,12 @@ async def _watch_source_changes(watcher: SourceChangeWatcher):
 
 
 class DeviceHandler:
-    def __init__(self, address: str, device: BluettiDevice, interval: int, bus: EventBus):
+    def __init__(self, address: str, device: BluettiDevice, interval: int, bus: EventBus, *, encrypted: bool = False):
         self.address = address
         self.device = device
         self.interval = interval
         self.bus = bus
-        self.client = BluetoothClient(address)
+        self.client = BluetoothClient(address, encrypted=encrypted)
 
     async def run(self):
         self.bus.add_command_listener(self.handle_command)
