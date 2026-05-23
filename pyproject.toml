@@ -7,7 +7,7 @@ name = "bluetti-cli"
 version = "0.1.0"
 description = "CLI tool for Bluetti power stations — scan, connect, and read data over BLE."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "bleak>=3.0.2",
     "click>=8.0",
@@ -46,7 +46,7 @@ packages = ["src"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
@@ -56,7 +56,7 @@ ignore = []
 known-first-party = ["bluetti_cli"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.10"
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true

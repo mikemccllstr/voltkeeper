@@ -105,18 +105,20 @@ class TestHandshakeStateMachine:
         app_client = FakeClient()
         h = HandshakeSession()
 
-        async with asyncio.timeout(5):
-            with patch("src.bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
-                # Return a real SECP256R1 pubkey from the device-side raw bytes
-                def fake_verify(device_pub_raw, signature_rs, random_md5_hex):
-                    return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + device_pub_raw)
+        with patch("src.bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
+            # Return a real SECP256R1 pubkey from the device-side raw bytes
+            def fake_verify(device_pub_raw, signature_rs, random_md5_hex):
+                return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + device_pub_raw)
 
-                mock_verify.side_effect = fake_verify
+            mock_verify.side_effect = fake_verify
 
-                session, dev_session = await asyncio.gather(
+            session, dev_session = await asyncio.wait_for(
+                asyncio.gather(
                     h.run(app_client),
                     build_device_side_handshake(app_client, app_client),
-                )
+                ),
+                timeout=5,
+            )
 
         assert isinstance(session, CbcSession)
 
