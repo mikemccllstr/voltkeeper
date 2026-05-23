@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling >= 1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "CLI tool for Bluetti power stations — scan, connect, and read data over BLE."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
 authors = [
     {name = "Michael McCallister", email = "mike@mccllstr.com"},
 ]
@@ -46,6 +47,9 @@ Repository = "https://github.com/mikemccllstr/bluetti-cli"
 Issues = "https://github.com/mikemccllstr/bluetti-cli/issues"
 
 [project.scripts]
+bluetti-cli = "bluetti_cli.cli:cli"
+
+[project.entry-points."pipx.run"]
 bluetti-cli = "bluetti_cli.cli:cli"
 
 [tool.pytest.ini_options]
