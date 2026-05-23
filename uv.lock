@@ -81,7 +81,7 @@ wheels = [
 ]
 
 [[package]]
-name = "bluetti-apk-reverse"
+name = "bluetti-cli"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

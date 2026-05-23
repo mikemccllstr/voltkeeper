@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bluetti-apk-reverse"
+name = "bluetti-cli"
 version = "0.1.0"
 description = "CLI tool for Bluetti power stations — scan, connect, and read data over BLE."
 readme = "README.md"

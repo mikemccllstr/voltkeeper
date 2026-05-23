@@ -74,7 +74,7 @@ flag — improving multi-frame IV chaining is a planned follow-up.
 ## Step 4: Submit
 
 Open a GitHub issue on
-[bluetti-apk-reverse](https://github.com/mikemccllstr/bluetti-apk-reverse)
+[bluetti-cli](https://github.com/mikemccllstr/bluetti-cli)
 with both files attached:
 
 - `my-device.yaml` (the probe output)

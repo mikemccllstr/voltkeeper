@@ -7,7 +7,7 @@ CLI tool for Bluetti power stations — scan, connect, and read battery data ove
 ### Quick run (no clone required)
 
 ```bash
-uvx --from git+https://github.com/mikemccllstr/bluetti-apk-reverse bluetti-cli --help
+uvx --from git+https://github.com/mikemccllstr/bluetti-cli bluetti-cli --help
 ```
 
 This downloads and runs the tool in an isolated environment. Replace `--help` with any
@@ -16,8 +16,8 @@ command or subcommand.
 ### From source
 
 ```bash
-git clone https://github.com/mikemccllstr/bluetti-apk-reverse
-cd bluetti-apk-reverse
+git clone https://github.com/mikemccllstr/bluetti-cli
+cd bluetti-cli
 uv run bluetti-cli --help
 ```
 
