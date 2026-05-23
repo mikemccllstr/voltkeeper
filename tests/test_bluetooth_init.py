@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.bluetti_cli.bluetooth import (
+from bluetti_cli.bluetooth import (
     PREFIX_ENCRYPTED,
     PREFIX_PLAINTEXT,
     ScanResult,
@@ -71,7 +71,7 @@ class TestLookupScanResult:
         adv = MagicMock()
         adv.local_name = name
         adv.manufacturer_data = {0xFFFF: PREFIX_ENCRYPTED[0] + b"\xaa\xbb"}
-        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+        with patch("bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
             mock_discover.return_value = {addr: (dev, adv)}
             sr = await lookup_scan_result(addr)
             assert sr.address == addr
@@ -87,7 +87,7 @@ class TestLookupScanResult:
         adv = MagicMock()
         adv.local_name = name
         adv.manufacturer_data = {0xFFFF: PREFIX_PLAINTEXT + b"\x00\x01\x02"}
-        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+        with patch("bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
             mock_discover.return_value = {addr: (dev, adv)}
             sr = await lookup_scan_result(addr)
             assert sr.address == addr
@@ -101,7 +101,7 @@ class TestLookupScanResult:
         adv = MagicMock()
         adv.local_name = ""
         adv.manufacturer_data = {}
-        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+        with patch("bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
             mock_discover.return_value = {addr: (dev, adv)}
             sr = await lookup_scan_result(addr)
             assert sr.address == addr
@@ -110,7 +110,7 @@ class TestLookupScanResult:
     @pytest.mark.asyncio
     async def test_not_found_returns_default(self):
         addr = "AA:BB:CC:DD:EE:FF"
-        with patch("src.bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
+        with patch("bluetti_cli.bluetooth.BleakScanner.discover", new_callable=AsyncMock) as mock_discover:
             mock_discover.return_value = {}
             sr = await lookup_scan_result(addr)
             assert sr.address == addr
