@@ -45,3 +45,7 @@ run = [
     "uv run pytest",
 ]
 
+[tasks.test-all]
+description = "Run tests across all supported Python versions"
+run = "tox run"
+

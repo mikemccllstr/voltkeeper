@@ -69,4 +69,16 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=6.0",
     "mypy>=1.13",
+    "tox>=4.0",
+    "tox-uv>=1.0",
 ]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py310, py311, py312, py313, py314
+requires = tox-uv>=1.0
+
+[testenv]
+commands = pytest --no-cov {posargs}
+"""

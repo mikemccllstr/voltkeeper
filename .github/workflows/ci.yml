@@ -7,27 +7,36 @@ on:
 
 jobs:
   quality:
-    name: Lint, typecheck, test
+    name: Lint & typecheck
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: jdx/mise-action@v2
         with:
-          install: true      # installs tools from mise.toml (python, uv, ruff)
-
+          install: true
       - name: Install dependencies
         run: uv sync --group dev
-
       - name: Lint
         run: mise run lint
-
       - name: Format check
         run: mise run format-check
-
       - name: Typecheck
         run: mise run typecheck
 
+  test:
+    name: Test (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+      - name: Install target Python
+        run: mise install python@${{ matrix.python }}
+      - name: Install dependencies
+        run: uv sync --python python${{ matrix.python }} --group dev
       - name: Test
-        run: mise run test
+        run: uv run pytest --no-cov -m "not integration"
