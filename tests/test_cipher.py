@@ -3,7 +3,7 @@
 
 import hashlib
 
-from src.bluetti_cli.bluetooth.cipher import CbcSession, decrypt, derive_iv, encrypt
+from bluetti_cli.bluetooth.cipher import CbcSession, decrypt, derive_iv, encrypt
 
 _KEY = bytes.fromhex("459FC535808941F17091E0993EE3E93D")
 

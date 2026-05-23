@@ -3,7 +3,7 @@
 
 import yaml
 
-from src.bluetti_cli.annotate import (
+from bluetti_cli.annotate import (
     _annotation_index,
     _diff,
     _format_change,
@@ -128,7 +128,7 @@ def test_save_is_atomic_preserves_old_file_on_failure(tmp_path, monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("simulated dump failure")
 
-    monkeypatch.setattr("src.bluetti_cli.annotate.yaml.dump", boom)
+    monkeypatch.setattr("bluetti_cli.annotate.yaml.dump", boom)
     try:
         _save({"annotations": [{"block": "B2", "offset": 1, "name": "lost"}]}, p)
     except RuntimeError:
@@ -268,10 +268,10 @@ def test_capture_baseline_marks_changing_bytes_as_volatile(monkeypatch):
     import asyncio
     from unittest.mock import AsyncMock
 
-    from src.bluetti_cli.annotate import _capture_baseline
+    from bluetti_cli.annotate import _capture_baseline
 
     # No real waiting between polls.
-    monkeypatch.setattr("src.bluetti_cli.annotate.asyncio.sleep", AsyncMock())
+    monkeypatch.setattr("bluetti_cli.annotate.asyncio.sleep", AsyncMock())
 
     # 4-byte block. Byte 1 wiggles every cycle; byte 3 stays constant.
     snapshots = [
@@ -295,9 +295,9 @@ def test_capture_baseline_with_stable_data_no_volatile_bytes(monkeypatch):
     import asyncio
     from unittest.mock import AsyncMock
 
-    from src.bluetti_cli.annotate import _capture_baseline
+    from bluetti_cli.annotate import _capture_baseline
 
-    monkeypatch.setattr("src.bluetti_cli.annotate.asyncio.sleep", AsyncMock())
+    monkeypatch.setattr("bluetti_cli.annotate.asyncio.sleep", AsyncMock())
 
     stable = b"\xde\xad\xbe\xef"
     client = AsyncMock()

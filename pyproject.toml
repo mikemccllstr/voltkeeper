@@ -8,6 +8,29 @@ version = "0.1.0"
 description = "CLI tool for Bluetti power stations — scan, connect, and read data over BLE."
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Michael McCallister", email = "mike@mccllstr.com"},
+]
+keywords = ["bluetti", "bluetooth", "ble", "power-station", "battery", "solar", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Home Automation",
+    "Topic :: System :: Monitoring",
+    "Topic :: Utilities",
+]
 dependencies = [
     "bleak>=3.0.2",
     "click>=8.0",
@@ -18,12 +41,17 @@ dependencies = [
     "watchdog>=6.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/mikemccllstr/bluetti-cli"
+Issues = "https://github.com/mikemccllstr/bluetti-cli/issues"
+
 [project.scripts]
-bluetti-cli = "src.bluetti_cli.cli:cli"
+bluetti-cli = "bluetti_cli.cli:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["src"]
 addopts = "-m 'not integration' --cov=src/bluetti_cli --cov-report=term-missing:skip-covered --cov-report=html:htmlcov"
 markers = [
     "integration: tests that exercise real BLE operations (scan, connect)",
@@ -42,7 +70,7 @@ exclude_lines = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+sources = ["src"]
 
 [tool.ruff]
 line-length = 120

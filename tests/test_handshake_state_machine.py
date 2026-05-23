@@ -8,8 +8,8 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from src.bluetti_cli.bluetooth.cipher import CbcSession
-from src.bluetti_cli.bluetooth.handshake import (
+from bluetti_cli.bluetooth.cipher import CbcSession
+from bluetti_cli.bluetooth.handshake import (
     HandshakeSession,
     _checksum,
     derive_iv,
@@ -105,20 +105,19 @@ class TestHandshakeStateMachine:
         app_client = FakeClient()
         h = HandshakeSession()
 
-        with patch("src.bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
-            # Return a real SECP256R1 pubkey from the device-side raw bytes
-            def fake_verify(device_pub_raw, signature_rs, random_md5_hex):
-                return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + device_pub_raw)
+        async with asyncio.timeout(5):
+            with patch("bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
+                mock_verify.side_effect = lambda device_pub_raw, signature_rs, random_md5_hex: (
+                    ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + device_pub_raw)
+                )
 
-            mock_verify.side_effect = fake_verify
-
-            session, dev_session = await asyncio.wait_for(
-                asyncio.gather(
-                    h.run(app_client),
-                    build_device_side_handshake(app_client, app_client),
-                ),
-                timeout=5,
-            )
+                session, dev_session = await asyncio.wait_for(
+                    asyncio.gather(
+                        h.run(app_client),
+                        build_device_side_handshake(app_client, app_client),
+                    ),
+                    timeout=5,
+                )
 
         assert isinstance(session, CbcSession)
 
@@ -218,7 +217,7 @@ class TestHandshakeStateMachine:
         bad_conf = b"\x2a\x2a\x99\x00" + b"\x00" * 10
         bad_conf += _checksum(bad_conf)
 
-        with patch("src.bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
+        with patch("bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
             mock_verify.side_effect = lambda pub, sig, md5: ec.EllipticCurvePublicKey.from_encoded_point(
                 ec.SECP256R1(), b"\x04" + pub
             )

@@ -5,7 +5,7 @@ import pytest
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from src.bluetti_cli.bluetooth.handshake import (
+from bluetti_cli.bluetooth.handshake import (
     derive_legacy_session_key,
     derive_shared_key,
     sign_app_pubkey,

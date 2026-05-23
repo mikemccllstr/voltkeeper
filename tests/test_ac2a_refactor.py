@@ -6,7 +6,7 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 
-from src.bluetti_cli.core.devices.ac2a import (
+from bluetti_cli.core.devices.ac2a import (
     AC2A,
     INV_BASE_INFO,
     INV_GRID_INFO,
@@ -14,7 +14,7 @@ from src.bluetti_cli.core.devices.ac2a import (
     INV_LOAD_INFO,
     INV_PV_INFO,
 )
-from src.bluetti_cli.core.devices.v2_base import APP_HOME_DATA
+from bluetti_cli.core.devices.v2_base import APP_HOME_DATA
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "ac2a_baseline.json"
 

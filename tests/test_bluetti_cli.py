@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-import src.bluetti_cli.load_test as lt
-from src.bluetti_cli.bus import CommandMessage, EventBus, ParserMessage
-from src.bluetti_cli.cli import cli
-from src.bluetti_cli.core.commands import WriteMultipleRegisters, WriteSingleRegister
-from src.bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
-from src.bluetti_cli.core.devices.bluetti_device import BluettiDevice
-from src.bluetti_cli.core.utils import (
+import bluetti_cli.load_test as lt
+from bluetti_cli.bus import CommandMessage, EventBus, ParserMessage
+from bluetti_cli.cli import cli
+from bluetti_cli.core.commands import WriteMultipleRegisters, WriteSingleRegister
+from bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
+from bluetti_cli.core.devices.bluetti_device import BluettiDevice
+from bluetti_cli.core.utils import (
     _ascii,
     _bcd_sn,
     _format_version,
@@ -28,15 +28,15 @@ from src.bluetti_cli.core.utils import (
     _u32,
     crc16_modbus,
 )
-from src.bluetti_cli.device_handler import SourceChangeWatcher, _watch_source_changes
-from src.bluetti_cli.mqtt_client import (
+from bluetti_cli.device_handler import SourceChangeWatcher, _watch_source_changes
+from bluetti_cli.mqtt_client import (
     CHARGING_STATUS_MAP,
     COMMAND_TOPIC_RE,
     NORMAL_DEVICE_FIELDS,
     MQTTClient,
     MqttFieldType,
 )
-from src.bluetti_cli.shutdown_watch import ShutdownWatch
+from bluetti_cli.shutdown_watch import ShutdownWatch
 
 
 @pytest.fixture
@@ -407,7 +407,7 @@ class TestParseControlData:
         assert result["ac_eco_mode"] is True
 
     def test_charging_mode_turbo(self, ac2a_device, ac2a_control_bytes):
-        from src.bluetti_cli.core.devices.ac2a import ChargingMode
+        from bluetti_cli.core.devices.ac2a import ChargingMode
 
         result = ac2a_device.parse(2000, ac2a_control_bytes)
         assert result["charging_mode"] == ChargingMode.TURBO
@@ -1047,8 +1047,8 @@ class TestDeviceHandler:
         """execute() already returns stripped body; _poll_once must not strip again."""
         from unittest.mock import MagicMock
 
-        from src.bluetti_cli.bus import EventBus
-        from src.bluetti_cli.device_handler import DeviceHandler
+        from bluetti_cli.bus import EventBus
+        from bluetti_cli.device_handler import DeviceHandler
 
         bus = EventBus()
         handler = DeviceHandler("00:00:00:00:00:00", ac2a_device, 0, bus)
@@ -2122,7 +2122,7 @@ class TestMqttListenService:
 
 
 def test_decode_ctrl_event_default_returns_none():
-    from src.bluetti_cli.core.devices.bluetti_device import BluettiDevice
+    from bluetti_cli.core.devices.bluetti_device import BluettiDevice
 
     class MinimalDevice(BluettiDevice):
         def parse(self, address, data):
@@ -2150,14 +2150,14 @@ def test_decode_ctrl_event_default_returns_none():
 
 
 def test_device_registry_is_public():
-    from src.bluetti_cli.bluetooth import device_registry
+    from bluetti_cli.bluetooth import device_registry
 
     reg = device_registry()
     assert "AC2A" in reg
 
 
 def test_is_supported_device_type():
-    from src.bluetti_cli.bluetooth import is_supported_device_type
+    from bluetti_cli.bluetooth import is_supported_device_type
 
     assert is_supported_device_type("AC2A") is True
     assert is_supported_device_type("BOGUS") is False
