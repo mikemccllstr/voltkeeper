@@ -284,6 +284,18 @@
 <h1>Developer Guide<a class="headerlink" href="#developer-guide" title="Link to this heading">¶</a></h1>
 <div class="toctree-wrapper compound">
 </div>
+<section id="setup">
+<h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">¶</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mikemccllstr/voltkeeper
+<span class="nb">cd</span><span class="w"> </span>voltkeeper
+uv<span class="w"> </span>sync<span class="w"> </span>--group<span class="w"> </span>dev
+mise<span class="w"> </span>run<span class="w"> </span>setup
+</pre></div>
+</div>
+<p>Installs dependencies, then sets up pre-commit hooks (lint, format, typecheck) that
+run automatically on every commit. The CI will catch it if you skip this step, but
+you’ll save yourself a round-trip.</p>
+</section>
 <section id="architecture">
 <h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">¶</a></h2>
 <p>voltkeeper is organized into three main packages under <code class="docutils literal notranslate"><span class="pre">src/voltkeeper/</span></code>:</p>
@@ -341,7 +353,10 @@ annotation (<code class="docutils literal notranslate"><span class="pre">probe.p
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">run</span> <span class="pre">format</span></code></p></td>
 <td><p>Ruff formatter (applies changes)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">run</span> <span class="pre">format-check</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">run</span> <span class="pre">setup</span></code></p></td>
+<td><p>Install pre-commit hooks (run once after cloning)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">run</span> <span class="pre">format-check</span></code></p></td>
 <td><p>Ruff formatter (check only)</p></td>
 </tr>
 </tbody>
@@ -425,6 +440,7 @@ and <a class="reference internal" href="maintaining.html"><span class="std std-d
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Developer Guide</a><ul>
+<li><a class="reference internal" href="#setup">Setup</a></li>
 <li><a class="reference internal" href="#architecture">Architecture</a></li>
 <li><a class="reference internal" href="#development-workflow">Development workflow</a></li>
 <li><a class="reference internal" href="#building-documentation">Building documentation</a></li>
