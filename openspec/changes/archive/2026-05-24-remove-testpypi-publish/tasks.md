@@ -6,4 +6,4 @@
 ## 2. Validate
 
 - [x] 2.1 Run `mise run check` to confirm no regressions
-- [ ] 2.2 Push branch and verify CI passes, and confirm no TestPyPI job appears in the CI run
+- [x] 2.2 Push branch and verify CI passes, and confirm no TestPyPI job appears in the CI run
