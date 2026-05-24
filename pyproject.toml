@@ -86,6 +86,7 @@ version-file = "src/voltkeeper/_version.py"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+exclude = ["src/voltkeeper/_version.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
