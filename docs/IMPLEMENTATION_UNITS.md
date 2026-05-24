@@ -44,14 +44,14 @@ work is not done until that passes:
   statements onto one line, etc.). These are non-functional and expected. Do
   *not* try to scope your edits to keep the diff small — let the formatter
   do its job.
-- **Typecheck** — `mise run typecheck` → `uv run mypy src/bluetti_cli`.
+- **Typecheck** — `mise run typecheck` → `uv run mypy src/voltkeeper`.
   Config: `check_untyped_defs = true`, `no_implicit_optional = true`. Type
   new code properly; don't reach for `# type: ignore` to make a problem go
   away.
 - **Tests** — `mise run test` → `uv run pytest`.
 
-Test imports use `from src.bluetti_cli...` (not `from bluetti_cli...`) —
-match the existing convention in `tests/test_bluetti_cli.py`.
+Test imports use `from src.voltkeeper...` (not `from voltkeeper...`) —
+match the existing convention in `tests/test_voltkeeper.py`.
 
 ## Dependency graph
 
@@ -90,13 +90,13 @@ Unit 7b can run in parallel with Units 8/9/10 — it touches `handshake.py` and
 
 ### Goal
 
-Today `src/bluetti_cli/bluetooth/__init__.py:84-88` hardcodes `AC2A`. Replace it
+Today `src/voltkeeper/bluetooth/__init__.py:84-88` hardcodes `AC2A`. Replace it
 with a dict-driven dispatch so adding a new model is a one-line registry
 addition.
 
 ### Files to modify
 
-- `src/bluetti_cli/bluetooth/__init__.py` — add `DEVICE_REGISTRY`, change
+- `src/voltkeeper/bluetooth/__init__.py` — add `DEVICE_REGISTRY`, change
   `build_device` to look up by parsed model prefix.
 
 ### Implementation shape
@@ -129,7 +129,7 @@ units expand it.
 ### Verification
 
 1. `uv run pytest` — all existing tests pass.
-2. `uv run bluetti-cli scan` (no hardware required for static check).
+2. `uv run voltkeeper scan` (no hardware required for static check).
 3. Manual: a scan that finds an AC2A still produces an `AC2A` instance — verify
    by adding a temporary `print(type(device).__name__)` in `cli.py status` and
    running against a real device, then revert.
@@ -158,9 +158,9 @@ upper layers:
 
 ```
 $ grep -rn '"AC2A"\|AC2A\.' src/
-src/bluetti_cli/cli.py:929    device_type = "AC2A"                            ← target
-src/bluetti_cli/cli.py:456    caps = AC2A.decode_ctrl_event(ctrl_event)       ← target
-src/bluetti_cli/cli.py:460    for name, _ in AC2A.CTRL_EVENT_BITS:            ← target
+src/voltkeeper/cli.py:929    device_type = "AC2A"                            ← target
+src/voltkeeper/cli.py:456    caps = AC2A.decode_ctrl_event(ctrl_event)       ← target
+src/voltkeeper/cli.py:460    for name, _ in AC2A.CTRL_EVENT_BITS:            ← target
 ```
 
 (Line numbers may drift slightly after format reflows. The harmless mentions
@@ -191,13 +191,13 @@ Resolution order in the command body:
 
 ### Files to modify
 
-- `src/bluetti_cli/core/devices/bluetti_device.py` — add an optional
+- `src/voltkeeper/core/devices/bluetti_device.py` — add an optional
   `decode_ctrl_event` method and a `ctrl_event_bits` property with `None`
   / empty-list defaults.
-- `src/bluetti_cli/core/devices/ac2a.py` — port the existing
+- `src/voltkeeper/core/devices/ac2a.py` — port the existing
   `@classmethod decode_ctrl_event` to an instance method and expose
   `CTRL_EVENT_BITS` via the `ctrl_event_bits` property.
-- `src/bluetti_cli/cli.py`:
+- `src/voltkeeper/cli.py`:
   - The verbose status block (currently around lines 454–460): replace the
     inline `from .core.devices.ac2a import AC2A` plus
     `AC2A.decode_ctrl_event(...)` / `AC2A.CTRL_EVENT_BITS` with
@@ -206,11 +206,11 @@ Resolution order in the command body:
   - `mqtt_listen` (currently around line 929): add the `--device-type`
     option, replace the `device_type = "AC2A"` literal with the
     resolution logic above.
-- `src/bluetti_cli/bluetooth/__init__.py` — promote `_device_registry()`
+- `src/voltkeeper/bluetooth/__init__.py` — promote `_device_registry()`
   to a public name (e.g. `device_registry()`) or add a small public helper
   `is_supported_device_type(prefix: str) -> bool`. Pick whichever feels
   less intrusive; the CLI needs a way to validate `--device-type`.
-- `src/bluetti_cli/mqtt_client.py` — final audit. Should already be
+- `src/voltkeeper/mqtt_client.py` — final audit. Should already be
   model-agnostic post-bug-1c; verify with `grep '"AC2A"'`.
 
 ### Implementation shape
@@ -291,11 +291,11 @@ def mqtt_listen(..., device_type, ...):
 
 1. `mise run check` — green.
 2. `grep -rn '"AC2A"' src/` matches only at:
-   - `src/bluetti_cli/bluetooth/__init__.py` (registry definition)
-   - `src/bluetti_cli/core/devices/ac2a.py` (`super().__init__(..., "AC2A", ...)` in constructor)
-3. `grep -rn "AC2A\." src/bluetti_cli/cli.py` returns no matches (no direct
+   - `src/voltkeeper/bluetooth/__init__.py` (registry definition)
+   - `src/voltkeeper/core/devices/ac2a.py` (`super().__init__(..., "AC2A", ...)` in constructor)
+3. `grep -rn "AC2A\." src/voltkeeper/cli.py` returns no matches (no direct
    class access — must go through `device.<method>`).
-4. **New tests** in `tests/test_bluetti_cli.py` (or a new file):
+4. **New tests** in `tests/test_voltkeeper.py` (or a new file):
    - `test_mqtt_listen_requires_device_type_when_no_address` — invoke `cli`
      with `mqtt-listen --serial 1234`, assert `UsageError` fires.
    - `test_mqtt_listen_validates_device_type` — pass `--device-type INVALID`,
@@ -305,9 +305,9 @@ def mqtt_listen(..., device_type, ...):
      contains `AC2A`.
    - `test_decode_ctrl_event_default_returns_none` — instantiate the base
      class (or a minimal subclass), assert `decode_ctrl_event(0)` is `None`.
-5. Manual: `bluetti-cli status -v <AC2A_ADDR>` — capabilities block looks
+5. Manual: `voltkeeper status -v <AC2A_ADDR>` — capabilities block looks
    identical to before.
-6. Manual: `bluetti-cli mqtt-publish <AC2A_ADDR> --broker localhost` —
+6. Manual: `voltkeeper mqtt-publish <AC2A_ADDR> --broker localhost` —
    published topic prefix is `bluetti/state/AC2A-<sn>/...` (unchanged).
 
 ### Done when
@@ -339,7 +339,7 @@ they're dealing with.
 
 ### Files to modify
 
-- `src/bluetti_cli/bluetooth/__init__.py` — extend `scan_devices` to extract
+- `src/voltkeeper/bluetooth/__init__.py` — extend `scan_devices` to extract
   manufacturer-specific data via bleak's
   `AdvertisementData.manufacturer_data` dict and classify.
 
@@ -387,7 +387,7 @@ Update `scan_devices` to return `list[ScanResult]`. Update
    - Same for each encrypted prefix, assert `True`.
    - Empty manufacturer_data → assert `None`.
 2. `uv run pytest`.
-3. Manual `bluetti-cli scan` against an AC2A: output now includes
+3. Manual `voltkeeper scan` against an AC2A: output now includes
    `[plaintext]`. If you have an encrypted device in range, it shows
    `[encrypted]`.
 
@@ -395,7 +395,7 @@ Update `scan_devices` to return `list[ScanResult]`. Update
 
 - `_classify` covered by unit tests for all three prefix cases plus the
   empty/unknown case.
-- `bluetti-cli scan` output annotates each result.
+- `voltkeeper scan` output annotates each result.
 
 ---
 
@@ -413,8 +413,8 @@ place.
 
 ### Files to modify
 
-- `src/bluetti_cli/bluetooth/__init__.py` — add two constants.
-- `src/bluetti_cli/bluetooth/client.py` — drop local definitions, import from
+- `src/voltkeeper/bluetooth/__init__.py` — add two constants.
+- `src/voltkeeper/bluetooth/client.py` — drop local definitions, import from
   package init.
 
 ### Implementation shape
@@ -437,7 +437,7 @@ from . import WRITE_UUID, NOTIFY_UUID
 1. `uv run pytest` — green.
 2. `grep -rn "0000ff0[12]-" src/` should return matches only in
    `bluetooth/__init__.py`.
-3. Manual: `bluetti-cli status <AC2A_ADDR>` still works.
+3. Manual: `voltkeeper status <AC2A_ADDR>` still works.
 
 ### Done when
 
@@ -461,7 +461,7 @@ Implement the cipher described in FINDINGS §15.8:
 
 ### Files to add
 
-- `src/bluetti_cli/bluetooth/cipher.py` — pure functions plus a small session
+- `src/voltkeeper/bluetooth/cipher.py` — pure functions plus a small session
   state class.
 - `tests/test_cipher.py` — known-answer tests.
 
@@ -488,7 +488,7 @@ bytes. Stripping nulls in `decrypt()` would silently corrupt these payloads.
 ### Implementation shape
 
 ```python
-# src/bluetti_cli/bluetooth/cipher.py
+# src/voltkeeper/bluetooth/cipher.py
 import hashlib
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -630,7 +630,7 @@ PUBLIC_KEY_K2_DER_HEX = (
 
 ### Files to add
 
-- `src/bluetti_cli/bluetooth/handshake.py`
+- `src/voltkeeper/bluetooth/handshake.py`
 - `tests/test_handshake.py`
 
 ### Implementation shape
@@ -794,16 +794,16 @@ right signal for the user to re-run after disconnecting other clients.
 
 ### Files to modify
 
-- `src/bluetti_cli/bluetooth/__init__.py`:
+- `src/voltkeeper/bluetooth/__init__.py`:
   - Change `pick_address_after_scan() -> ScanResult`.
   - Replace `lookup_device_name(address) -> str` with
     `lookup_scan_result(address) -> ScanResult`.
-- `src/bluetti_cli/bluetooth/client.py` — accept `encrypted: bool = False`,
+- `src/voltkeeper/bluetooth/client.py` — accept `encrypted: bool = False`,
   run handshake on connect, wrap `execute()` I/O in cipher.
-- `src/bluetti_cli/cli.py` — every `BluetoothClient(address)` constructor
+- `src/voltkeeper/cli.py` — every `BluetoothClient(address)` constructor
   gets an `encrypted=` kwarg derived from the scan result; every
   `lookup_device_name` call replaced with `lookup_scan_result`.
-- `src/bluetti_cli/device_handler.py` — same plumbing for any
+- `src/voltkeeper/device_handler.py` — same plumbing for any
   `BluetoothClient(...)` it owns.
 
 ### Implementation shape
@@ -874,7 +874,7 @@ raise BadConnectionError(
    `write ac_output on/off`, and `mqtt-publish` still all work (plaintext
    path unchanged).
 5. **Manual encrypted test:** if an encrypted device is reachable, run
-   `bluetti-cli scan` (sees `[encrypted]`), then `bluetti-cli status <ADDR>` —
+   `voltkeeper scan` (sees `[encrypted]`), then `voltkeeper status <ADDR>` —
    expect either a populated reading or the SN-validation diagnostic above.
 
 ### Done when
@@ -992,10 +992,10 @@ class HandshakeSession:
 
 ### Files to modify
 
-- `src/bluetti_cli/bluetooth/handshake.py` — replace
+- `src/voltkeeper/bluetooth/handshake.py` — replace
   `HandshakeSession.run`'s `NotImplementedError` body with the state
   machine. Keep the pure helpers untouched.
-- `src/bluetti_cli/bluetooth/client.py` — re-order `connect()` per the
+- `src/voltkeeper/bluetooth/client.py` — re-order `connect()` per the
   notification-capture note above. No other changes.
 
 ### Verification
@@ -1019,7 +1019,7 @@ class HandshakeSession:
    — mock `BleakClient` + `HandshakeSession`; verify `connect()` calls
    the handshake exactly when `encrypted=True`.
 4. **Manual encrypted test (hardware):** if an encrypted device is
-   reachable, run `bluetti-cli status <ADDR>` and confirm a populated
+   reachable, run `voltkeeper status <ADDR>` and confirm a populated
    reading — OR confirm the SN-validation diagnostic fires (per Unit 7).
 
 ### Done when
@@ -1027,7 +1027,7 @@ class HandshakeSession:
 - `HandshakeSession.run` no longer raises `NotImplementedError`.
 - The three unit tests above pass.
 - AC2A regression suite still green (`uv run pytest`).
-- A `bluetti-cli status` against an encrypted device either succeeds or
+- A `voltkeeper status` against an encrypted device either succeeds or
   fails with the SN-validation diagnostic — no opaque tracebacks.
 
 ---
@@ -1045,11 +1045,11 @@ differs.
 
 ### Files to add
 
-- `src/bluetti_cli/core/devices/v2_base.py`
+- `src/voltkeeper/core/devices/v2_base.py`
 
 ### Files to modify
 
-- `src/bluetti_cli/core/devices/ac2a.py` — inherit from `V2Base`, keep only
+- `src/voltkeeper/core/devices/ac2a.py` — inherit from `V2Base`, keep only
   the AC2A-specific overrides:
   - `protocol_version = 2000`
   - The `÷100` `packTotalVoltage` scale (currently at `ac2a.py:62-64`)
@@ -1136,7 +1136,7 @@ class AC2A(V2Base):
    Add `tests/test_ac2a_refactor.py::test_parse_matches_baseline` that loads
    the JSON and asserts equality.
 3. `uv run pytest` — all tests green.
-4. Live AC2A regression: `bluetti-cli status -v <AC2A_ADDR>` output looks
+4. Live AC2A regression: `voltkeeper status -v <AC2A_ADDR>` output looks
    identical to before.
 
 ### Done when
@@ -1160,7 +1160,7 @@ data.
 
 ### Files to add
 
-- `src/bluetti_cli/core/devices/v1_base.py`
+- `src/voltkeeper/core/devices/v1_base.py`
 - `tests/test_v1_base.py`
 
 ### Implementation shape
@@ -1297,16 +1297,16 @@ can wait for contributor PRs.
 
 ### Files to add (one per model)
 
-- `src/bluetti_cli/core/devices/ep600.py`
-- `src/bluetti_cli/core/devices/ac300.py`
-- `src/bluetti_cli/core/devices/ac500.py`
-- `src/bluetti_cli/core/devices/eb3a.py`
-- `src/bluetti_cli/core/devices/ac60.py`
+- `src/voltkeeper/core/devices/ep600.py`
+- `src/voltkeeper/core/devices/ac300.py`
+- `src/voltkeeper/core/devices/ac500.py`
+- `src/voltkeeper/core/devices/eb3a.py`
+- `src/voltkeeper/core/devices/ac60.py`
 - (etc.)
 
 ### Files to modify
 
-- `src/bluetti_cli/bluetooth/__init__.py` — register every new class in
+- `src/voltkeeper/bluetooth/__init__.py` — register every new class in
   `_device_registry()`. Update `_DEVICE_NAME_SN_RE` to match new prefixes.
 
 ### Implementation shape (example `ep600.py`)
@@ -1365,7 +1365,7 @@ V2Base inherits all the heavy lifting (`parse`, `polling_commands`, `has_field`,
 model-specific `_fill_*` array helpers in an overridden `parse()`.
 
 For each model, leave a `# TODO(<model>): verify against hardware` comment at
-the top until a maintainer has confirmed `bluetti-cli status` works.
+the top until a maintainer has confirmed `voltkeeper status` works.
 
 ### V1 model classes — alarm/fault decoding
 
@@ -1391,10 +1391,10 @@ display surface treats them the same as any other parsed field.
    `for prefix, cls in _device_registry().items(): assert cls.__name__`.
 2. **Construction smoke:** for each model, `cls("AA:BB:CC:DD:EE:FF",
    "1234567")` must not raise.
-3. `bluetti-cli scan` against any of these devices auto-selects the right
+3. `voltkeeper scan` against any of these devices auto-selects the right
    class. Verify with a temporary `print(type(device).__name__)`.
 4. **Hardware regression:** if you have any of these models, run
-   `bluetti-cli status <ADDR>` and verify SOC, voltage, and load values look
+   `voltkeeper status <ADDR>` and verify SOC, voltage, and load values look
    sane (compare against the device's LCD).
 
 ### Done when
@@ -1452,7 +1452,7 @@ tables, and route each V1 model to the right pair.
 
 ### Files to add
 
-- `src/bluetti_cli/core/devices/_v1_alarm_tables.py` — module holding both
+- `src/voltkeeper/core/devices/_v1_alarm_tables.py` — module holding both
   table sets as module-level dicts.
   - `CONNECT_CONSTANTS_ALARM_NAMES` (mirrors `ConnectConstants.alarmInfoNames`,
     1 key, 9 entries).
@@ -1469,7 +1469,7 @@ tables, and route each V1 model to the right pair.
 
 ### Files to modify
 
-- `src/bluetti_cli/core/devices/v1_base.py`
+- `src/voltkeeper/core/devices/v1_base.py`
   - Remove module-level `LOW_POWER_WARN_NAMES` / `LOW_POWER_FAULT_NAMES`
     (now in the helper module).
   - Add two class attributes on `V1Base`:
@@ -1487,7 +1487,7 @@ tables, and route each V1 model to the right pair.
   - Bits whose name list has `None` at that index are skipped (don't emit
     `alarm.None: True`).
 
-- `src/bluetti_cli/core/devices/ac200l.py` — add the override:
+- `src/voltkeeper/core/devices/ac200l.py` — add the override:
   ```python
   from ._v1_alarm_tables import LOW_POWER_FAULT_NAMES, LOW_POWER_WARN_NAMES
 
@@ -1498,7 +1498,7 @@ tables, and route each V1 model to the right pair.
   ```
   AC200PL inherits the override automatically (no change needed there).
 
-- `src/bluetti_cli/core/devices/eb3a.py`, `ac200m.py`, `ac300.py`, `ac500.py`
+- `src/voltkeeper/core/devices/eb3a.py`, `ac200m.py`, `ac300.py`, `ac500.py`
   — no override needed; the V1Base default is correct for them. Add a one-line
   comment in each: `# Uses V1Base default ALARM_NAMES/FAULT_NAMES (ConnectConstants).`
 
@@ -1536,7 +1536,7 @@ tables, and route each V1 model to the right pair.
    defined bit positions in the active table (proves the loop covers 7 words,
    not 5).
 5. Hardware regression (deferred): once an EB3A is on hand, confirm a
-   real fault on the device's LCD shows up in `bluetti-cli status` with the
+   real fault on the device's LCD shows up in `voltkeeper status` with the
    `ConnectConstants` name, not the lowPower name.
 
 ### Done when
@@ -1549,7 +1549,7 @@ tables, and route each V1 model to the right pair.
 
 ---
 
-## Unit 11 — `bluetti-cli probe` (active register sweep)
+## Unit 11 — `voltkeeper probe` (active register sweep)
 
 **Depends on:** Units 4, 7, 8, 9.
 **Scope:** new module + new CLI subcommand + tests.
@@ -1562,13 +1562,13 @@ issue.
 
 ### Files to add
 
-- `src/bluetti_cli/probe.py` — sweep logic and YAML emitter.
+- `src/voltkeeper/probe.py` — sweep logic and YAML emitter.
 - `tests/test_probe.py` — round-trip a synthetic capture through the YAML
   emitter.
 
 ### Files to modify
 
-- `src/bluetti_cli/cli.py` — add `probe` subcommand.
+- `src/voltkeeper/cli.py` — add `probe` subcommand.
 - `pyproject.toml` — add `pyyaml` dependency.
 
 ### Protocol detection
@@ -1700,7 +1700,7 @@ def probe(address: str, output: str) -> None:
 3. **Registry shortcut test:** call `_detect_protocol` with a name like
    `"AC2A2305000"` — must return V2 without issuing any reads (mock the
    client and assert no calls).
-4. **Live test (AC2A):** `bluetti-cli probe <AC2A_ADDR> -o /tmp/ac2a.yaml`.
+4. **Live test (AC2A):** `voltkeeper probe <AC2A_ADDR> -o /tmp/ac2a.yaml`.
    Confirm the YAML contains the V2 blocks the registry knows about and
    `protocol: v2`, `protocol_version: 2000+`.
 5. **Resilience:** point probe at an unreachable address — must time out
@@ -1717,7 +1717,7 @@ probe ships to contributors.
 
 ---
 
-## Unit 12 — `bluetti-cli validate-profile`
+## Unit 12 — `voltkeeper validate-profile`
 
 **Depends on:** Unit 11 (uses the YAML format probe emits).
 **Scope:** new module + CLI subcommand.
@@ -1730,12 +1730,12 @@ out-of-range).
 
 ### Files to add
 
-- `src/bluetti_cli/validate.py`
+- `src/voltkeeper/validate.py`
 - `tests/test_validate.py`
 
 ### Files to modify
 
-- `src/bluetti_cli/cli.py` — add `validate-profile` subcommand.
+- `src/voltkeeper/cli.py` — add `validate-profile` subcommand.
 
 ### Implementation shape
 
@@ -1763,7 +1763,7 @@ CLI output is a per-block table with an OK/SUSPECT/ERROR count summary.
 
 1. **Unit test:** craft synthetic field values, confirm `assess_field`
    returns expected verdicts.
-2. **Live AC2A:** run `bluetti-cli validate-profile` against the AC2A's own
+2. **Live AC2A:** run `voltkeeper validate-profile` against the AC2A's own
    probe output — expect mostly OK for known fields.
 
 ### Done when
@@ -1772,7 +1772,7 @@ The AC2A's probe output validates with zero ERROR entries.
 
 ---
 
-## Unit 13 — `bluetti-cli annotate` (interactive REPL)
+## Unit 13 — `voltkeeper annotate` (interactive REPL)
 
 **Depends on:** Unit 11.
 **Scope:** new module + CLI subcommand.
@@ -1784,12 +1784,12 @@ operator for field names. Saves to a YAML draft incrementally.
 
 ### Files to add
 
-- `src/bluetti_cli/annotate.py`
+- `src/voltkeeper/annotate.py`
 - `tests/test_annotate.py` (annotation-logic tests; UI not tested)
 
 ### Files to modify
 
-- `src/bluetti_cli/cli.py` — add `annotate` subcommand.
+- `src/voltkeeper/cli.py` — add `annotate` subcommand.
 
 ### Implementation shape
 
@@ -1826,7 +1826,7 @@ box.
 
 1. **Unit test:** feed a sequence of raw-bytes snapshots into `_diff`, assert
    it yields the expected `(offset, old, new)` tuples.
-2. **Live test (AC2A):** run `bluetti-cli annotate <AC2A_ADDR> -o
+2. **Live test (AC2A):** run `voltkeeper annotate <AC2A_ADDR> -o
    /tmp/draft.yaml`. Toggle the AC switch on the device; verify register 2011
    appears in the change feed. Type `ac_output` at the prompt; confirm
    `/tmp/draft.yaml` updates within ~1s.
@@ -1888,9 +1888,9 @@ Outputs CSV: timestamp, direction, function_code, register, length, value_hex
 - An Android phone with the official Bluetti app
 - adb access (USB debugging enabled)
 
-## Step 1: Probe with bluetti-cli
-- bluetti-cli scan
-- bluetti-cli probe <ADDR> -o my-device.yaml
+## Step 1: Probe with voltkeeper
+- voltkeeper scan
+- voltkeeper probe <ADDR> -o my-device.yaml
 
 ## Step 2: Capture official-app traffic
 - Enable Developer options + "Enable Bluetooth HCI snoop log"
@@ -1924,10 +1924,10 @@ Run before opening the PR:
 
 - [ ] `uv run pytest` — all unit tests pass.
 - [ ] `uv run pytest -m integration` — AC2A regression suite passes.
-- [ ] `bluetti-cli scan` shows manufacturer-data classification.
-- [ ] `bluetti-cli status <AC2A_ADDR>` output identical to pre-refactor.
-- [ ] `bluetti-cli probe`, `validate-profile`, `annotate` work against AC2A.
-- [ ] At least one non-AC2A device works with `bluetti-cli status` (or the
+- [ ] `voltkeeper scan` shows manufacturer-data classification.
+- [ ] `voltkeeper status <AC2A_ADDR>` output identical to pre-refactor.
+- [ ] `voltkeeper probe`, `validate-profile`, `annotate` work against AC2A.
+- [ ] At least one non-AC2A device works with `voltkeeper status` (or the
       handshake-failure diagnostic fires correctly).
 - [ ] `grep -rn '"AC2A"' src/` only in `core/devices/ac2a.py` (definition).
 - [ ] `README.md` Requirements lists Linux/macOS/Windows.

@@ -1,4 +1,4 @@
-# bluetti-cli
+# voltkeeper
 
 CLI tool for Bluetti power stations — scan, connect, and read battery data over BLE.
 
@@ -7,7 +7,7 @@ CLI tool for Bluetti power stations — scan, connect, and read battery data ove
 ### Quick run (no clone required)
 
 ```bash
-uvx --from git+https://github.com/mikemccllstr/bluetti-cli bluetti-cli --help
+uvx --from git+https://github.com/mikemccllstr/voltkeeper voltkeeper --help
 ```
 
 This downloads and runs the tool in an isolated environment. Replace `--help` with any
@@ -16,9 +16,9 @@ command or subcommand.
 ### From source
 
 ```bash
-git clone https://github.com/mikemccllstr/bluetti-cli
-cd bluetti-cli
-uv run bluetti-cli --help
+git clone https://github.com/mikemccllstr/voltkeeper
+cd voltkeeper
+uv run voltkeeper --help
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ uv run bluetti-cli --help
 ### Scan for devices
 
 ```bash
-bluetti-cli scan
+voltkeeper scan
 ```
 
 Displays all nearby Bluetti devices and shows the exact command to connect to each one.
@@ -37,8 +37,8 @@ Options:
 ### Read battery status
 
 ```bash
-bluetti-cli status                  # auto-scan for devices, then pick one
-bluetti-cli status AA:BB:CC:DD:EE:FF  # connect directly
+voltkeeper status                  # auto-scan for devices, then pick one
+voltkeeper status AA:BB:CC:DD:EE:FF  # connect directly
 ```
 
 Output:
@@ -55,7 +55,7 @@ Options:
 ### Probe a device (register sweep)
 
 ```bash
-bluetti-cli probe AA:BB:CC:DD:EE:FF -o device.yaml
+voltkeeper probe AA:BB:CC:DD:EE:FF -o device.yaml
 ```
 
 Connects to the device, sweeps all known register blocks, and writes a
@@ -64,7 +64,7 @@ YAML profile. Useful for device reverse-engineering and new-model support.
 ### Validate a profile
 
 ```bash
-bluetti-cli validate-profile device.yaml
+voltkeeper validate-profile device.yaml
 ```
 
 Parses the register blocks in a probe YAML and flags fields with suspect
@@ -73,7 +73,7 @@ values (stuck-at-zero, all-0xFFFF, out of range).
 ### Annotate changing registers (interactive)
 
 ```bash
-bluetti-cli annotate AA:BB:CC:DD:EE:FF -o draft.yaml
+voltkeeper annotate AA:BB:CC:DD:EE:FF -o draft.yaml
 ```
 
 Live-polls the device and highlights byte-level changes in real time.
@@ -83,9 +83,9 @@ incrementally to a YAML draft. Press Ctrl-C to stop.
 ### Write device settings
 
 ```bash
-bluetti-cli write AA:BB:CC:DD:EE:FF ac_output on
-bluetti-cli write AA:BB:CC:DD:EE:FF dc_output off
-bluetti-cli write AA:BB:CC:DD:EE:FF charging_mode turbo
+voltkeeper write AA:BB:CC:DD:EE:FF ac_output on
+voltkeeper write AA:BB:CC:DD:EE:FF dc_output off
+voltkeeper write AA:BB:CC:DD:EE:FF charging_mode turbo
 ```
 
 Writable fields (see `--verbose` output for current values):
@@ -96,7 +96,7 @@ Writable fields (see `--verbose` output for current values):
 ### MQTT publish
 
 ```bash
-bluetti-cli mqtt-publish AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+voltkeeper mqtt-publish AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 ```
 
 Continuously polls the device over BLE and publishes state to an MQTT broker.
@@ -115,7 +115,7 @@ Options:
 ### MQTT listen — shutdown watchdog
 
 ```bash
-bluetti-cli mqtt-listen --serial 2409000123456 --broker 192.168.1.100
+voltkeeper mqtt-listen --serial 2409000123456 --broker 192.168.1.100
 ```
 
 Subscribes to the device's MQTT topic and watches battery SOC. When SOC
@@ -139,7 +139,7 @@ different machine without BLE).
 ### Generate systemd service
 
 ```bash
-bluetti-cli load-test [OPTIONS] ADDRESS
+voltkeeper load-test [OPTIONS] ADDRESS
 ```
 
 Runs a controlled battery discharge test. Coaches you through setup,
@@ -154,7 +154,7 @@ Options:
 
 Example:
 ```bash
-bluetti-cli load-test AA:BB:CC:DD:EE:FF -l 500 -p "500W heater on AC"
+voltkeeper load-test AA:BB:CC:DD:EE:FF -l 500 -p "500W heater on AC"
 ```
 
 The test will:
@@ -176,56 +176,56 @@ BLE reads are Excel-friendly.
 #### MQTT publish service
 
 ```bash
-bluetti-cli mqtt-publish-service AA:BB:CC:DD:EE:FF --broker 192.168.1.100
+voltkeeper mqtt-publish-service AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 ```
 
 Generates a systemd unit file for `mqtt-publish`.
 
 Options mirror the `mqtt-publish` command plus:
 - `--user NAME`    System user to run as (default: current user)
-- `--exec PATH`    Path to `bluetti-cli` executable (default: auto-detect)
+- `--exec PATH`    Path to `voltkeeper` executable (default: auto-detect)
 - `-o, --output PATH`  Write to file instead of stdout
 
 #### MQTT listen service
 
 ```bash
-bluetti-cli mqtt-listen-service --serial 2409000123456 --broker 192.168.1.100
+voltkeeper mqtt-listen-service --serial 2409000123456 --broker 192.168.1.100
 ```
 
 Generates a systemd unit file for `mqtt-listen`.
 
 Options mirror the `mqtt-listen` command plus:
 - `--user NAME`    System user to run as (default: root, needed for shutdown)
-- `--exec PATH`    Path to `bluetti-cli` executable (default: auto-detect)
+- `--exec PATH`    Path to `voltkeeper` executable (default: auto-detect)
 - `-o, --output PATH`  Write to file instead of stdout
 
 #### Installing a generated service
 
 ```bash
-sudo cp bluetti-*.service /etc/systemd/system/
+sudo cp voltkeeper-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now bluetti-*.service
+sudo systemctl enable --now voltkeeper-*.service
 ```
 - `-o, --output PATH`  Write to file instead of stdout
 
 Install the generated file:
 ```bash
-sudo cp bluetti-mqtt-*.service /etc/systemd/system/
+sudo cp voltkeeper-mqtt-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now bluetti-mqtt-*.service
+sudo systemctl enable --now voltkeeper-mqtt-*.service
 ```
 
 ### Help
 
 ```bash
-bluetti-cli --help
-bluetti-cli status --help
-bluetti-cli scan --help
-bluetti-cli probe --help
-bluetti-cli mqtt-publish --help
-bluetti-cli mqtt-listen --help
-bluetti-cli load-test --help
-bluetti-cli --version
+voltkeeper --help
+voltkeeper status --help
+voltkeeper scan --help
+voltkeeper probe --help
+voltkeeper mqtt-publish --help
+voltkeeper mqtt-listen --help
+voltkeeper load-test --help
+voltkeeper --version
 ```
 
 ## Requirements
@@ -236,7 +236,7 @@ bluetti-cli --version
 
 On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or
 `sudo`). On macOS, the device's BLE MAC address may be reported as a UUID
-rather than a hardware address — use the UUID directly with `bluetti-cli`.
+rather than a hardware address — use the UUID directly with `voltkeeper`.
 
 The tool reads plain Modbus RTU over BLE from Bluetti power stations.
 Encrypted devices (AES-CBC over BLE) are supported; the handshake is handled

@@ -2,7 +2,7 @@
 # ABOUTME: Unit 12 per IMPLEMENTATION_UNITS.md.
 
 
-from bluetti_cli.validate import FieldVerdict, assess_field, validate_profile
+from voltkeeper.validate import FieldVerdict, assess_field, validate_profile
 
 # ── assess_field unit tests ───────────────────────────────────────────
 

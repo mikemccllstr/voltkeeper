@@ -23,7 +23,7 @@ run = "uv run ruff format --check src/ tests/"
 
 [tasks.typecheck]
 description = "Run mypy type checker"
-run = "uv run mypy src/bluetti_cli"
+run = "uv run mypy src/voltkeeper"
 
 [tasks.test]
 description = "Run tests with coverage"
@@ -41,7 +41,7 @@ run = "uv run pytest && open htmlcov/index.html"
 description = "Run all quality checks (lint + typecheck + test)"
 run = [
     "uv run ruff check src/ tests/",
-    "uv run mypy src/bluetti_cli",
+    "uv run mypy src/voltkeeper",
     "uv run pytest",
 ]
 

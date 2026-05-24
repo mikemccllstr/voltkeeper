@@ -4,7 +4,7 @@
 import pytest
 from click.testing import CliRunner
 
-from bluetti_cli.cli import cli
+from voltkeeper.cli import cli
 
 pytestmark = pytest.mark.integration
 

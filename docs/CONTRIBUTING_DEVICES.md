@@ -1,7 +1,7 @@
 # Contributing a new Bluetti device
 
 This guide walks you through capturing the data needed to add support for a
-new Bluetti device model to `bluetti-cli`.
+new Bluetti device model to `voltkeeper`.
 
 ## What you need
 
@@ -13,20 +13,20 @@ new Bluetti device model to `bluetti-cli`.
 
 ## Step 1: Identify the device
 
-Run a scan to confirm `bluetti-cli` can see the device:
+Run a scan to confirm `voltkeeper` can see the device:
 
 ```bash
-bluetti-cli scan
+voltkeeper scan
 ```
 
 Note the MAC address and Bluetooth name (e.g. `AC2A2305000`).
 
 ## Step 2: Probe the register layout
 
-Use `bluetti-cli probe` to capture every readable Modbus register block:
+Use `voltkeeper probe` to capture every readable Modbus register block:
 
 ```bash
-bluetti-cli probe <ADDRESS> -o my-device.yaml
+voltkeeper probe <ADDRESS> -o my-device.yaml
 ```
 
 This writes `my-device.yaml` with the device's protocol version and raw
@@ -56,7 +56,7 @@ If your device uses BLE encryption (`protocolVer >= 2000`, e.g. AC2A),
 the parser can decrypt frames with `--key` and `--iv`, but extracting
 the per-session AES key is not yet automated. For now: submit the raw
 btsnoop log alongside your `my-device.yaml`, and a maintainer will pair
-it with a session derived from `bluetti-cli`'s handshake to decrypt and
+it with a session derived from `voltkeeper`'s handshake to decrypt and
 analyze. Alternatively, capture from a V1 device (no encryption) on the
 same model family if available.
 
@@ -74,7 +74,7 @@ flag — improving multi-frame IV chaining is a planned follow-up.
 ## Step 4: Submit
 
 Open a GitHub issue on
-[bluetti-cli](https://github.com/mikemccllstr/bluetti-cli)
+[voltkeeper](https://github.com/mikemccllstr/voltkeeper)
 with both files attached:
 
 - `my-device.yaml` (the probe output)

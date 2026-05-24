@@ -1,7 +1,7 @@
 # ABOUTME: Synthetic fixture tests for V1Base register parsing per FINDINGS §15.6.
 # ABOUTME: Unit 9 per IMPLEMENTATION_UNITS.md.
 
-from bluetti_cli.core.devices.v1_base import BASE_REAL_DATA, V1Base
+from voltkeeper.core.devices.v1_base import BASE_REAL_DATA, V1Base
 
 
 def _make_register_bytes(reg_values: dict[int, int]) -> bytes:

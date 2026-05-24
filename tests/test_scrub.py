@@ -3,8 +3,8 @@
 
 import yaml
 
-from bluetti_cli.core.devices.ac2a import AC2A
-from bluetti_cli.scrub import (
+from voltkeeper.core.devices.ac2a import AC2A
+from voltkeeper.scrub import (
     SN_LOCATIONS,
     SYNTHETIC_SN_BYTES,
     SYNTHETIC_SN_HEX,

@@ -8,8 +8,8 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from bluetti_cli.bluetooth.cipher import CbcSession
-from bluetti_cli.bluetooth.handshake import (
+from voltkeeper.bluetooth.cipher import CbcSession
+from voltkeeper.bluetooth.handshake import (
     HandshakeSession,
     _checksum,
     derive_iv,
@@ -106,7 +106,7 @@ class TestHandshakeStateMachine:
         h = HandshakeSession()
 
         async with asyncio.timeout(5):
-            with patch("bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
+            with patch("voltkeeper.bluetooth.handshake.verify_device_pubkey") as mock_verify:
                 mock_verify.side_effect = lambda device_pub_raw, signature_rs, random_md5_hex: (
                     ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + device_pub_raw)
                 )
@@ -217,7 +217,7 @@ class TestHandshakeStateMachine:
         bad_conf = b"\x2a\x2a\x99\x00" + b"\x00" * 10
         bad_conf += _checksum(bad_conf)
 
-        with patch("bluetti_cli.bluetooth.handshake.verify_device_pubkey") as mock_verify:
+        with patch("voltkeeper.bluetooth.handshake.verify_device_pubkey") as mock_verify:
             mock_verify.side_effect = lambda pub, sig, md5: ec.EllipticCurvePublicKey.from_encoded_point(
                 ec.SECP256R1(), b"\x04" + pub
             )

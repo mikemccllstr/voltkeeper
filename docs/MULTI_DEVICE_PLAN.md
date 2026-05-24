@@ -1,4 +1,4 @@
-# Multi-Device Support for `bluetti-cli`
+# Multi-Device Support for `voltkeeper`
 
 > **Status: complete.** Plan delivered on the
 > `claude/multi-device-support-0lktM` branch. Kept as historical context
@@ -8,7 +8,7 @@
 
 ## Context
 
-The CLI currently supports only the AC2A. The factory at `src/bluetti_cli/bluetooth/__init__.py:84-88` always returns `AC2A`, the BLE client at `src/bluetti_cli/bluetooth/client.py` assumes plaintext Modbus, and AC2A is referenced by name in `cli.py:953` (MQTT topic) and `cli.py:483-488` (capabilities display). The base class `BluettiDevice` is already clean — it exposes `polling_commands`, `logging_commands`, `parse()`, `writable_ranges`, `has_field()`, `has_field_setter()`, and `build_setter_command()` — so the contract is reusable.
+The CLI currently supports only the AC2A. The factory at `src/voltkeeper/bluetooth/__init__.py:84-88` always returns `AC2A`, the BLE client at `src/voltkeeper/bluetooth/client.py` assumes plaintext Modbus, and AC2A is referenced by name in `cli.py:953` (MQTT topic) and `cli.py:483-488` (capabilities display). The base class `BluettiDevice` is already clean — it exposes `polling_commands`, `logging_commands`, `parse()`, `writable_ranges`, `has_field()`, `has_field_setter()`, and `build_setter_command()` — so the contract is reusable.
 
 `docs/FINDINGS.md` documents 100+ Bluetti models. Two protocol generations exist: **V1** (`ProtocolAddr`, `protocolVer < 2000`, §15.5 V1 table) and **V2** (`ProtocolAddrV2`, ≥2000, §15.5 V2 table, AC2A uses this). Newer devices wrap Modbus in **AES-128-CBC over BLE** with session keys derived via ECDH+ECDSA (§15.2 step 3, §15.8). Manufacturer-specific scan data identifies encryption: `BLUETTI` = plaintext, `BLUETTE`/`BLUETTF` = encrypted (§15.1).
 
@@ -43,7 +43,7 @@ We must remain code-independent — we will not vendor or import from these repo
 
 ## Phase 1 — Decouple AC2A assumptions
 
-**Modify `src/bluetti_cli/bluetooth/__init__.py`:**
+**Modify `src/voltkeeper/bluetooth/__init__.py`:**
 - Replace `build_device()` with a registry-driven dispatch:
   ```python
   DEVICE_REGISTRY: dict[str, type[BluettiDevice]] = {
@@ -54,11 +54,11 @@ We must remain code-independent — we will not vendor or import from these repo
 - Parse manufacturer-specific data in `scan_devices()` and return an `(address, name, encrypted: bool, protocol_hint: str|None)` tuple. Detect prefix `424c5545545449` (BLUETTI = plaintext) vs `424c5545545445`/`424c5545545446` (BLUETTE/F = encrypted).
 - When the model prefix is unknown but a device responds, fall back to a `GenericV2Device` (or V1) so `probe` still works on never-before-seen models.
 
-**Modify `src/bluetti_cli/cli.py`:**
+**Modify `src/voltkeeper/cli.py`:**
 - `cli.py:953` — pull the MQTT topic prefix from `device.type`, not the literal `"AC2A"`.
 - `cli.py:483-488` — replace direct `AC2A.decode_ctrl_event()` / `AC2A.CTRL_EVENT_BITS` access with optional capability methods on `BluettiDevice` (`decode_ctrl_event(value) -> dict | None`, default `None`). Render the capabilities block only when the device opts in.
 
-**Modify `src/bluetti_cli/mqtt_client.py`:** ensure HA discovery topic and sensor lists are derived from device fields rather than hardcoded names.
+**Modify `src/voltkeeper/mqtt_client.py`:** ensure HA discovery topic and sensor lists are derived from device fields rather than hardcoded names.
 
 ---
 
@@ -66,7 +66,7 @@ We must remain code-independent — we will not vendor or import from these repo
 
 Add `cryptography` to `pyproject.toml` dependencies (provides AES-CBC, ECDSA, ECDH on `SECP256R1`).
 
-**New `src/bluetti_cli/bluetooth/handshake.py`:**
+**New `src/voltkeeper/bluetooth/handshake.py`:**
 - Constants from FINDINGS §15.8:
   - `LOCAL_AES_KEY = bytes.fromhex("459FC535808941F17091E0993EE3E93D")`
   - `PRIVATE_KEY_L1 = bytes.fromhex("4F19A16E…F337")`
@@ -74,12 +74,12 @@ Add `cryptography` to `pyproject.toml` dependencies (provides AES-CBC, ECDSA, EC
 - `async legacy_challenge_response(client) -> bytes` — implements §15.2 step 3a: read `2A 2A 01 + 4 random`, MD5(reverse), reply `2A 2A 02 04 + md5[16:24] + checksum`, return `bleConnAESKey = XOR(randomMd5_hex_str, LOCAL_AES_KEY)`.
 - `async ecdh_handshake(client, randomMd5, bleConnAESKey) -> bytes` — implements §15.2 step 3b: receive AES-CBC encrypted device pubkey + ECDSA signature, verify against `PUBLIC_KEY_K2`, generate ephemeral keypair, sign `(appPubKey || randomMd5)` with `PRIVATE_KEY_L1`, send back, derive `bleConnShareKey = ECDH(appPriv, devicePub)`.
 
-**New `src/bluetti_cli/bluetooth/cipher.py`:**
+**New `src/voltkeeper/bluetooth/cipher.py`:**
 - `build_aes_cbc_cmd(plaintext: bytes, key: bytes, iv: bytes) -> bytes` — AES-128-CBC, IV chained from `MD5(randomMd5)`, 16-byte blocks, **no PKCS padding** (zero-pad to block boundary per §15.8).
 - `parse_aes_cbc_data(ciphertext: bytes, key: bytes, iv: bytes) -> bytes` — inverse.
 - IV-chaining helper that tracks the previous ciphertext block across calls within a session.
 
-**Modify `src/bluetti_cli/bluetooth/client.py`:**
+**Modify `src/voltkeeper/bluetooth/client.py`:**
 - `BluetoothClient(address, encrypted: bool = False)`. When `encrypted`, after `connect()` run the handshake module and store the session key + IV state.
 - `execute()` wraps the outgoing Modbus frame in `build_aes_cbc_cmd` and unwraps notifications via `parse_aes_cbc_data` when a session key exists. Otherwise falls through to the existing plaintext path.
 - Keep CRC validation on the *plaintext* (post-decrypt) frame.
@@ -97,15 +97,15 @@ Add `cryptography` to `pyproject.toml` dependencies (provides AES-CBC, ECDSA, EC
 
 Add a thin protocol-version base under `core/devices/` so per-model files stay short:
 
-**New `src/bluetti_cli/core/devices/v2_base.py`** — implements the generic V2 register-block layout from §15.5 V2:
+**New `src/voltkeeper/core/devices/v2_base.py`** — implements the generic V2 register-block layout from §15.5 V2:
 - `home_struct` (100), `inv_base_struct` (1100), `inv_pv_struct` (1200), `inv_grid_struct` (1300), `inv_load_struct` (1400), `inv_inv_struct` (1500), `control_struct` (2000–2300).
 - Default scale factors using the *typical* V2 device convention (`packTotalVoltage` ÷10 for high-voltage packs).
 - Default `parse()` dispatching by address range.
 - Default `polling_commands` covering all blocks.
 
-**New `src/bluetti_cli/core/devices/v1_base.py`** — analogous for §15.5 V1 register layout (registers 1, 7, 10, 16, 21, 22, 70, 91, 130, 157, 3000-series settings, etc.).
+**New `src/voltkeeper/core/devices/v1_base.py`** — analogous for §15.5 V1 register layout (registers 1, 7, 10, 16, 21, 22, 70, 91, 130, 157, 3000-series settings, etc.).
 
-**Refactor `src/bluetti_cli/core/devices/ac2a.py`** to inherit from `V2Base`, keeping only:
+**Refactor `src/voltkeeper/core/devices/ac2a.py`** to inherit from `V2Base`, keeping only:
 - `protocol_version = 2000`
 - The `÷100` voltage scale override (already commented at `ac2a.py:62-64`)
 - AC2A-specific custom parsers (`_fill_software_versions`, `_fill_pv_strings`, etc.)
@@ -126,9 +126,9 @@ Pick which models to ship in the first PR by tractability: prefer ones whose reg
 
 ## Phase 4 — Discovery toolkit (the "let another user help" surface)
 
-### 4a. `bluetti-cli probe ADDRESS [-o profile.yaml]` — active register sweep
+### 4a. `voltkeeper probe ADDRESS [-o profile.yaml]` — active register sweep
 
-New `src/bluetti_cli/probe.py`:
+New `src/voltkeeper/probe.py`:
 1. Connect (auto-detecting encrypted vs plaintext from scan record).
 2. Read protocol version: register 16 (V1) or register 1100 first word (V2 fallback).
 3. Read base config (register 1 V1 / 2000 V2), device SN, model name (register 110 V2 / 21 V1).
@@ -150,20 +150,20 @@ New `docs/CONTRIBUTING_DEVICES.md` with step-by-step guide:
 2. Reproduce a Bluetti app workflow against your device (e.g., toggle AC, change charging mode).
 3. `adb bugreport` → extract `btsnoop_hci.log`.
 4. `python scripts/parse_btsnoop.py btsnoop_hci.log > capture.csv`.
-5. Run `bluetti-cli probe ADDRESS -o my_device.yaml`.
+5. Run `voltkeeper probe ADDRESS -o my_device.yaml`.
 6. Open a GitHub issue with both files attached.
 
-### 4c. `bluetti-cli validate-profile profile.yaml ADDRESS`
+### 4c. `voltkeeper validate-profile profile.yaml ADDRESS`
 
-New `src/bluetti_cli/validate.py`:
+New `src/voltkeeper/validate.py`:
 - Load YAML draft (the format `probe` emits).
 - Connect, run polling against every block in the profile.
 - For each field: check value is within a declared sane range; flag `SUSPECT` (always 0/0xFFFF; floats wildly out of bounds; signed/unsigned mismatch).
 - Report a table grouped by block with OK / SUSPECT / ERROR counts and example values.
 
-### 4d. `bluetti-cli annotate ADDRESS`
+### 4d. `voltkeeper annotate ADDRESS`
 
-New `src/bluetti_cli/annotate.py` (interactive REPL):
+New `src/voltkeeper/annotate.py` (interactive REPL):
 - Connect, poll all known register blocks at 1 Hz.
 - Render a live diff view: when any register value changes, highlight it.
 - Prompt: "Register 2011 just changed `0 → 1`. Suggested name (`<enter>` to skip): "
@@ -190,22 +190,22 @@ New `src/bluetti_cli/annotate.py` (interactive REPL):
 
 **Modify:**
 - `pyproject.toml` — add `cryptography` dep
-- `src/bluetti_cli/bluetooth/__init__.py` — registry, regex, manufacturer-data
-- `src/bluetti_cli/bluetooth/client.py` — optional cipher hookup
-- `src/bluetti_cli/cli.py` — remove AC2A literals; add `probe` / `validate-profile` / `annotate` subcommands
-- `src/bluetti_cli/mqtt_client.py` — model-agnostic topic
-- `src/bluetti_cli/core/devices/ac2a.py` — re-parent on `V2Base`; trim duplicates
+- `src/voltkeeper/bluetooth/__init__.py` — registry, regex, manufacturer-data
+- `src/voltkeeper/bluetooth/client.py` — optional cipher hookup
+- `src/voltkeeper/cli.py` — remove AC2A literals; add `probe` / `validate-profile` / `annotate` subcommands
+- `src/voltkeeper/mqtt_client.py` — model-agnostic topic
+- `src/voltkeeper/core/devices/ac2a.py` — re-parent on `V2Base`; trim duplicates
 - `README.md` — add multi-device section pointing at `docs/CONTRIBUTING_DEVICES.md`
 
 **Add:**
-- `src/bluetti_cli/bluetooth/handshake.py`
-- `src/bluetti_cli/bluetooth/cipher.py`
-- `src/bluetti_cli/core/devices/v1_base.py`
-- `src/bluetti_cli/core/devices/v2_base.py`
-- `src/bluetti_cli/core/devices/ep600.py`, `ac300.py`, `ac500.py`, `ac200max.py`, `eb3a.py`, `ac60.py` (initial set)
-- `src/bluetti_cli/probe.py`
-- `src/bluetti_cli/validate.py`
-- `src/bluetti_cli/annotate.py`
+- `src/voltkeeper/bluetooth/handshake.py`
+- `src/voltkeeper/bluetooth/cipher.py`
+- `src/voltkeeper/core/devices/v1_base.py`
+- `src/voltkeeper/core/devices/v2_base.py`
+- `src/voltkeeper/core/devices/ep600.py`, `ac300.py`, `ac500.py`, `ac200max.py`, `eb3a.py`, `ac60.py` (initial set)
+- `src/voltkeeper/probe.py`
+- `src/voltkeeper/validate.py`
+- `src/voltkeeper/annotate.py`
 - `scripts/parse_btsnoop.py`
 - `docs/CONTRIBUTING_DEVICES.md`
 - `tests/fixtures/<model>/polling_response.bin` (one per recorded model)
@@ -219,10 +219,10 @@ End-to-end checks before merging:
 
 1. `uv run pytest` — all unit tests pass; existing AC2A tests untouched.
 2. `uv run pytest -m integration` against an AC2A — `status`, `write ac_output on`, and `mqtt-publish` still work.
-3. `bluetti-cli scan` — encrypted vs plaintext devices both classified in output.
-4. `bluetti-cli probe AA:BB:CC:DD:EE:FF -o draft.yaml` against any reachable Bluetti device — produces a usable draft even for unsupported models.
-5. `bluetti-cli validate-profile draft.yaml AA:BB:CC:DD:EE:FF` — runs cleanly on the device used to generate it.
-6. On at least one non-AC2A device available in development (target: EP600 if hardware accessible), `bluetti-cli status` returns a populated reading.
+3. `voltkeeper scan` — encrypted vs plaintext devices both classified in output.
+4. `voltkeeper probe AA:BB:CC:DD:EE:FF -o draft.yaml` against any reachable Bluetti device — produces a usable draft even for unsupported models.
+5. `voltkeeper validate-profile draft.yaml AA:BB:CC:DD:EE:FF` — runs cleanly on the device used to generate it.
+6. On at least one non-AC2A device available in development (target: EP600 if hardware accessible), `voltkeeper status` returns a populated reading.
 7. Run `scripts/parse_btsnoop.py` against a captured trace from the Android app and confirm Modbus frames are reconstructed.
 
 ---

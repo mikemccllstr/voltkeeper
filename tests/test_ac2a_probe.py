@@ -6,8 +6,8 @@ from pathlib import Path
 
 import yaml
 
-from bluetti_cli.core.devices.ac2a import AC2A
-from bluetti_cli.core.struct import BcdSerialField
+from voltkeeper.core.devices.ac2a import AC2A
+from voltkeeper.core.struct import BcdSerialField
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ac2a_probe_real.yml"
 
@@ -75,7 +75,7 @@ def test_ac2a_probe_real_full_validate_no_errors():
     Mirrors the Unit 12 done-when criterion ('AC2A's probe output
     validates with zero ERROR entries'), pinned to a specific capture.
     """
-    from bluetti_cli.validate import validate_profile
+    from voltkeeper.validate import validate_profile
 
     verdicts = validate_profile(str(FIXTURE))
     errors = [v for v in verdicts if v.status == "error"]

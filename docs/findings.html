@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bluetti CLI — Protocol &amp; Architecture Findings</title>
+<title>Voltkeeper — Protocol &amp; Architecture Findings</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -95,7 +95,7 @@
 </head>
 <body>
 
-<h1>Bluetti CLI</h1>
+<h1>Voltkeeper</h1>
 <p class="subtitle">Protocol Reverse-Engineering &amp; Architecture Findings</p>
 
 <div class="toc">
@@ -240,7 +240,7 @@
   <line x1="720" y1="50" x2="720" y2="590" stroke="#3fb950" stroke-width="2" stroke-dasharray="6,4"/>
 
   <!-- Headers -->
-  <text x="180" y="35" fill="#58a6ff" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">bluetti-cli</text>
+  <text x="180" y="35" fill="#58a6ff" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">voltkeeper</text>
   <text x="450" y="35" fill="#8b949e" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">BleakClient</text>
   <text x="720" y="35" fill="#3fb950" font-family="mono" font-size="12" text-anchor="middle" font-weight="bold">Device</text>
 
@@ -757,67 +757,67 @@ homeassistant/number/{sn}_soc_low/config</pre>
 <table>
   <tr><th>Command</th><th>Purpose</th><th>Requires BLE?</th><th>Key flags</th></tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli scan</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper scan</code></td>
     <td>Scan for nearby Bluetti devices via BLE advertisement</td>
     <td style="text-align:center">Yes</td>
     <td><code>--timeout</code> (default 10s)</td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli status [ADDRESS]</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper status [ADDRESS]</code></td>
     <td>Read battery SOC, voltage, charging status, and loads</td>
     <td style="text-align:center">Yes</td>
     <td><code>--verbose</code> (full status), <code>--timeout</code></td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli write ADDRESS FIELD VALUE</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper write ADDRESS FIELD VALUE</code></td>
     <td>Write a writable register (toggle outputs, change mode)</td>
     <td style="text-align:center">Yes</td>
     <td>Field depends on device model</td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli probe ADDRESS</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper probe ADDRESS</code></td>
     <td>Active register sweep → draft YAML profile (for new devices)</td>
     <td style="text-align:center">Yes</td>
     <td><code>--output</code> (default profile.yaml)</td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli annotate ADDRESS</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper annotate ADDRESS</code></td>
     <td>Live-poll and interactively label changing register values</td>
     <td style="text-align:center">Yes</td>
     <td><code>--output</code> (default draft.yaml)</td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli mqtt-publish ADDRESS --broker HOST</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper mqtt-publish ADDRESS --broker HOST</code></td>
     <td>Continuous BLE → MQTT bridge with HA auto-discovery</td>
     <td style="text-align:center">Yes</td>
     <td><code>--serial</code>, <code>--port</code>, <code>--interval</code>, <code>--ha-config</code></td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli mqtt-listen --broker HOST</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper mqtt-listen --broker HOST</code></td>
     <td>Watch battery SOC via MQTT and trigger system shutdown (Linux only)</td>
     <td style="text-align:center">No</td>
     <td><code>--serial</code>, <code>--shutdown-at</code>, <code>--grace-period</code></td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli load-test ADDRESS</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper load-test ADDRESS</code></td>
     <td>Battery discharge characterization — CSV logging</td>
     <td style="text-align:center">Yes</td>
     <td><code>--output</code>, <code>--interval</code>, <code>--expected-load</code></td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli validate-profile YAML</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper validate-profile YAML</code></td>
     <td>Validate probe YAML against field sanity checks (offline)</td>
     <td style="text-align:center">No</td>
     <td>Stuck-at-0, stuck-at-0xFFFF, out-of-range detection</td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli mqtt-publish-service ADDRESS --broker HOST</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper mqtt-publish-service ADDRESS --broker HOST</code></td>
     <td>Generate systemd unit file for mqtt-publish</td>
     <td style="text-align:center">No</td>
     <td><code>--user</code>, <code>--output</code>, <code>--exec</code></td>
   </tr>
   <tr>
-    <td style="white-space:nowrap"><code>bluetti-cli mqtt-listen-service --serial SERIAL --broker HOST</code></td>
+    <td style="white-space:nowrap"><code>voltkeeper mqtt-listen-service --serial SERIAL --broker HOST</code></td>
     <td>Generate systemd unit file for mqtt-listen (Linux only)</td>
     <td style="text-align:center">No</td>
     <td><code>--shutdown-at</code>, <code>--grace-period</code>, <code>--output</code></td>

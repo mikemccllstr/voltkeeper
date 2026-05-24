@@ -1,4 +1,4 @@
-# ABOUTME: Unit tests for bluetti-cli — utility functions, struct-based protocol parsers, CLI behavior.
+# ABOUTME: Unit tests for voltkeeper — utility functions, struct-based protocol parsers, CLI behavior.
 # ABOUTME: Uses real AC2A register data captured via BLE as test fixtures.
 
 import asyncio
@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-import bluetti_cli.load_test as lt
-from bluetti_cli.bus import CommandMessage, EventBus, ParserMessage
-from bluetti_cli.cli import cli
-from bluetti_cli.core.commands import WriteMultipleRegisters, WriteSingleRegister
-from bluetti_cli.core.devices.ac2a import AC2A, ChargingMode
-from bluetti_cli.core.devices.bluetti_device import BluettiDevice
-from bluetti_cli.core.utils import (
+import voltkeeper.load_test as lt
+from voltkeeper.bus import CommandMessage, EventBus, ParserMessage
+from voltkeeper.cli import cli
+from voltkeeper.core.commands import WriteMultipleRegisters, WriteSingleRegister
+from voltkeeper.core.devices.ac2a import AC2A, ChargingMode
+from voltkeeper.core.devices.bluetti_device import BluettiDevice
+from voltkeeper.core.utils import (
     _ascii,
     _bcd_sn,
     _format_version,
@@ -28,15 +28,15 @@ from bluetti_cli.core.utils import (
     _u32,
     crc16_modbus,
 )
-from bluetti_cli.device_handler import SourceChangeWatcher, _watch_source_changes
-from bluetti_cli.mqtt_client import (
+from voltkeeper.device_handler import SourceChangeWatcher, _watch_source_changes
+from voltkeeper.mqtt_client import (
     CHARGING_STATUS_MAP,
     COMMAND_TOPIC_RE,
     NORMAL_DEVICE_FIELDS,
     MQTTClient,
     MqttFieldType,
 )
-from bluetti_cli.shutdown_watch import ShutdownWatch
+from voltkeeper.shutdown_watch import ShutdownWatch
 
 
 @pytest.fixture
@@ -407,7 +407,7 @@ class TestParseControlData:
         assert result["ac_eco_mode"] is True
 
     def test_charging_mode_turbo(self, ac2a_device, ac2a_control_bytes):
-        from bluetti_cli.core.devices.ac2a import ChargingMode
+        from voltkeeper.core.devices.ac2a import ChargingMode
 
         result = ac2a_device.parse(2000, ac2a_control_bytes)
         assert result["charging_mode"] == ChargingMode.TURBO
@@ -1047,8 +1047,8 @@ class TestDeviceHandler:
         """execute() already returns stripped body; _poll_once must not strip again."""
         from unittest.mock import MagicMock
 
-        from bluetti_cli.bus import EventBus
-        from bluetti_cli.device_handler import DeviceHandler
+        from voltkeeper.bus import EventBus
+        from voltkeeper.device_handler import DeviceHandler
 
         bus = EventBus()
         handler = DeviceHandler("00:00:00:00:00:00", ac2a_device, 0, bus)
@@ -1092,7 +1092,7 @@ class TestCli:
         runner = CliRunner()
         result = runner.invoke(cli, [])
         assert result.exit_code == 0
-        assert "Bluetti power station CLI" in result.output
+        assert "Voltkeeper CLI, supporting Bluetti power station devices" in result.output
         assert "status" in result.output
         assert "scan" in result.output
         assert "write" in result.output
@@ -1107,7 +1107,7 @@ class TestCli:
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "bluetti-cli" in result.output
+        assert "voltkeeper" in result.output
 
     def test_status_help(self):
         runner = CliRunner()
@@ -1361,7 +1361,7 @@ class TestCSVHeader:
         writer = csv.writer(buf)
         lt._write_csv_header(writer, ac2a_device, "test", 100, 60)
         content = buf.getvalue()
-        assert "# bluetti-cli load test" in content
+        assert "# voltkeeper load test" in content
         assert "# Device: AC2A-TEST" in content
         assert "# Phase: test" in content
         assert "# Expected load: 100 W" in content
@@ -1436,7 +1436,7 @@ class TestLoadTestCLI:
 
 class TestCsvAnalysis:
     _BASIC_CSV = (
-        "# bluetti-cli load test\n"
+        "# voltkeeper load test\n"
         "# Device: AC2A-TEST\n"
         "#\n"
         "timestamp,elapsed_s,soc_pct,pack_v,pack_a,total_power_w,energy_computed_wh,energy_register_wh,est_remaining_min,ambient_temp_c,inv_temp_c\n"
@@ -1723,11 +1723,11 @@ class TestMqttPublishService:
                 "--broker",
                 "x",
                 "--exec",
-                "/usr/local/bin/bluetti-cli",
+                "/usr/local/bin/voltkeeper",
             ],
         )
         assert result.exit_code == 0
-        assert "ExecStart=/usr/local/bin/bluetti-cli" in result.output
+        assert "ExecStart=/usr/local/bin/voltkeeper" in result.output
 
     def test_restart_on_source_change_in_execstart(self):
         runner = CliRunner()
@@ -2101,7 +2101,7 @@ class TestMqttListenService:
             ],
         )
         assert result.exit_code == 0
-        assert "bluetti-shutdown-DEADBEEF" in result.output
+        assert "voltkeeper-shutdown-DEADBEEF" in result.output
 
     def test_no_address_argument(self):
         runner = CliRunner()
@@ -2122,7 +2122,7 @@ class TestMqttListenService:
 
 
 def test_decode_ctrl_event_default_returns_none():
-    from bluetti_cli.core.devices.bluetti_device import BluettiDevice
+    from voltkeeper.core.devices.bluetti_device import BluettiDevice
 
     class MinimalDevice(BluettiDevice):
         def parse(self, address, data):
@@ -2150,14 +2150,14 @@ def test_decode_ctrl_event_default_returns_none():
 
 
 def test_device_registry_is_public():
-    from bluetti_cli.bluetooth import device_registry
+    from voltkeeper.bluetooth import device_registry
 
     reg = device_registry()
     assert "AC2A" in reg
 
 
 def test_is_supported_device_type():
-    from bluetti_cli.bluetooth import is_supported_device_type
+    from voltkeeper.bluetooth import is_supported_device_type
 
     assert is_supported_device_type("AC2A") is True
     assert is_supported_device_type("BOGUS") is False

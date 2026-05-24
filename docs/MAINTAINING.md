@@ -11,7 +11,7 @@ It walks from raw submission to a merged device class.
 Run the validator on the probe output first:
 
 ```bash
-bluetti-cli validate-profile my-device.yaml
+voltkeeper validate-profile my-device.yaml
 ```
 
 You're looking for:
@@ -22,7 +22,7 @@ You're looking for:
   V2 is ≥ 2000.
 - **`name`** matches a Bluetti BLE prefix (e.g. `AC2A2305000`). Confirm the
   prefix isn't already in `_device_registry()` in
-  `src/bluetti_cli/bluetooth/__init__.py`.
+  `src/voltkeeper/bluetooth/__init__.py`.
 - **`blocks`** has mostly-non-empty `raw_hex` entries. All-zero or all-FF
   blocks suggest the device wasn't responding — flag back to contributor.
 
@@ -52,7 +52,7 @@ Other flags worth eyeballing (positions vary; cross-check against the
 **If the contributor's data disagrees with the APK, the APK wins.**
 Document the divergence in the new model file's `# ABOUTME:` comment so
 future readers see why the class diverges from the contributor's
-submission. (See `src/bluetti_cli/core/devices/ac60.py` for an example.)
+submission. (See `src/voltkeeper/core/devices/ac60.py` for an example.)
 
 ## 3. Pick the base class
 
@@ -70,11 +70,11 @@ If you're unsure, dispatch: V1 vs V2 hinges on `protocolVer < 2000` per
 
 Pick the closest existing model as your starting point:
 
-- **V2 with controls**: copy `src/bluetti_cli/core/devices/ac60.py`.
-- **V2 read-only**: copy `src/bluetti_cli/core/devices/ep600.py`.
-- **V1 with controls**: copy `src/bluetti_cli/core/devices/ac300.py`.
-- **V1 minimal**: copy `src/bluetti_cli/core/devices/eb3a.py`.
-- **V1 lowPower variant**: copy `src/bluetti_cli/core/devices/ac200l.py`.
+- **V2 with controls**: copy `src/voltkeeper/core/devices/ac60.py`.
+- **V2 read-only**: copy `src/voltkeeper/core/devices/ep600.py`.
+- **V1 with controls**: copy `src/voltkeeper/core/devices/ac300.py`.
+- **V1 minimal**: copy `src/voltkeeper/core/devices/eb3a.py`.
+- **V1 lowPower variant**: copy `src/voltkeeper/core/devices/ac200l.py`.
 
 What to fill in:
 
@@ -91,7 +91,7 @@ What to fill in:
   parse generically. Most new models won't need this.
 - **TODO comment**: leave `# TODO(<MODEL>): verify against hardware` at
   the top until a maintainer (or the contributor) has run
-  `bluetti-cli status` and confirmed sane values.
+  `voltkeeper status` and confirmed sane values.
 
 If the contributor sent an annotation YAML (`draft.yaml`), each entry
 in `annotations` says *"in block X, byte offset Y is field Z"*. Convert
@@ -107,7 +107,7 @@ typed helper) to `_build_real_data_struct`.
 
 ## 5. Wire the registry
 
-In `src/bluetti_cli/bluetooth/__init__.py`:
+In `src/voltkeeper/bluetooth/__init__.py`:
 
 1. Import the new class in `_device_registry()`.
 2. Add `"<PREFIX>": <ClassName>` to the returned dict.
@@ -136,8 +136,8 @@ extracting them currently requires running a paired session.
 
 **Recipe:**
 
-1. Pair `bluetti-cli` against the same physical device the contributor
-   captured from. Patch `src/bluetti_cli/bluetooth/handshake.py:144`
+1. Pair `voltkeeper` against the same physical device the contributor
+   captured from. Patch `src/voltkeeper/bluetooth/handshake.py:144`
    temporarily to log `shared_key.hex()` and `initial_iv.hex()`:
    ```python
    import logging
@@ -146,7 +146,7 @@ extracting them currently requires running a paired session.
    )
    return CbcSession(shared_key, initial_iv)
    ```
-2. Run `bluetti-cli status <ADDR>` against the device with `-v` so the
+2. Run `voltkeeper status <ADDR>` against the device with `-v` so the
    handshake fires. Capture the logged key + IV.
 3. Feed them into the parser:
    ```bash
@@ -166,7 +166,7 @@ small Python script that maintains the IV chain.
 
 If the APK said one thing and the contributor's data said another,
 record it in the new model file's ABOUTME block. Pattern from
-`src/bluetti_cli/core/devices/ac60.py`:
+`src/voltkeeper/core/devices/ac60.py`:
 
 ```python
 # ABOUTME: AC60 small portable — V2 protocol per Android code (minProtocolVer=2000).
@@ -181,7 +181,7 @@ class doesn't match the most obvious-looking source.
 ## 9. Merge
 
 - Verify `uv run pytest`, `uv run ruff check src/ tests/`, and
-  `uv run mypy src/bluetti_cli` all pass.
+  `uv run mypy src/voltkeeper` all pass.
 - Open a PR; commit message style is lowercase imperative (see
   `IMPLEMENTATION_UNITS.md` ground rules for examples).
 - Reply to the contributor's issue with the merged PR + a thank-you.

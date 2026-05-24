@@ -3,7 +3,7 @@
 
 import pytest
 
-from bluetti_cli.bluetooth import _device_registry, build_device
+from voltkeeper.bluetooth import _device_registry, build_device
 
 ALL_PREFIXES = [
     "AC2A",
@@ -37,9 +37,9 @@ def test_registry_has_all_expected_prefixes():
 
 
 def test_v2_models_protocol_version():
-    from bluetti_cli.core.devices.ac2a import AC2A
-    from bluetti_cli.core.devices.ac60 import AC60
-    from bluetti_cli.core.devices.ep600 import EP600
+    from voltkeeper.core.devices.ac2a import AC2A
+    from voltkeeper.core.devices.ac60 import AC60
+    from voltkeeper.core.devices.ep600 import EP600
 
     for cls in (AC2A, AC60, EP600):
         d = cls("AA:BB:CC:DD:EE:FF", "1234567")
@@ -47,12 +47,12 @@ def test_v2_models_protocol_version():
 
 
 def test_v1_models_are_v1():
-    from bluetti_cli.core.devices.ac200l import AC200L
-    from bluetti_cli.core.devices.ac200m import AC200M
-    from bluetti_cli.core.devices.ac200pl import AC200PL
-    from bluetti_cli.core.devices.ac300 import AC300
-    from bluetti_cli.core.devices.ac500 import AC500
-    from bluetti_cli.core.devices.eb3a import EB3A
+    from voltkeeper.core.devices.ac200l import AC200L
+    from voltkeeper.core.devices.ac200m import AC200M
+    from voltkeeper.core.devices.ac200pl import AC200PL
+    from voltkeeper.core.devices.ac300 import AC300
+    from voltkeeper.core.devices.ac500 import AC500
+    from voltkeeper.core.devices.eb3a import EB3A
 
     for cls in (AC200L, AC200M, AC200PL, AC300, AC500, EB3A):
         d = cls("AA:BB:CC:DD:EE:FF", "1234567")
@@ -61,8 +61,8 @@ def test_v1_models_are_v1():
 
 def test_v1_model_has_writable_control_struct():
     """Models with WRITABLE_FIELD_NAMES must populate the control struct."""
-    from bluetti_cli.core.devices.ac300 import AC300
-    from bluetti_cli.core.devices.eb3a import EB3A
+    from voltkeeper.core.devices.ac300 import AC300
+    from voltkeeper.core.devices.eb3a import EB3A
 
     for cls in (AC300, EB3A):
         d = cls("AA:BB:CC:DD:EE:FF", "1234567")
@@ -73,8 +73,8 @@ def test_v1_model_has_writable_control_struct():
 
 
 def test_ac200pl_inherits_ac200l_controls():
-    from bluetti_cli.core.devices.ac200l import AC200L
-    from bluetti_cli.core.devices.ac200pl import AC200PL
+    from voltkeeper.core.devices.ac200l import AC200L
+    from voltkeeper.core.devices.ac200pl import AC200PL
 
     ac200l = AC200L("AA:BB:CC:DD:EE:FF", "1234567")
     ac200pl = AC200PL("AA:BB:CC:DD:EE:FF", "1234567")
@@ -85,8 +85,8 @@ def test_ac200pl_inherits_ac200l_controls():
 
 def test_v1_alarm_fault_parsing_eb3a_default_tables():
     """EB3A uses ConnectConstants (V1 high-power) alarm tables."""
-    from bluetti_cli.core.devices.eb3a import EB3A
-    from bluetti_cli.core.devices.v1_base import BASE_REAL_DATA
+    from voltkeeper.core.devices.eb3a import EB3A
+    from voltkeeper.core.devices.v1_base import BASE_REAL_DATA
 
     eb3a = EB3A("00:00:00:00:00:00", "1234567")
 
@@ -129,8 +129,8 @@ def test_v1_alarm_fault_parsing_eb3a_default_tables():
 
 def test_v1_alarm_fault_parsing_ac200l_low_power_tables():
     """AC200L uses lowPower alarm tables (isLowPower=true)."""
-    from bluetti_cli.core.devices.ac200l import AC200L
-    from bluetti_cli.core.devices.v1_base import BASE_REAL_DATA
+    from voltkeeper.core.devices.ac200l import AC200L
+    from voltkeeper.core.devices.v1_base import BASE_REAL_DATA
 
     ac200l = AC200L("00:00:00:00:00:00", "1234567")
 
@@ -169,7 +169,7 @@ def test_v1_alarm_fault_parsing_ac200l_low_power_tables():
 
 def test_v1_alarm_fault_parsing_no_bits_set():
     """No bits set → no alarm/fault keys."""
-    from bluetti_cli.core.devices.v1_base import BASE_REAL_DATA, V1Base
+    from voltkeeper.core.devices.v1_base import BASE_REAL_DATA, V1Base
 
     v1 = V1Base("00:00:00:00:00:00", "EB3A", "TEST")
 
@@ -186,7 +186,7 @@ def test_v1_alarm_fault_parsing_no_bits_set():
 
 
 def test_build_setter_command_v1():
-    from bluetti_cli.core.devices.ac300 import AC300
+    from voltkeeper.core.devices.ac300 import AC300
 
     d = AC300("AA:BB:CC:DD:EE:FF", "1234567")
     cmd = d.build_setter_command("ac_output", True)
@@ -199,7 +199,7 @@ def test_build_setter_command_v1():
 
 
 def test_build_setter_command_v2():
-    from bluetti_cli.core.devices.ac60 import AC60
+    from voltkeeper.core.devices.ac60 import AC60
 
     d = AC60("AA:BB:CC:DD:EE:FF", "1234567")
     cmd = d.build_setter_command("ac_output", True)

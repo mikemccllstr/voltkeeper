@@ -3,9 +3,9 @@ requires = ["hatchling >= 1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bluetti-cli"
+name = "voltkeeper"
 version = "0.1.0"
-description = "CLI tool for Bluetti power stations — scan, connect, and read data over BLE."
+description = "Voltkeeper CLI, supporting Bluetti power station devices — scan, connect, and read data over BLE."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -13,7 +13,7 @@ license-files = ["LICEN[CS]E*"]
 authors = [
     {name = "Michael McCallister", email = "mike@mccllstr.com"},
 ]
-keywords = ["bluetti", "bluetooth", "ble", "power-station", "battery", "solar", "cli"]
+keywords = ["voltkeeper", "bluetti", "bluetooth", "ble", "power-station", "battery", "solar", "cli"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -43,27 +43,27 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/mikemccllstr/bluetti-cli"
-Issues = "https://github.com/mikemccllstr/bluetti-cli/issues"
+Repository = "https://github.com/mikemccllstr/voltkeeper"
+Issues = "https://github.com/mikemccllstr/voltkeeper/issues"
 
 [project.scripts]
-bluetti-cli = "bluetti_cli.cli:cli"
+voltkeeper = "voltkeeper.cli:cli"
 
 [project.entry-points."pipx.run"]
-bluetti-cli = "bluetti_cli.cli:cli"
+voltkeeper = "voltkeeper.cli:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
-addopts = "-m 'not integration' --cov=src/bluetti_cli --cov-report=term-missing:skip-covered --cov-report=html:htmlcov"
+addopts = "-m 'not integration' --cov=src/voltkeeper --cov-report=term-missing:skip-covered --cov-report=html:htmlcov"
 markers = [
     "integration: tests that exercise real BLE operations (scan, connect)",
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["src/bluetti_cli"]
+source = ["src/voltkeeper"]
 omit = ["*/load_test*"]
 
 [tool.coverage.report]
@@ -85,7 +85,7 @@ select = ["E", "F", "W", "I"]
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["bluetti_cli"]
+known-first-party = ["voltkeeper"]
 
 [tool.mypy]
 python_version = "3.10"

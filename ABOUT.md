@@ -6,7 +6,7 @@ This repository contains the results of reverse-engineering the official Bluetti
 Android app (`net.poweroak.bluetticloud`, v3.0.8) to understand how Bluetti power
 stations communicate over Bluetooth Low Energy.
 
-The practical output is **`bluetti-cli`** — a cross-platform command-line tool
+The practical output is **`voltkeeper`** — a cross-platform command-line tool
 that scans, connects, reads battery data, writes device settings, publishes to
 MQTT, and runs load tests against Bluetti power stations — all over local BLE,
 with no cloud account required.
@@ -37,7 +37,7 @@ automated mise tasks. Static analysis of ~22,900 decompiled classes yielded:
 - The full 20+ microservice backend architecture, API endpoints, MQTT broker
   details, and firmware update flows
 
-From these findings, `bluetti-cli` was built as a standalone Python CLI that
+From these findings, `voltkeeper` was built as a standalone Python CLI that
 speaks the same protocol — using only observation and reimplementation. No code
 was copied from Bluetti's official libraries.
 
@@ -67,7 +67,7 @@ A summary of notable findings from the APK analysis. Full details are in
 
 ## Repository Tour
 
-The CLI source is in `src/bluetti_cli/` (BLE client, device models, MQTT
+The CLI source is in `src/voltkeeper/` (BLE client, device models, MQTT
 integration, CLI commands). Decompiled APK artifacts live in `bluetti-files/`.
 Reverse-engineering findings are documented in `docs/FINDINGS.md`, and the
 multi-device expansion plan lives in `docs/MULTI_DEVICE_PLAN.md`. Tests are in

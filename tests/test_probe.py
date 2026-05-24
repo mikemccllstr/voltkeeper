@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import yaml
 
-from bluetti_cli.bluetooth.exc import BadConnectionError, ModbusError
-from bluetti_cli.probe import (
+from voltkeeper.bluetooth.exc import BadConnectionError, ModbusError
+from voltkeeper.probe import (
     _detect_protocol,
     _v1_base_real_data_size,
     _v1_bms_pack_size,
@@ -149,7 +149,7 @@ async def test_detect_protocol_dynamic_unknown():
 @pytest.mark.asyncio
 async def test_probe_device_connect_failure_still_emits_profile():
     """Client.connect() raises → still returns unknown+empty profile."""
-    with patch("bluetti_cli.probe.BluetoothClient") as MockClient:
+    with patch("voltkeeper.probe.BluetoothClient") as MockClient:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock(side_effect=BadConnectionError("timeout"))
         MockClient.return_value = mock_client

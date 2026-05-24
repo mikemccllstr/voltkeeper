@@ -234,7 +234,7 @@ def _check_warnings(data):
 
 def _write_csv_header(writer, device, phase, expected_load, interval):
     """Write comment header block + column names to an open CSV writer."""
-    writer.writerow(["# bluetti-cli load test"])
+    writer.writerow(["# voltkeeper load test"])
     writer.writerow([f"# Device: {device.type}-{device.sn}"])
     if phase:
         writer.writerow([f"# Phase: {phase}"])
