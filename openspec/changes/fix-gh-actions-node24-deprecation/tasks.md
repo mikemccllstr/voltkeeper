@@ -22,4 +22,4 @@
 ## 4. Validate
 
 - [x] 4.1 Run `mise run check` to confirm no regressions in local toolchain
-- [ ] 4.2 Push branch and verify CI passes without deprecation warnings
+- [x] 4.2 Push branch and verify CI passes without deprecation warnings
