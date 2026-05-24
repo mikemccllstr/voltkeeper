@@ -78,12 +78,10 @@ sources = ["src"]
 
 [tool.hatch.version]
 source = "vcs"
+raw-options = {version_scheme = "post-release"}
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/voltkeeper/_version.py"
-
-[tool.hatch.build.hooks.vcs.template]
-raw-options = {version_scheme = "post-release"}
 
 [tool.ruff]
 line-length = 120
