@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling >= 1.27"]
+requires = ["hatchling >= 1.27", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "voltkeeper"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Voltkeeper CLI, supporting Bluetti power station devices — scan, connect, and read data over BLE."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -75,6 +75,15 @@ exclude_lines = [
 
 [tool.hatch.build.targets.wheel]
 sources = ["src"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/voltkeeper/_version.py"
+
+[tool.hatch.build.hooks.vcs.template]
+raw-options = {version_scheme = "post-release"}
 
 [tool.ruff]
 line-length = 120
