@@ -11,3 +11,6 @@ htmlcov/
 
 # Sphinx build output
 docs/build/
+
+# hatch-vcs auto-generated version file
+src/voltkeeper/_version.py
