@@ -42,36 +42,7 @@ about/index
 api/index
 ```
 
-## Install
-
-### Quick run (no clone required)
-
-```bash
-uvx --from git+https://github.com/mikemccllstr/voltkeeper voltkeeper --help
-```
-
-### From source
-
-```bash
-git clone https://github.com/mikemccllstr/voltkeeper
-cd voltkeeper
-uv run voltkeeper --help
-```
-
-## Quick start
-
-```bash
-voltkeeper scan              # find nearby Bluetti devices
-voltkeeper status            # read battery status
-voltkeeper status AA:BB:CC:DD:EE:FF  # connect directly
-voltkeeper write AA:BB:CC:DD:EE:FF ac_output on   # toggle AC
-```
-
-## Requirements
-
-- Python 3.13+
-- Linux with BlueZ, macOS 11+, or Windows 10 build 19041+ (BLE support)
-- Bluetooth adapter with scan capability
+See the [project README](https://github.com/mikemccllstr/voltkeeper) for installation and requirements. For command reference, see the [User Guide](user-guide/index.md).
 
 ```{toctree}
 :hidden:
