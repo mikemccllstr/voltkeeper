@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 100" role="img" aria-label="voltkeeper">
+  <title>Voltkeeper wordmark</title>
+  <desc>The wordmark "voltkeeper" set in a sans-serif medium weight. The "volt" portion is rendered in amber yellow; the "keeper" portion uses the host text color (currentColor).</desc>
+
+  <!-- The wordmark uses currentColor for the "keeper" half so it adapts to its surrounding
+       context (dark text on light backgrounds, light text on dark). The "volt" half is
+       always the amber accent. To change the keeper color, set the SVG's `color` CSS
+       property on the <svg> element or any ancestor. -->
+  <text x="0" y="72"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="64"
+        font-weight="500"
+        letter-spacing="-1.5"
+        fill="currentColor">
+    <tspan fill="#EAB308">volt</tspan><tspan fill="currentColor">keeper</tspan>
+  </text>
+</svg>
