@@ -5,6 +5,10 @@ uv = "latest"
 java = "latest"
 "github:skylot/jadx" = "latest"
 
+[tasks.setup]
+description = "Install pre-commit hooks"
+run = "uv run pre-commit install"
+
 [tasks.lint]
 description = "Run ruff linter"
 run = "uv run ruff check src/ tests/"

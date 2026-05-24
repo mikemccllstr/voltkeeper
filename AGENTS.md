@@ -24,6 +24,7 @@ This project uses [mise](https://mise.jdx.dev/) to define developer tasks. Alway
 | `mise run test` | Pytest with branch coverage report |
 | `mise run test-fast` | Pytest without coverage overhead |
 | `mise run coverage` | Pytest + open HTML coverage report |
+| `mise run setup` | Install pre-commit hooks (run once after cloning) |
 | `mise run check` | Full quality gate: lint + typecheck + test |
 
 Run `mise run check` before every commit to ensure lint, types, and tests all pass.

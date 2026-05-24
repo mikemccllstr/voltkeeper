@@ -7,6 +7,19 @@ contributing-devices
 maintaining
 ```
 
+## Setup
+
+```bash
+git clone https://github.com/mikemccllstr/voltkeeper
+cd voltkeeper
+uv sync --group dev
+mise run setup
+```
+
+Installs dependencies, then sets up pre-commit hooks (lint, format, typecheck) that
+run automatically on every commit. The CI will catch it if you skip this step, but
+you'll save yourself a round-trip.
+
 ## Architecture
 
 voltkeeper is organized into three main packages under `src/voltkeeper/`:
@@ -38,6 +51,7 @@ This runs lint, typecheck, and tests. Individual checks:
 | `mise run test` | Pytest with branch coverage |
 | `mise run test-fast` | Pytest without coverage overhead |
 | `mise run format` | Ruff formatter (applies changes) |
+| `mise run setup` | Install pre-commit hooks (run once after cloning) |
 | `mise run format-check` | Ruff formatter (check only) |
 
 ## Building documentation
