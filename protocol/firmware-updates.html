@@ -1,0 +1,1110 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="About voltkeeper" href="../about/index.html"><link rel="prev" title="Backend Services" href="backend-services.html">
+        <link rel="prefetch" href="../_static/voltkeeper-logo.svg" as="image">
+
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+        <title>Firmware Updates - voltkeeper</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">voltkeeper</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/voltkeeper-logo.svg" alt="Logo"/>
+  </div>
+  
+  <span class="sidebar-brand-text">voltkeeper</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../user-guide/index.html">User Guide</a><input aria-label="Toggle navigation of User Guide" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/scan.html">scan</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/status.html">status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/write.html">write</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/mqtt.html">MQTT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/load-test.html">Load Test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/probe-annotate.html">Probe and Annotate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/systemd.html">Systemd Services</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../developer/index.html">Developer Guide</a><input aria-label="Toggle navigation of Developer Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../developer/contributing-devices.html">Contributing a new Bluetti device</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../developer/maintaining.html">Maintainer Guide — Adding a New Device from Contributor Submissions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Protocol Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Protocol Reference</a><input aria-label="Toggle navigation of Protocol Reference" checked="" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ble-communication.html">BLE Communication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security</a></li>
+<li class="toctree-l2"><a class="reference internal" href="modbus-registers.html">Modbus Registers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device-models.html">Device Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="encryption-details.html">Encryption Details</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backend-services.html">Backend Services</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Firmware Updates</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">About</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../about/index.html">About voltkeeper</a><input aria-label="Toggle navigation of About voltkeeper" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../about/naming.html">Project Naming</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about/brand.html">Brand Assets</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../man/voltkeeper.1.html">voltkeeper(1) – CLI tool for Bluetti power stations</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../_sources/protocol/firmware-updates.md.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="firmware-updates">
+<h1>Firmware Updates<a class="headerlink" href="#firmware-updates" title="Link to this heading">¶</a></h1>
+<p>This page documents the complete firmware update flow for Bluetti devices: version checking, download (encrypted and unencrypted), BLE local OTA transfer, cloud/remote MQTT-triggered upgrades, broadcast upgrades to multiple sub-devices, upgrade ordering strategies, and server-side upgrade record reporting.</p>
+<!-- Extracted from FINDINGS.md §11 -->
+<section id="firmware-update-flow-complete-reference">
+<h2>11. Firmware Update Flow — Complete Reference<a class="headerlink" href="#firmware-update-flow-complete-reference" title="Link to this heading">¶</a></h2>
+<p>Source files: <code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBaseActivity.java</span></code>, <code class="docutils literal notranslate"><span class="pre">DeviceVersionModel.java</span></code>, <code class="docutils literal notranslate"><span class="pre">DeviceVersionRepository.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FirmwareDownloadViewModel.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FirmwareDownloadRepository.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FirmwareUpgradeConfig.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FirmwareUpgradeOrder.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FmUpgradeStrategy.java</span></code>, <code class="docutils literal notranslate"><span class="pre">DeviceFmVer.java</span></code>, <code class="docutils literal notranslate"><span class="pre">DeviceSoftwareVerResp.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FirmwareVerReq.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FirmwareVerItemBean.java</span></code>, <code class="docutils literal notranslate"><span class="pre">DeviceFirmware.java</span></code>, <code class="docutils literal notranslate"><span class="pre">ProtocolParse.java</span></code>, <code class="docutils literal notranslate"><span class="pre">ConnectManager.java</span></code>, <code class="docutils literal notranslate"><span class="pre">OTAGroup.java</span></code>, <code class="docutils literal notranslate"><span class="pre">UpgradeStatus.java</span></code>, <code class="docutils literal notranslate"><span class="pre">SmartProductService.java</span></code>, <code class="docutils literal notranslate"><span class="pre">DeviceConnUtilKt.java</span></code>, <code class="docutils literal notranslate"><span class="pre">OtaUtil.java</span></code> (both <code class="docutils literal notranslate"><span class="pre">lib_ble</span></code> and app copy), <code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBroadcastBean.java</span></code>, <code class="docutils literal notranslate"><span class="pre">BootUpgradeSupport.java</span></code>, <code class="docutils literal notranslate"><span class="pre">DeviceNodeOTAStatusItem.java</span></code>, <code class="docutils literal notranslate"><span class="pre">FirmwareDetection.java</span></code>.</p>
+<p>Two primary upgrade paths exist: <strong>BLE local</strong> (app downloads firmware, sends it over BLE to the device) and <strong>Cloud/Remote</strong> (app triggers server, server sends MQTT command to device, device fetches firmware over Wi-Fi). The app can also do <strong>broadcast upgrades</strong> to push firmware to multiple sub-devices simultaneously (e.g., parallel battery packs).</p>
+<section id="step-1-version-check">
+<h3>11.1 Step 1 — Version Check<a class="headerlink" href="#step-1-version-check" title="Link to this heading">¶</a></h3>
+<p>The app sends the device’s current firmware state to the server, which responds with available updates. Four API versions exist, growing in capability. All are defined in <code class="docutils literal notranslate"><span class="pre">SmartProductService.java</span></code>:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Endpoint</p></th>
+<th class="head"><p>Return Type</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/blusmartprod/device/firmware/v1/latest/firmwareVerList</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseResponse&lt;List&lt;DeviceFmVer&gt;&gt;</span></code></p></td>
+<td><p>Single device (legacy)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/blusmartprod/device/firmware/v1/latest/firmwareVerList/batch</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseResponse&lt;List&lt;DeviceSoftwareVerResp&gt;&gt;</span></code></p></td>
+<td><p>Multi-device batch v1</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/blusmartprod/device/firmware/v2/latest/firmwareVerList/batch</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseResponse&lt;List&lt;DeviceSoftwareVerResp&gt;&gt;</span></code></p></td>
+<td><p>Multi-device batch v2</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/blusmartprod/device/firmware/v3/latest/firmwareVerList</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BaseResponse&lt;DeviceSoftwareVerResp&gt;</span></code></p></td>
+<td><p>Single device v3</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Each endpoint uses a <strong>different <code class="docutils literal notranslate"><span class="pre">gwcredentials</span></code> query parameter</strong> — these are hardcoded static strings in <code class="docutils literal notranslate"><span class="pre">SmartProductService.java</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">firmwareVerList</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;46qdFOnnZBoUxpEDVl/MSP0RDCe0PJGdAedIYCokg793SQddlu++dMJoaFLrexKdB6Y9Tk24XbWes5rcDHasgzZGEmQ+9f2FZqH0Jrm8Ltc=&quot;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">firmwareVerListV3</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;Jlm47JC5ddystdOYeOTR/8aCmnE3m55fDg5lKJQhp7GaBgiKPr9hiYpKqrsqpmurlBZKHyX5p3WfIQ2ekJQZaXTe99qUY0d8rIgKyOXb0nw=&quot;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">firmwareVerListBatch</span> <span class="pre">/</span> <span class="pre">firmwareVerListBatchV2</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;osUZ8ygqt1s/awsURLTwupGKN/CH8sRRODw/lZLlrv49jdBtu7UuRqxUkYHH6jWswlLPybPJ2WShH/r928K10amSgY0pWE2+eeijxYovV9DIcRgwZhBbSQ==&quot;</span></code></p></li>
+</ul>
+<p>These are Base64-encoded authentication/authorization tokens for the API gateway.</p>
+<p><strong>Request body</strong> (<code class="docutils literal notranslate"><span class="pre">FirmwareVerReq</span></code> in <code class="docutils literal notranslate"><span class="pre">FirmwareVerReq.java</span></code>):</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;sn&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;device serial number&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;model code, e.g. AC2A&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;iotVer&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;armVer&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;dspVer&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;bmsVer&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;mobileId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;phone ID&gt;&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;firmwareVers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;firmwareId&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ver&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1234</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>For <strong>batch requests</strong>, the body is a <code class="docutils literal notranslate"><span class="pre">List&lt;Map&lt;String,</span> <span class="pre">Object&gt;&gt;</span></code> where each map has <code class="docutils literal notranslate"><span class="pre">&quot;sn&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;firmwareVers&quot;</span></code> (list of <code class="docutils literal notranslate"><span class="pre">{&quot;firmwareId&quot;,</span> <span class="pre">&quot;ver&quot;}</span></code> maps), and for battery packs: <code class="docutils literal notranslate"><span class="pre">&quot;masterDeviceModel&quot;</span></code>. The <code class="docutils literal notranslate"><span class="pre">firmwareId</span></code> integers map to the <code class="docutils literal notranslate"><span class="pre">DeviceFirmware</span></code> enum (Section 11.2).</p>
+<p><strong>Response</strong> — batch endpoints return <code class="docutils literal notranslate"><span class="pre">List&lt;DeviceSoftwareVerResp&gt;</span></code> where each item contains <code class="docutils literal notranslate"><span class="pre">model</span></code> (String), <code class="docutils literal notranslate"><span class="pre">sn</span></code> (String), and <code class="docutils literal notranslate"><span class="pre">versions</span></code> (List<DeviceFmVer>). The V2 single-device endpoint returns <code class="docutils literal notranslate"><span class="pre">List&lt;DeviceFmVer&gt;</span></code> directly.</p>
+<p>The app determines if a new version is available via <code class="docutils literal notranslate"><span class="pre">DeviceConnUtilKt.deviceFmNewVersionAvailable(oldVer,</span> <span class="pre">newVer)</span></code> which compares version strings numerically, ensuring the part number prefix matches.</p>
+<p><strong>HTTP call chain:</strong> <code class="docutils literal notranslate"><span class="pre">Activity</span></code> → <code class="docutils literal notranslate"><span class="pre">DeviceVersionModel.kt</span></code> (ViewModel/LiveData) → <code class="docutils literal notranslate"><span class="pre">DeviceVersionRepository.kt</span></code> → <code class="docutils literal notranslate"><span class="pre">SmartProductService.kt</span></code> (Retrofit).</p>
+</section>
+<section id="firmware-component-types-devicefirmware-enum">
+<h3>11.2 Firmware Component Types (<code class="docutils literal notranslate"><span class="pre">DeviceFirmware</span></code> enum)<a class="headerlink" href="#firmware-component-types-devicefirmware-enum" title="Link to this heading">¶</a></h3>
+<p>Defined in <code class="docutils literal notranslate"><span class="pre">DeviceFirmware.java</span></code> / <code class="docutils literal notranslate"><span class="pre">ConnectConstants.kt</span></code>. The <code class="docutils literal notranslate"><span class="pre">firmwareId</span></code> is the integer value.</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>ID</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>ID</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>IOT</p></td>
+<td><p>IoT/WiFi module</p></td>
+<td><p>13</p></td>
+<td><p>RF</p></td>
+<td><p>RF module</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p>ARM</p></td>
+<td><p>Main ARM processor</p></td>
+<td><p>14</p></td>
+<td><p>DC_HUB</p></td>
+<td><p>DC hub</p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p>DSP</p></td>
+<td><p>DSP chip</p></td>
+<td><p>15</p></td>
+<td><p>AC_HUB</p></td>
+<td><p>AC hub</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p>BMS</p></td>
+<td><p>Battery management system</p></td>
+<td><p>16</p></td>
+<td><p>DC_DC</p></td>
+<td><p>DC-DC converter</p></td>
+</tr>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>BA</p></td>
+<td><p>Battery array</p></td>
+<td><p>17</p></td>
+<td><p>ATS</p></td>
+<td><p>Auto transfer switch</p></td>
+</tr>
+<tr class="row-odd"><td><p>5</p></td>
+<td><p>PACK_BCU</p></td>
+<td><p>Battery pack BCU</p></td>
+<td><p>18</p></td>
+<td><p>PANEL</p></td>
+<td><p>Solar panel controller</p></td>
+</tr>
+<tr class="row-even"><td><p>6</p></td>
+<td><p>PACK_BMU</p></td>
+<td><p>Battery pack BMU</p></td>
+<td><p>19</p></td>
+<td><p>PARALLEL_BOX</p></td>
+<td><p>Parallel box</p></td>
+</tr>
+<tr class="row-odd"><td><p>7</p></td>
+<td><p>PACK_BMS</p></td>
+<td><p>Battery pack BMS</p></td>
+<td><p>20</p></td>
+<td><p>INV_DSP2</p></td>
+<td><p>Second inverter DSP</p></td>
+</tr>
+<tr class="row-even"><td><p>8</p></td>
+<td><p>PACK_M1</p></td>
+<td><p>Pack M1</p></td>
+<td><p>11</p></td>
+<td><p>HMI1 / HMI_BOOT / HMI_KERNEL / HMI_FILE_SYS / HMI_APP_UI / HMI_APP_BASE</p></td>
+<td><p>Display sub-components</p></td>
+</tr>
+<tr class="row-odd"><td><p>9</p></td>
+<td><p>PACK_SAFETY</p></td>
+<td><p>Pack safety</p></td>
+<td><p>253</p></td>
+<td><p>PPS</p></td>
+<td><p>PPS</p></td>
+</tr>
+<tr class="row-even"><td><p>10</p></td>
+<td><p>PACK_HIGH_VOLTAGE</p></td>
+<td><p>Pack high voltage</p></td>
+<td><p>254</p></td>
+<td><p>BOOT</p></td>
+<td><p>Bootloader</p></td>
+</tr>
+<tr class="row-odd"><td><p>12</p></td>
+<td><p>HMI2</p></td>
+<td><p>Second display</p></td>
+<td><p>255</p></td>
+<td><p>SYSTEM</p></td>
+<td><p>System</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>HMI sub-components</strong> (all share firmwareId 11): HMI_BOOT, HMI_KERNEL, HMI_FILE_SYS, HMI_APP_UI, HMI_APP_BASE. These represent different partitions of the display firmware.</p>
+<p><strong>Boot firmware detection:</strong> <code class="docutils literal notranslate"><span class="pre">DeviceFmVer.isBootVer()</span></code> returns true if the version string length &gt; 6 and characters at positions 5–6 are <code class="docutils literal notranslate"><span class="pre">&quot;00&quot;</span></code>, indicating the firmware targets the bootloader.</p>
+</section>
+<section id="step-2-server-response-devicefmver">
+<h3>11.3 Step 2 — Server Response (<code class="docutils literal notranslate"><span class="pre">DeviceFmVer</span></code>)<a class="headerlink" href="#step-2-server-response-devicefmver" title="Link to this heading">¶</a></h3>
+<p>The server returns one <code class="docutils literal notranslate"><span class="pre">DeviceFmVer</span></code> object per firmware component. Key fields (from <code class="docutils literal notranslate"><span class="pre">DeviceFmVer.java</span></code>):</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">firmwareType</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Component ID (from DeviceFirmware enum)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">version</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Target version string</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">currVersion</span></code></p></td>
+<td><p>long</p></td>
+<td><p>Device’s current version (echoed back)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hasNewVersion</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code> if an update is available</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">downloadUrl</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Direct URL to download the binary (for unencrypted firmware)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fileMd5</span></code></p></td>
+<td><p>String</p></td>
+<td><p>MD5 checksum for post-download integrity check</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fileSize</span></code></p></td>
+<td><p>int</p></td>
+<td><p>File size in bytes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">encrypted</span></code></p></td>
+<td><p>bool</p></td>
+<td><p>Whether the firmware file is encrypted</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">signature</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Firmware signature — sent as final OTA packet</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">checkSum</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Additional checksum field</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">shardSize</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Chunk size in bytes for BLE transfer (from <code class="docutils literal notranslate"><span class="pre">X-Shard-Size</span></code> header for encrypted firmware, else defaults to 1024)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">supportBroadcastUpgrade</span></code></p></td>
+<td><p>bool</p></td>
+<td><p>Can be pushed to multiple sub-devices at once via broadcast OTA</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">needToReconnect</span></code></p></td>
+<td><p>bool</p></td>
+<td><p>Device requires BLE reconnect after flashing</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">versionList</span></code></p></td>
+<td><p>List<DeviceFmVer></p></td>
+<td><p>Sub-components (e.g. HMI has BOOT/KERNEL/APP parts with individual version info)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">upgradeStrategy</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Upgrade strategy identifier (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;ARM_LAST&quot;</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">firmwareId</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Firmware identifier string</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sn</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Target device serial</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Target device model</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="step-3-firmware-download">
+<h3>11.4 Step 3 — Firmware Download<a class="headerlink" href="#step-3-firmware-download" title="Link to this heading">¶</a></h3>
+<section id="download-url-construction">
+<h4>11.4.1 Download URL Construction<a class="headerlink" href="#download-url-construction" title="Link to this heading">¶</a></h4>
+<p><strong>Unencrypted firmware:</strong> Uses <code class="docutils literal notranslate"><span class="pre">downloadUrl</span></code> from the API response directly. This is a fully-qualified or relative URL pointing to the firmware binary.</p>
+<p><strong>Encrypted firmware:</strong> Uses a URL constructed in <code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBaseActivity.java:741-743</span></code> with a <strong>hardcoded <code class="docutils literal notranslate"><span class="pre">gwcredentials</span></code> token</strong>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>/api/blusmartprod/device/firmware/encrypted/v1/download
+    ?sn=&lt;deviceSn&gt;
+    &amp;fm=&lt;firmwareId&gt;
+    &amp;gwcredentials=7plHLMKU7rc92SATG1brZp2WOKG/MVcwDP0jDucHdG9fYoM1ZNjGlCpCtENCnlYuCJWRZ0wiwB0E5hg4W525F5mBTDiZKrCBqjg6L5vLmeM=
+</pre></div>
+</div>
+<p>This credential is stored as constant <code class="docutils literal notranslate"><span class="pre">FIRMWARE_DOWNLOAD_GWCREDENTIALS</span></code> in <code class="docutils literal notranslate"><span class="pre">SmartProductService.java:69</span></code>. The full URL is appended to <code class="docutils literal notranslate"><span class="pre">EnvManager.getBaseUrl()</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">https://gw.bluettipower.com</span></code>).</p>
+<p>The encrypted download response contains firmware metadata in <strong>HTTP response headers</strong> (not in the body):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">X-Shard-Size</span></code> → stored as <code class="docutils literal notranslate"><span class="pre">firmware.shardSize</span></code> (chunk size for BLE OTA transfer)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">X-Signature</span></code> → stored as <code class="docutils literal notranslate"><span class="pre">firmware.signature</span></code> (sent as the final packet in OTA transfer)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">X-Checksum</span></code> → stored as <code class="docutils literal notranslate"><span class="pre">firmware.fileMd5</span></code> (MD5 checksum for validation)</p></li>
+</ul>
+</section>
+<section id="download-execution">
+<h4>11.4.2 Download Execution<a class="headerlink" href="#download-execution" title="Link to this heading">¶</a></h4>
+<p>The download is managed through <code class="docutils literal notranslate"><span class="pre">FirmwareDownloadViewModel</span></code> → <code class="docutils literal notranslate"><span class="pre">FirmwareDownloadRepository</span></code>, using Kotlin coroutines and <code class="docutils literal notranslate"><span class="pre">Flow&lt;DownloadStatus&gt;</span></code>. The download streams the firmware binary to a cache file and returns progress updates.</p>
+<p><strong>Flow:</strong></p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBaseActivity.firmwareDownload(firmware,</span> <span class="pre">showSuccessTips,</span> <span class="pre">showLoading)</span></code> is called</p></li>
+<li><p>A new file is created via <code class="docutils literal notranslate"><span class="pre">FirmwareDownloadViewModel.newFirmwareFile()</span></code></p></li>
+<li><p>The download URL is constructed (if encrypted, using the hardcoded endpoint)</p></li>
+<li><p>A coroutine launches that calls <code class="docutils literal notranslate"><span class="pre">downloadVM.download(url,</span> <span class="pre">IDownloadBuild)</span></code>, collecting a <code class="docutils literal notranslate"><span class="pre">Flow&lt;DownloadStatus&gt;</span></code></p></li>
+<li><p>On <code class="docutils literal notranslate"><span class="pre">DownloadSuccess</span></code>, response headers are parsed for encrypted firmware metadata</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">firmware.setDownload(true)</span></code> triggers the callback</p></li>
+</ol>
+</section>
+<section id="file-naming-and-storage">
+<h4>11.4.3 File Naming and Storage<a class="headerlink" href="#file-naming-and-storage" title="Link to this heading">¶</a></h4>
+<p><strong>File location:</strong> App’s cache directory (<code class="docutils literal notranslate"><span class="pre">context.getCacheDir()</span></code>).</p>
+<p><strong>File naming convention</strong> (<code class="docutils literal notranslate"><span class="pre">FirmwareDownloadViewModel.java:59-69</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="n">modelCode</span><span class="p">}</span><span class="n">_</span><span class="p">{</span><span class="n">firmwareTypeName</span><span class="p">}</span><span class="n">_</span><span class="p">{</span><span class="n">version</span><span class="p">}</span><span class="n">_</span><span class="p">{</span><span class="n">firmwareId</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>Example: <code class="docutils literal notranslate"><span class="pre">AC200L_IOT_v9001.00_abc123</span></code></p>
+<p>The <code class="docutils literal notranslate"><span class="pre">firmwareTypeName</span></code> is resolved from <code class="docutils literal notranslate"><span class="pre">ConnectConstantsKt.getFirmwareTypeName(firmwareType)</span></code>.</p>
+</section>
+<section id="cache-validation">
+<h4>11.4.4 Cache Validation<a class="headerlink" href="#cache-validation" title="Link to this heading">¶</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">FirmwareDownloadViewModel.isFirmwareFileExits()</span></code> checks:</p>
+<ul class="simple">
+<li><p>The file exists on disk</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">fileMd5</span></code> is present, verifies the file’s MD5 hash matches
+If both pass, the cached file is reused without re-downloading.</p></li>
+</ul>
+</section>
+</section>
+<section id="step-4a-delivery-to-device-via-ble-local-ota">
+<h3>11.5 Step 4A — Delivery to Device via BLE (Local OTA)<a class="headerlink" href="#step-4a-delivery-to-device-via-ble-local-ota" title="Link to this heading">¶</a></h3>
+<p>This is the primary path when the phone is connected to the device via Bluetooth.</p>
+<section id="ota-start-command">
+<h4>11.5.1 OTA Start Command<a class="headerlink" href="#ota-start-command" title="Link to this heading">¶</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">ProtocolParse.otaStartCmd(firmware,</span> <span class="pre">deviceModel,</span> <span class="pre">protVer,</span> <span class="pre">otaType,</span> <span class="pre">idOfGroup,</span> <span class="pre">fmCount,</span> <span class="pre">modbusSlave)</span></code> builds the hex command string to initiate OTA.</p>
+<p><strong>For protocol ≥ 2000 (V2):</strong> Uses register address <code class="docutils literal notranslate"><span class="pre">700</span></code> (<code class="docutils literal notranslate"><span class="pre">0x02BC</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="n">modbusSlave</span><span class="p">}</span> <span class="mi">10</span> <span class="mi">02</span><span class="n">BC</span> <span class="mi">0006</span> <span class="mi">0</span><span class="n">C</span> <span class="p">{</span><span class="n">otaType</span><span class="p">}</span> <span class="p">{</span><span class="n">fmType</span><span class="p">}</span> <span class="p">{</span><span class="n">version_le32</span><span class="p">}</span> <span class="p">{</span><span class="n">fileSizeKb</span><span class="p">}</span> <span class="p">{</span><span class="n">otaGroup</span><span class="p">}</span> <span class="p">{</span><span class="n">idOfGroup</span><span class="p">}</span> <span class="n">CRC</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">modbusSlave</span></code>: 1 normally, 0 for 2nd-gen IoT</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">otaType</span></code>: 1 (normal), 3 (broadcast)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">version</span></code>: 4 bytes little-endian</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fileSizeKb</span></code>: <code class="docutils literal notranslate"><span class="pre">ceil(fileSize</span> <span class="pre">/</span> <span class="pre">1024)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">otaGroup</span></code>: from <code class="docutils literal notranslate"><span class="pre">DeviceConnUtilKt.deviceFmOtaGroup(fmType,</span> <span class="pre">model)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">idOfGroup</span></code>: 255 for broadcast, null for normal</p></li>
+</ul>
+<p><strong>For protocol &lt; 2000 (V1):</strong> Uses register address <code class="docutils literal notranslate"><span class="pre">1080</span></code> (<code class="docutils literal notranslate"><span class="pre">0x0438</span></code>, <code class="docutils literal notranslate"><span class="pre">OTA_START</span></code> in <code class="docutils literal notranslate"><span class="pre">ProtocolAddr</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">01</span> <span class="mi">10</span> <span class="mi">0438</span> <span class="o">&lt;</span><span class="n">dataLen</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">params</span><span class="o">&gt;</span> <span class="n">CRC</span>
+</pre></div>
+</div>
+<p>Where <code class="docutils literal notranslate"><span class="pre">&lt;params&gt;</span></code> varies by device model — e.g., for AC240/AC240P/AC200L/AC200PL:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">00</span> <span class="mi">05</span> <span class="mi">0</span><span class="n">A</span> <span class="p">{</span><span class="n">fmType</span><span class="p">}</span> <span class="mi">0000</span> <span class="p">{</span><span class="n">idOfGroup</span><span class="p">}</span> <span class="mi">0000</span> <span class="p">{</span><span class="n">fileSizeKb</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>And for other models: <code class="docutils literal notranslate"><span class="pre">0002</span> <span class="pre">04</span> <span class="pre">{fmType}</span> <span class="pre">0000</span></code>.</p>
+</section>
+<section id="ota-initiation">
+<h4>11.5.2 OTA Initiation<a class="headerlink" href="#ota-initiation" title="Link to this heading">¶</a></h4>
+<p>In <code class="docutils literal notranslate"><span class="pre">ConnectManager.otaRequest(firmwareBean,</span> <span class="pre">callback,</span> <span class="pre">isRemote)</span></code>:</p>
+<ol class="arabic simple">
+<li><p>Sets <code class="docutils literal notranslate"><span class="pre">isOTA</span> <span class="pre">=</span> <span class="pre">true</span></code>, stores firmwareBean</p></li>
+<li><p>For BLE mode: Sends the OTA start command via <code class="docutils literal notranslate"><span class="pre">addTaskItem()</span></code> as a <code class="docutils literal notranslate"><span class="pre">BleTaskItem</span></code></p></li>
+<li><p>For remote mode: Returns immediately (server triggers upgrade via MQTT)</p></li>
+<li><p>Up to 3 retries (<code class="docutils literal notranslate"><span class="pre">otaRequestCount</span></code>) on OTA start failure</p></li>
+</ol>
+</section>
+<section id="ota-data-transfer">
+<h4>11.5.3 OTA Data Transfer<a class="headerlink" href="#ota-data-transfer" title="Link to this heading">¶</a></h4>
+<p>Once the device acknowledges the OTA start (response <code class="docutils literal notranslate"><span class="pre">&quot;43&quot;</span></code>), data transfer begins. <code class="docutils literal notranslate"><span class="pre">ConnectManager.getOTAFileData(index)</span></code>:</p>
+<ol class="arabic">
+<li><p><strong>First call:</strong> Reads the entire firmware file into memory via <code class="docutils literal notranslate"><span class="pre">OtaUtil.fileToByteArray()</span></code></p></li>
+<li><p><strong>Total packs calculation:</strong></p>
+<ul class="simple">
+<li><p>Encrypted: <code class="docutils literal notranslate"><span class="pre">ceil(fileSize</span> <span class="pre">/</span> <span class="pre">shardSize)</span> <span class="pre">+</span> <span class="pre">1</span></code> (the +1 is the signature packet)</p></li>
+<li><p>Non-encrypted: <code class="docutils literal notranslate"><span class="pre">ceil(fileSize</span> <span class="pre">/</span> <span class="pre">1024)</span></code></p></li>
+</ul>
+</li>
+<li><p><strong>Per-packet construction:</strong> Each packet is wrapped as:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nb">type</span><span class="p">}{</span><span class="n">index</span><span class="p">}{</span><span class="n">checkIndex</span><span class="p">}{</span><span class="n">hexData</span><span class="p">}{</span><span class="n">CRC16_XMODEM</span><span class="p">}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">type</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;A1&quot;</span></code> for encrypted data packets, <code class="docutils literal notranslate"><span class="pre">&quot;A2&quot;</span></code> for signature packet (last), constant for non-encrypted</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">index</span></code>: packet index (0–255, wrapped)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">checkIndex</span></code>: <code class="docutils literal notranslate"><span class="pre">255</span> <span class="pre">-</span> <span class="pre">index</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hexData</span></code>: the chunk of firmware bytes</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CRC16_XMODEM</span></code>: checksum of the frame</p></li>
+</ul>
+</li>
+<li><p><strong>ESP32 encrypted devices:</strong> The entire wrapped packet is additionally AES-CBC encrypted with <code class="docutils literal notranslate"><span class="pre">bleConnShareKey</span></code> before BLE transmission.</p></li>
+</ol>
+</section>
+<section id="ota-response-handling">
+<h4>11.5.4 OTA Response Handling<a class="headerlink" href="#ota-response-handling" title="Link to this heading">¶</a></h4>
+<p>Device responses over BLE (<code class="docutils literal notranslate"><span class="pre">ConnectManager.otaDataChange(result)</span></code>):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;43&quot;</span></code> — OTA start acknowledged → begin data transfer (<code class="docutils literal notranslate"><span class="pre">otaPackIndex</span> <span class="pre">=</span> <span class="pre">1</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;06&quot;</span></code> — Packet acknowledged → increment index, write next packet</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;15&quot;</span></code> — NAK (negative acknowledge) → retry up to 10 times with 200ms delay</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;18&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;1818&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;01</span> <span class="pre">81</span> <span class="pre">01</span> <span class="pre">81</span> <span class="pre">90&quot;</span></code> — OTA write complete</p>
+<ul>
+<li><p>For portable/charger/hub devices (non-cloud, non-IOT): starts polling timer for OTA status</p></li>
+<li><p>Otherwise: immediately notifies <code class="docutils literal notranslate"><span class="pre">onUpgradeComplete()</span></code></p></li>
+</ul>
+</li>
+</ul>
+<p><strong>Progress reporting:</strong> <code class="docutils literal notranslate"><span class="pre">updateProgress(default,</span> <span class="pre">currentPack,</span> <span class="pre">totalPacks)</span></code> reports percentage. Reaches 100% when all packs are sent.</p>
+<p><strong>Error handling:</strong> <code class="docutils literal notranslate"><span class="pre">BleOtaCallback.onUpgradeFailed(error,</span> <span class="pre">errCode)</span></code> with error types: <code class="docutils literal notranslate"><span class="pre">FILE_TOO_LARGE</span></code>, <code class="docutils literal notranslate"><span class="pre">FILE_ERROR</span></code>, <code class="docutils literal notranslate"><span class="pre">CANCEL</span></code>, <code class="docutils literal notranslate"><span class="pre">TIMEOUT</span></code>, <code class="docutils literal notranslate"><span class="pre">OTHER</span></code>. A 15-second OTA status countdown timer retries up to 3× before declaring a timeout failure.</p>
+</section>
+</section>
+<section id="step-4b-cloud-remote-ota-mqtt-based">
+<h3>11.6 Step 4B — Cloud / Remote OTA (MQTT-Based)<a class="headerlink" href="#step-4b-cloud-remote-ota-mqtt-based" title="Link to this heading">¶</a></h3>
+<p>Used when the device is connected to the internet via Wi-Fi and the app is not in local BLE range.</p>
+<p><strong>API endpoint:</strong> <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/blusmartprod/device/firmware/v1/appSentDeviceRemoteUpgrade</span></code></p>
+<p><strong>Request body</strong> (constructed in <code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBaseActivity.callRemoteUpgrade()</span></code>):</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>{
+  &quot;masterSn&quot;: &quot;&lt;master device serial&gt;&quot;,
+  &quot;model&quot;: &quot;&lt;master device model&gt;&quot;,
+  &quot;request&quot;: [{
+    &quot;sn&quot;: &quot;&lt;target device sn&gt;&quot;,
+    &quot;model&quot;: &quot;&lt;target device model&gt;&quot;,
+    &quot;firmwareVers&quot;: [{
+      &quot;firmwareId&quot;: &lt;firmwareType&gt;,
+      &quot;ver&quot;: &lt;currentVersion&gt;
+    }]
+  }]
+}
+</pre></div>
+</div>
+<p>The cloud receives this request and sends an <strong>MQTT command</strong> to the device, instructing it to fetch and apply firmware autonomously over its own internet connection. The app then:</p>
+<ol class="arabic simple">
+<li><p>Calls <code class="docutils literal notranslate"><span class="pre">firmwareUpgrade(firmware,</span> <span class="pre">isRemote=true)</span></code> — skips local file path setup, does NOT build OTA start command</p></li>
+<li><p>Delays 3000ms, then starts <code class="docutils literal notranslate"><span class="pre">otaStatusCountDown</span></code> timer</p></li>
+<li><p>Polls OTA status via BLE/MQTT</p></li>
+<li><p>Up to 3 retries</p></li>
+</ol>
+<p><strong>AECC devices</strong> use a separate endpoint:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">POST</span> <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">blusmartprod</span><span class="o">/</span><span class="n">device</span><span class="o">/</span><span class="n">firmware</span><span class="o">/</span><span class="n">v1</span><span class="o">/</span><span class="n">aeccSentDeviceRemoteUpgrade</span>
+</pre></div>
+</div>
+</section>
+<section id="broadcast-upgrade">
+<h3>11.7 Broadcast Upgrade<a class="headerlink" href="#broadcast-upgrade" title="Link to this heading">¶</a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">DeviceFmVer.supportBroadcastUpgrade</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code>, a single OTA command can push firmware to multiple connected sub-devices simultaneously (e.g., parallel battery packs in a stack).</p>
+<ul class="simple">
+<li><p><strong>OTA type:</strong> <code class="docutils literal notranslate"><span class="pre">3</span></code> (vs <code class="docutils literal notranslate"><span class="pre">1</span></code> for normal)</p></li>
+<li><p><strong>Group ID:</strong> <code class="docutils literal notranslate"><span class="pre">255</span></code> (broadcast to all sub-devices in the group)</p></li>
+<li><p><strong>Record saving:</strong> Uses <code class="docutils literal notranslate"><span class="pre">upgradeRecordBroadcastSave()</span></code> instead of <code class="docutils literal notranslate"><span class="pre">upgradeRecordSave()</span></code>, returning a <code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBroadcastBean</span></code> with <code class="docutils literal notranslate"><span class="pre">recordId</span></code></p></li>
+<li><p><strong>Per-node tracking:</strong> <code class="docutils literal notranslate"><span class="pre">List&lt;DeviceNodeOTAStatusItem&gt;</span></code> tracks each sub-device’s status (<code class="docutils literal notranslate"><span class="pre">otaStatus</span></code>, <code class="docutils literal notranslate"><span class="pre">errorCode</span></code>, <code class="docutils literal notranslate"><span class="pre">softwareVer</span></code>, <code class="docutils literal notranslate"><span class="pre">sn</span></code>, <code class="docutils literal notranslate"><span class="pre">modelNumber</span></code>)</p></li>
+<li><p><strong>UI:</strong> <code class="docutils literal notranslate"><span class="pre">DeviceOTAStatusDialog</span></code> shows live progress with per-node status during multi-device upgrades</p></li>
+</ul>
+</section>
+<section id="ota-groups">
+<h3>11.8 OTA Groups<a class="headerlink" href="#ota-groups" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">OTAGroup.java</span></code> enum maps firmware types to OTA groups, which determine the target device subsystem:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Group</p></th>
+<th class="head"><p>Value</p></th>
+<th class="head"><p>Firmware Types</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>INV</p></td>
+<td><p>1</p></td>
+<td><p>ARM, DSP, INV_DSP2, AC_HUB, DC_HUB</p></td>
+</tr>
+<tr class="row-odd"><td><p>PACK</p></td>
+<td><p>2</p></td>
+<td><p>PACK_BCU, PACK_BMU, PACK_BMS, PACK_M1, PACK_SAFETY, PACK_HIGH_VOLTAGE, DC_DC, BA</p></td>
+</tr>
+<tr class="row-even"><td><p>IOT</p></td>
+<td><p>3</p></td>
+<td><p>IOT, HMI1, HMI2, RF</p></td>
+</tr>
+<tr class="row-odd"><td><p>LCD</p></td>
+<td><p>4</p></td>
+<td><p>EPAD HMI1</p></td>
+</tr>
+<tr class="row-even"><td><p>ATS</p></td>
+<td><p>5</p></td>
+<td><p>ATS, AT1 IOT</p></td>
+</tr>
+<tr class="row-odd"><td><p>PANEL</p></td>
+<td><p>6</p></td>
+<td><p>PANEL, EPANEL</p></td>
+</tr>
+<tr class="row-even"><td><p>DCDC_OR_CHARGER</p></td>
+<td><p>7</p></td>
+<td><p>D400S</p></td>
+</tr>
+<tr class="row-odd"><td><p>WT</p></td>
+<td><p>8</p></td>
+<td><p>WT</p></td>
+</tr>
+<tr class="row-even"><td><p>S1</p></td>
+<td><p>9</p></td>
+<td><p>S1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Group mapping is defined in <code class="docutils literal notranslate"><span class="pre">DeviceConnUtilKt.deviceFmOtaGroup(fmType,</span> <span class="pre">model)</span></code>.</p>
+</section>
+<section id="step-5-upgrade-order-and-strategy">
+<h3>11.9 Step 5 — Upgrade Order and Strategy<a class="headerlink" href="#step-5-upgrade-order-and-strategy" title="Link to this heading">¶</a></h3>
+<p>Multiple firmware components are flashed <strong>sequentially</strong> in a device-model-specific order.</p>
+<section id="configuration-classes">
+<h4>Configuration Classes<a class="headerlink" href="#configuration-classes" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">FirmwareUpgradeConfig.java</span></code></strong> — Singleton defining upgrade order per device model</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">FirmwareUpgradeOrder.java</span></code></strong> — Data class with three fields:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">invOrder</span></code> (List<Integer>) — Order for inverter firmware types</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">packOrder</span></code> (List<Integer>) — Order for battery pack firmware types</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">delays</span></code> (Map&lt;Integer, Long&gt;) — Optional delays in ms between firmware upgrades</p></li>
+</ul>
+</li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">FmUpgradeStrategy.java</span></code></strong> — Enum with two strategies:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">DEFAULT</span></code> — Uses both <code class="docutils literal notranslate"><span class="pre">invOrder</span></code> and <code class="docutils literal notranslate"><span class="pre">packOrder</span></code> as defined below</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ARM_LAST</span></code> — Custom order: <code class="docutils literal notranslate"><span class="pre">IOT(0)</span> <span class="pre">→</span> <span class="pre">DSP(2)</span> <span class="pre">→</span> <span class="pre">BMS(3)</span> <span class="pre">→</span> <span class="pre">ARM(1)</span></code></p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="default-orders">
+<h4>Default Orders<a class="headerlink" href="#default-orders" title="Link to this heading">¶</a></h4>
+<p><strong>Inverter order</strong> (including AC2A, AC200L, AC240, etc.):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>IOT (0) → ARM (1) → DSP (2) → BMS (3) → DC_DC (16)
+</pre></div>
+</div>
+<p><strong>Pack/battery order:</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>PACK_SAFETY (9) → PACK_BMU (6) → PACK_HIGH_VOLTAGE (10) → DC_DC (16) → PACK_BCU (5) → PACK_BMS (7)
+</pre></div>
+</div>
+<p><strong>POWER5 exception</strong> (<code class="docutils literal notranslate"><span class="pre">ARM_LAST</span></code> strategy):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>IOT (0) → DSP (2) → BMS (3) → ARM (1)
+</pre></div>
+</div>
+<p>ARM is flashed last on the POWER5, presumably because other components must be stable before the main processor firmware is replaced. No other device model has a special strategy — <code class="docutils literal notranslate"><span class="pre">DeviceModel.POWER5</span></code> is the only one with a custom configuration (<code class="docutils literal notranslate"><span class="pre">FirmwareUpgradeConfig.java:33</span></code>).</p>
+</section>
+</section>
+<section id="boot-upgrade">
+<h3>11.10 Boot Upgrade<a class="headerlink" href="#boot-upgrade" title="Link to this heading">¶</a></h3>
+<p><strong><code class="docutils literal notranslate"><span class="pre">BootUpgradeSupport.java</span></code></strong> contains flags for bootloader upgrade support:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">isSupport</span></code> (int) — Whether boot upgrade is supported</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">softwareVerTotal</span></code> (int) — Number of software versions in the boot binary</p></li>
+</ul>
+<p><strong><code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBootActivity.java</span></code></strong> is a minimal activity (<code class="docutils literal notranslate"><span class="pre">extends</span> <span class="pre">BaseConnActivity</span></code>) providing boot-specific upgrade UI. It extends the base connection activity but is essentially a shell — the actual boot upgrade logic reuses the standard firmware upgrade flow.</p>
+</section>
+<section id="step-6-upgrade-record-server-reporting">
+<h3>11.11 Step 6 — Upgrade Record (Server Reporting)<a class="headerlink" href="#step-6-upgrade-record-server-reporting" title="Link to this heading">¶</a></h3>
+<p>After each upgrade attempt, the app reports back to the server. The flow is handled in <code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBaseActivity.callSaveUpgradeRecord()</span></code>.</p>
+<section id="api-endpoints">
+<h4>API Endpoints<a class="headerlink" href="#api-endpoints" title="Link to this heading">¶</a></h4>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Endpoint</p></th>
+<th class="head"><p>gwcredentials?</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/blusmartprod/device/upgrade/record/v1/save</span></code></p></td>
+<td><p>Yes (<code class="docutils literal notranslate"><span class="pre">&quot;ZFKVIQwNyA4BKtXPEMlMJ...&quot;</span></code>)</p></td>
+<td><p>Standard upgrade record</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/blusmartprod/device/upgrade/record/v1/broadcastSave</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Broadcast upgrade record (returns <code class="docutils literal notranslate"><span class="pre">recordId</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="upgradestatus-enum">
+<h4>UpgradeStatus Enum<a class="headerlink" href="#upgradestatus-enum" title="Link to this heading">¶</a></h4>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Status</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>FAILURE</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>SUCCESS</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-even"><td><p>UPGRADING</p></td>
+<td><p>2</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="record-save-flow-two-phase">
+<h4>Record Save Flow (Two-Phase)<a class="headerlink" href="#record-save-flow-two-phase" title="Link to this heading">¶</a></h4>
+<p><strong>Phase 1 — UPGRADING</strong> (called before OTA begins):
+The app sends a map with:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">deviceSn</span></code>, <code class="docutils literal notranslate"><span class="pre">deviceModel</span></code>, <code class="docutils literal notranslate"><span class="pre">firmwareType</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">oldVer</span></code> (current version, long), <code class="docutils literal notranslate"><span class="pre">upgradeVer</span></code> (target version)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">appVer</span></code> (Android app version)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">upgradeStatus</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;upgrading&quot;</span></code> (lowercased)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">connMode</span></code>: 1 (BLE) or cloud mode</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remark</span></code> (optional description)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">soc</span></code> (battery state of charge at upgrade time, from home data)</p></li>
+<li><p>For broadcast: returns <code class="docutils literal notranslate"><span class="pre">recordId</span></code> from the response</p></li>
+<li><p>For standard: returns <code class="docutils literal notranslate"><span class="pre">recordId</span></code> directly</p></li>
+</ul>
+<p><strong>Phase 2 — SUCCESS/FAILURE</strong> (called after OTA completes):
+The app sends a record update with:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">recordId</span></code> (from Phase 1 response)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remark</span></code> (error description if failed, or empty string if success)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">upgradeStatus</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;success&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;failure&quot;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">firmwareUpgradeProgressVoList</span></code>: optional list of <code class="docutils literal notranslate"><span class="pre">DeviceNodeOTAStatusItem</span></code> for multi-device upgrades</p></li>
+</ul>
+<p><strong>Auto-included fields</strong> (by the service layer, not in the request body map):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">mobileModel</span></code>: <code class="docutils literal notranslate"><span class="pre">Build.BRAND</span> <span class="pre">+</span> <span class="pre">&quot;</span> <span class="pre">&quot;</span> <span class="pre">+</span> <span class="pre">Build.MODEL</span></code> (e.g., “Samsung SM-S908B”)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">os</span></code>: 2 (Android)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">osVer</span></code>: <code class="docutils literal notranslate"><span class="pre">Build.VERSION.RELEASE</span></code> (e.g., “13”)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">upgradeType</span></code>: 1 (for broadcast save only)</p></li>
+</ul>
+</section>
+<section id="error-remark-mapping">
+<h4>Error Remark Mapping<a class="headerlink" href="#error-remark-mapping" title="Link to this heading">¶</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">DeviceUpgradeBaseActivity.getRecordRemarkText(errCode)</span></code> maps OTA error codes to human-readable remark strings for the upgrade record.</p>
+</section>
+</section>
+<section id="complete-end-to-end-flows">
+<h3>11.12 Complete End-to-End Flows<a class="headerlink" href="#complete-end-to-end-flows" title="Link to this heading">¶</a></h3>
+<section id="ble-local-upgrade-flow">
+<h4>BLE Local Upgrade Flow<a class="headerlink" href="#ble-local-upgrade-flow" title="Link to this heading">¶</a></h4>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>1. VERSION CHECK
+   Activity.getFirmwareVersion()
+   → DeviceVersionModel.firmwareVerListBatchV2(requestMapList)
+   → POST /api/blusmartprod/device/firmware/v2/latest/firmwareVerList/batch?gwcredentials=...
+   ← List&lt;DeviceSoftwareVerResp&gt; (each with model, sn, List&lt;DeviceFmVer&gt;)
+
+2. USER SELECTS FIRMWARE
+   - UI displays DeviceFmVer list with hasNewVersion flags
+   - User picks which component to upgrade
+
+3. FIRMWARE DOWNLOAD
+   DeviceUpgradeBaseActivity.firmwareDownload(firmware)
+   → If encrypted: builds encrypted download URL with gwcredentials
+   → FirmwareDownloadViewModel.download(url, build)
+   → Saves to cache: {cacheDir}/{modelCode}_{type}_{version}_{firmwareId}
+   → Reads X-Shard-Size, X-Signature, X-Checksum from response headers
+   → MD5 validation pass → setDownload(true)
+
+4. OTA INITIATION
+   DeviceUpgradeBaseActivity.firmwareUpgrade(firmware, isRemote=false)
+   → Sets localFilePath
+   → Builds OTA start command: ProtocolParse.otaStartCmd(...)
+   → callSaveUpgradeRecord(UPGRADING) — registers upgrade start on server
+   → ConnectManager.otaRequest(firmware, callback, false)
+     → Sends OTA start hex command over BLE
+
+5. OTA DATA TRANSFER
+   Device responds &quot;43&quot; = OTA ready
+   → App reads entire firmware file into memory
+   → For each packet (index 1..totalPack):
+     - Extracts chunk: OtaUtil.getOtaPack(data, index, shardSize)
+     - Wraps in: {type}{index}{checkIndex}{hexData}{CRC16_XMODEM}
+     - If ESP32 encrypted: AES-CBC encrypt with bleConnShareKey
+     - Sends over BLE write characteristic
+     - Device responds &quot;06&quot; (ACK) → next packet
+     - Device responds &quot;15&quot; (NAK) → retry up to 10× with 200ms delay
+   → Progress: updateProgress(percent) via BleOtaCallback
+
+6. OTA COMPLETION
+   Device responds &quot;18&quot; / &quot;1818&quot; / &quot;01 81 01 81 90&quot;
+   → For non-cloud devices: polls OTA status register for verification
+   → For cloud/IOT devices: immediate notification
+   → BleOtaCallback.onUpgradeComplete()
+   → callSaveUpgradeRecord(SUCCESS) — reports result to server
+
+7. ERROR HANDLING
+   BleOtaCallback.onUpgradeFailed(error, errCode)
+   → OTA start: up to 3 retries
+   → Data packets: up to 10 retries per NAK
+   → 15-second status countdown with 3 total retries
+   → callSaveUpgradeRecord(FAILURE, errorDescription)
+</pre></div>
+</div>
+</section>
+<section id="cloud-remote-mqtt-upgrade-flow">
+<h4>Cloud/Remote (MQTT) Upgrade Flow<a class="headerlink" href="#cloud-remote-mqtt-upgrade-flow" title="Link to this heading">¶</a></h4>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>1. REMOTE TRIGGER
+   DeviceUpgradeBaseActivity.callRemoteUpgrade(firmware, masterSn, masterModel, snList)
+   → DeviceVersionModel.remoteUpgrade(masterSn, model, request)
+   → POST /api/blusmartprod/device/firmware/v1/appSentDeviceRemoteUpgrade
+      Body: {masterSn, model, request: [{sn, model, firmwareVers: [{firmwareId, ver}]}]}
+
+2. SERVER → DEVICE via MQTT
+   Server sends MQTT command to the device
+   Device downloads and flashes firmware autonomously over Wi-Fi
+
+3. STATUS POLLING
+   App starts otaStatusCountDown timer (15-second intervals)
+   Delays 3000ms before calling connMgr.startTimer()
+   Polls OTA status from device via BLE/MQTT
+   Up to 3 retries on timeout
+</pre></div>
+</div>
+</section>
+</section>
+<section id="firmware-version-formatting">
+<h3>11.13 Firmware Version Formatting<a class="headerlink" href="#firmware-version-formatting" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">DeviceConnUtilKt.deviceFmVerFormat(fmVer)</span></code> formats raw version values for display:</p>
+<ul class="simple">
+<li><p>Versions with &gt;6 characters: splits as <code class="docutils literal notranslate"><span class="pre">{first5}.{chars5-6}.{rest}</span></code> → e.g., <code class="docutils literal notranslate"><span class="pre">v90010.00.123</span></code></p></li>
+<li><p>Versions with &gt;4 characters (≤6): splits as <code class="docutils literal notranslate"><span class="pre">{first4}.{rest}</span></code> → e.g., <code class="docutils literal notranslate"><span class="pre">v9001.00</span></code></p></li>
+<li><p>Otherwise: plain prefix → e.g., <code class="docutils literal notranslate"><span class="pre">v100</span></code></p></li>
+</ul>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../about/index.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">About voltkeeper</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="backend-services.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Backend Services</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, Michael McCallister
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Firmware Updates</a><ul>
+<li><a class="reference internal" href="#firmware-update-flow-complete-reference">11. Firmware Update Flow — Complete Reference</a><ul>
+<li><a class="reference internal" href="#step-1-version-check">11.1 Step 1 — Version Check</a></li>
+<li><a class="reference internal" href="#firmware-component-types-devicefirmware-enum">11.2 Firmware Component Types (<code class="docutils literal notranslate"><span class="pre">DeviceFirmware</span></code> enum)</a></li>
+<li><a class="reference internal" href="#step-2-server-response-devicefmver">11.3 Step 2 — Server Response (<code class="docutils literal notranslate"><span class="pre">DeviceFmVer</span></code>)</a></li>
+<li><a class="reference internal" href="#step-3-firmware-download">11.4 Step 3 — Firmware Download</a><ul>
+<li><a class="reference internal" href="#download-url-construction">11.4.1 Download URL Construction</a></li>
+<li><a class="reference internal" href="#download-execution">11.4.2 Download Execution</a></li>
+<li><a class="reference internal" href="#file-naming-and-storage">11.4.3 File Naming and Storage</a></li>
+<li><a class="reference internal" href="#cache-validation">11.4.4 Cache Validation</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#step-4a-delivery-to-device-via-ble-local-ota">11.5 Step 4A — Delivery to Device via BLE (Local OTA)</a><ul>
+<li><a class="reference internal" href="#ota-start-command">11.5.1 OTA Start Command</a></li>
+<li><a class="reference internal" href="#ota-initiation">11.5.2 OTA Initiation</a></li>
+<li><a class="reference internal" href="#ota-data-transfer">11.5.3 OTA Data Transfer</a></li>
+<li><a class="reference internal" href="#ota-response-handling">11.5.4 OTA Response Handling</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#step-4b-cloud-remote-ota-mqtt-based">11.6 Step 4B — Cloud / Remote OTA (MQTT-Based)</a></li>
+<li><a class="reference internal" href="#broadcast-upgrade">11.7 Broadcast Upgrade</a></li>
+<li><a class="reference internal" href="#ota-groups">11.8 OTA Groups</a></li>
+<li><a class="reference internal" href="#step-5-upgrade-order-and-strategy">11.9 Step 5 — Upgrade Order and Strategy</a><ul>
+<li><a class="reference internal" href="#configuration-classes">Configuration Classes</a></li>
+<li><a class="reference internal" href="#default-orders">Default Orders</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#boot-upgrade">11.10 Boot Upgrade</a></li>
+<li><a class="reference internal" href="#step-6-upgrade-record-server-reporting">11.11 Step 6 — Upgrade Record (Server Reporting)</a><ul>
+<li><a class="reference internal" href="#api-endpoints">API Endpoints</a></li>
+<li><a class="reference internal" href="#upgradestatus-enum">UpgradeStatus Enum</a></li>
+<li><a class="reference internal" href="#record-save-flow-two-phase">Record Save Flow (Two-Phase)</a></li>
+<li><a class="reference internal" href="#error-remark-mapping">Error Remark Mapping</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#complete-end-to-end-flows">11.12 Complete End-to-End Flows</a><ul>
+<li><a class="reference internal" href="#ble-local-upgrade-flow">BLE Local Upgrade Flow</a></li>
+<li><a class="reference internal" href="#cloud-remote-mqtt-upgrade-flow">Cloud/Remote (MQTT) Upgrade Flow</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#firmware-version-formatting">11.13 Firmware Version Formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>

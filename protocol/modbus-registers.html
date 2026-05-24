@@ -1,0 +1,1399 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Device Models" href="device-models.html"><link rel="prev" title="Security" href="security.html">
+        <link rel="prefetch" href="../_static/voltkeeper-logo.svg" as="image">
+
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+        <title>Modbus Registers - voltkeeper</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">voltkeeper</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/voltkeeper-logo.svg" alt="Logo"/>
+  </div>
+  
+  <span class="sidebar-brand-text">voltkeeper</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../user-guide/index.html">User Guide</a><input aria-label="Toggle navigation of User Guide" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/scan.html">scan</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/status.html">status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/write.html">write</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/mqtt.html">MQTT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/load-test.html">Load Test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/probe-annotate.html">Probe and Annotate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/systemd.html">Systemd Services</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../developer/index.html">Developer Guide</a><input aria-label="Toggle navigation of Developer Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../developer/contributing-devices.html">Contributing a new Bluetti device</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../developer/maintaining.html">Maintainer Guide — Adding a New Device from Contributor Submissions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Protocol Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Protocol Reference</a><input aria-label="Toggle navigation of Protocol Reference" checked="" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ble-communication.html">BLE Communication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Modbus Registers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device-models.html">Device Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="encryption-details.html">Encryption Details</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backend-services.html">Backend Services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="firmware-updates.html">Firmware Updates</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">About</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../about/index.html">About voltkeeper</a><input aria-label="Toggle navigation of About voltkeeper" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../about/naming.html">Project Naming</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about/brand.html">Brand Assets</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../man/voltkeeper.1.html">voltkeeper(1) – CLI tool for Bluetti power stations</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../_sources/protocol/modbus-registers.md.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="modbus-registers">
+<h1>Modbus Registers<a class="headerlink" href="#modbus-registers" title="Link to this heading">¶</a></h1>
+<p>This page documents the complete Modbus register maps for both V1 and V2 protocols, including register addresses, field layout tables, real-time data parsing indices, and base config parsing.</p>
+<!-- Extracted from FINDINGS.md §15.3, §15.5, §15.6, and §15.7 -->
+<section id="modbus-frame-construction">
+<h2>15.3 Modbus Frame Construction<a class="headerlink" href="#modbus-frame-construction" title="Link to this heading">¶</a></h2>
+<p>All Modbus frames use <strong>slave address 1</strong> (<code class="docutils literal notranslate"><span class="pre">01</span></code>).</p>
+<section id="read-single-multiple-registers">
+<h3>Read Single/Multiple Registers<a class="headerlink" href="#read-single-multiple-registers" title="Link to this heading">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="mi">01</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="mi">03</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">reg_addr_2bytes_big_endian</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">reg_count_2bytes_big_endian</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">CRC16_2bytes</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Example — read 11 registers starting at address 10 (base real data):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">01</span> <span class="mi">03</span> <span class="mi">000</span><span class="n">A</span> <span class="mi">000</span><span class="n">B</span> <span class="n">xx</span> <span class="n">xx</span>
+</pre></div>
+</div>
+<p>CRC16 uses standard Modbus CRC-16-IBM polynomial (<code class="docutils literal notranslate"><span class="pre">0xA001</span></code>).</p>
+</section>
+<section id="write-single-register-value-fits-in-1-register">
+<h3>Write Single Register (value fits in 1 register)<a class="headerlink" href="#write-single-register-value-fits-in-1-register" title="Link to this heading">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="mi">01</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="mi">06</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">reg_addr_2bytes_be</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">value_2bytes_be</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">CRC16_2bytes</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="write-multiple-registers">
+<h3>Write Multiple Registers<a class="headerlink" href="#write-multiple-registers" title="Link to this heading">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="mi">01</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="mi">10</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">reg_addr_2bytes_be</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">reg_count_2bytes_be</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">byte_count</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">data</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">CRC16_2bytes</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Where <code class="docutils literal notranslate"><span class="pre">byte_count</span> <span class="pre">=</span> <span class="pre">reg_count</span> <span class="pre">*</span> <span class="pre">2</span></code>.</p>
+</section>
+<section id="ascii-string-write">
+<h3>ASCII String Write<a class="headerlink" href="#ascii-string-write" title="Link to this heading">¶</a></h3>
+<p>For register writes containing ASCII strings (e.g., WiFi password, BLE password), each pair of characters is byte-swapped: position <code class="docutils literal notranslate"><span class="pre">i+1</span></code> is written before position <code class="docutils literal notranslate"><span class="pre">i</span></code>. Maximum length controls determine register count.</p>
+</section>
+</section>
+<section id="complete-modbus-register-map">
+<h2>15.5 Complete Modbus Register Map<a class="headerlink" href="#complete-modbus-register-map" title="Link to this heading">¶</a></h2>
+<section id="v1-protocol-protocoladdr-protocolver-2000">
+<h3>V1 Protocol (<code class="docutils literal notranslate"><span class="pre">ProtocolAddr</span></code>) — protocolVer &lt; 2000<a class="headerlink" href="#v1-protocol-protocoladdr-protocolver-2000" title="Link to this heading">¶</a></h3>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>R/W</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BASE_CONFIG</span></code></p></td>
+<td><p>R</p></td>
+<td><p>14-field base config (32 registers)</p></td>
+</tr>
+<tr class="row-odd"><td><p>7</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BLUETOOTH_PASSWORD</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>6-char BLE PIN (12 bytes ASCII)</p></td>
+</tr>
+<tr class="row-even"><td><p>10</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BASE_REAL_DATA</span></code></p></td>
+<td><p>R</p></td>
+<td><p>Real-time power/SOC/status (~110 registers)</p></td>
+</tr>
+<tr class="row-odd"><td><p>16</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MODBUS_PROTOCOL_VER</span></code></p></td>
+<td><p>R</p></td>
+<td><p>Protocol version</p></td>
+</tr>
+<tr class="row-even"><td><p>21</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DEVICE_SN</span></code></p></td>
+<td><p>R</p></td>
+<td><p>Device serial number</p></td>
+</tr>
+<tr class="row-odd"><td><p>22</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MCU_STATUS</span></code></p></td>
+<td><p>R</p></td>
+<td><p>MCU status</p></td>
+</tr>
+<tr class="row-even"><td><p>70</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ADDITIONAL_DATA</span></code></p></td>
+<td><p>R</p></td>
+<td><p>Additional fields</p></td>
+</tr>
+<tr class="row-odd"><td><p>91</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BMS_PACK</span></code></p></td>
+<td><p>R</p></td>
+<td><p>BMS battery pack data</p></td>
+</tr>
+<tr class="row-even"><td><p>130</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">THREE_PHASE_DATA</span></code></p></td>
+<td><p>R</p></td>
+<td><p>Three-phase data (if applicable)</p></td>
+</tr>
+<tr class="row-odd"><td><p>157</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PV_CHARGE_DATA</span></code></p></td>
+<td><p>R</p></td>
+<td><p>PV/solar data</p></td>
+</tr>
+<tr class="row-even"><td><p>190</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WIFI_SWITCH_STATUS</span></code></p></td>
+<td><p>R</p></td>
+<td><p>WiFi status</p></td>
+</tr>
+<tr class="row-odd"><td><p>1080</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OTA_START</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Start OTA upgrade</p></td>
+</tr>
+<tr class="row-even"><td><p>2000</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FAULT_HISTORY_START</span></code></p></td>
+<td><p>R</p></td>
+<td><p>Fault history</p></td>
+</tr>
+<tr class="row-odd"><td><p>3000</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SETTABLE_DATA</span></code> / <code class="docutils literal notranslate"><span class="pre">MAIN_SWITCH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Main power switch</p></td>
+</tr>
+<tr class="row-even"><td><p>3001</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WORKING_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Working mode</p></td>
+</tr>
+<tr class="row-odd"><td><p>3002</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">GRID_PLUS_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Grid+ mode</p></td>
+</tr>
+<tr class="row-even"><td><p>3003</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INVERTER_FREQUENCY</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Output frequency (50/60Hz)</p></td>
+</tr>
+<tr class="row-odd"><td><p>3004</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MACHINE_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Machine mode</p></td>
+</tr>
+<tr class="row-even"><td><p>3005</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MACHINE_ADDRESS</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Modbus address</p></td>
+</tr>
+<tr class="row-odd"><td><p>3007</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AC_SWITCH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>AC output switch</p></td>
+</tr>
+<tr class="row-even"><td><p>3008</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DC_SWITCH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>DC output switch</p></td>
+</tr>
+<tr class="row-odd"><td><p>3009</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PV_CONTROL</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>PV/solar control</p></td>
+</tr>
+<tr class="row-even"><td><p>3010</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FEED_SWITCH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Grid feedback switch</p></td>
+</tr>
+<tr class="row-odd"><td><p>3011</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">GRID_CHARGING_SWITCH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Grid charging switch</p></td>
+</tr>
+<tr class="row-even"><td><p>3014</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MAX_PV_CHARGE_CURRENT</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max PV charge current</p></td>
+</tr>
+<tr class="row-odd"><td><p>3015</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LOW_POWER_SETTINGS</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Low power threshold</p></td>
+</tr>
+<tr class="row-even"><td><p>3016</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">HIGH_POWER_SETTINGS</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>High power threshold</p></td>
+</tr>
+<tr class="row-odd"><td><p>3018</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MAX_DISCHARGING_CURRENT</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max discharge current</p></td>
+</tr>
+<tr class="row-even"><td><p>3019</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MAX_CHARGING_CURRENT_OF_GRID</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max grid charge current</p></td>
+</tr>
+<tr class="row-odd"><td><p>3031</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYSTEM_TIME</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>System time</p></td>
+</tr>
+<tr class="row-even"><td><p>3034</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LED_CONTROL</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>LED control</p></td>
+</tr>
+<tr class="row-odd"><td><p>3035</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">UPS_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>UPS mode</p></td>
+</tr>
+<tr class="row-even"><td><p>3039</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WORKING_TIME</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Working time config</p></td>
+</tr>
+<tr class="row-odd"><td><p>3057</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MAX_CHARGING_POWER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max charge power</p></td>
+</tr>
+<tr class="row-even"><td><p>3058</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MAX_DISCHARGE_POWER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max discharge power</p></td>
+</tr>
+<tr class="row-odd"><td><p>3060</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYSTEM_POWER_OFF</span></code></p></td>
+<td><p>W</p></td>
+<td><p>System power off</p></td>
+</tr>
+<tr class="row-even"><td><p>3061</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LCD_SCREEN_TIME</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>LCD timeout</p></td>
+</tr>
+<tr class="row-odd"><td><p>3062</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SET_SYSTEM_FACTORY_RESET</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Factory reset</p></td>
+</tr>
+<tr class="row-even"><td><p>3063</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ECO_CONTROL</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>DC ECO mode</p></td>
+</tr>
+<tr class="row-odd"><td><p>3064</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ECO_AUTO_OFF</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>ECO auto-off time</p></td>
+</tr>
+<tr class="row-even"><td><p>3065</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CHARGING_MODE</span></code> / <code class="docutils literal notranslate"><span class="pre">SILENT_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Charging mode / silent</p></td>
+</tr>
+<tr class="row-odd"><td><p>3066</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">POWER_LIFTING_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Power lifting mode</p></td>
+</tr>
+<tr class="row-even"><td><p>3067</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_AC_ECO_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>AC ECO mode</p></td>
+</tr>
+<tr class="row-odd"><td><p>3069</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DC_ECO_POWER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>DC ECO power threshold</p></td>
+</tr>
+<tr class="row-even"><td><p>3070</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AC_ECO_POWER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>AC ECO power threshold</p></td>
+</tr>
+<tr class="row-odd"><td><p>3079</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OUTPUT_VOLTAGE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Output voltage setting</p></td>
+</tr>
+<tr class="row-even"><td><p>3090</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYS_SWITCH_RECOVERY</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Switch state recovery</p></td>
+</tr>
+<tr class="row-odd"><td><p>4997</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BLE_MAC</span></code></p></td>
+<td><p>R</p></td>
+<td><p>BLE MAC address</p></td>
+</tr>
+<tr class="row-even"><td><p>5000</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_DATA</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>IoT/WiFi data</p></td>
+</tr>
+<tr class="row-odd"><td><p>5002</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">UPGRADE_PROGRESS</span></code></p></td>
+<td><p>R</p></td>
+<td><p>OTA progress</p></td>
+</tr>
+<tr class="row-even"><td><p>5003</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">UPGRADE_MODULE</span></code></p></td>
+<td><p>W</p></td>
+<td><p>OTA module select</p></td>
+</tr>
+<tr class="row-odd"><td><p>5017</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INTERNET_SETTING</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>WiFi settings</p></td>
+</tr>
+<tr class="row-even"><td><p>5049</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NETWORK_RSSI</span></code></p></td>
+<td><p>R</p></td>
+<td><p>WiFi RSSI</p></td>
+</tr>
+<tr class="row-odd"><td><p>12205</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_DISPLAY_SET</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>IoT display settings</p></td>
+</tr>
+<tr class="row-even"><td><p>13603</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_BLE_SERVER_KEY</span></code></p></td>
+<td><p>R</p></td>
+<td><p>Server BLE key (FPS pairing)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="v2-protocol-protocoladdrv2-protocolver-2000-ac2a-uses-this">
+<h3>V2 Protocol (<code class="docutils literal notranslate"><span class="pre">ProtocolAddrV2</span></code>) — protocolVer ≥ 2000 (AC2A uses this)<a class="headerlink" href="#v2-protocol-protocoladdrv2-protocolver-2000-ac2a-uses-this" title="Link to this heading">¶</a></h3>
+<p><strong>Device Core (read operations):</strong></p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>100</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">APP_HOME_DATA</span></code></p></td>
+<td><p>Home page data snapshot</p></td>
+</tr>
+<tr class="row-odd"><td><p>700</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OTA_START</span></code></p></td>
+<td><p>OTA start command</p></td>
+</tr>
+<tr class="row-even"><td><p>720</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OTA_STATUS</span></code></p></td>
+<td><p>OTA progress status</p></td>
+</tr>
+<tr class="row-odd"><td><p>1100</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_BASE_INFO</span></code></p></td>
+<td><p>Inverter base info</p></td>
+</tr>
+<tr class="row-even"><td><p>1200</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_PV_INFO</span></code></p></td>
+<td><p>PV/solar info</p></td>
+</tr>
+<tr class="row-odd"><td><p>1300</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_GRID_INFO</span></code></p></td>
+<td><p>Grid input/output info</p></td>
+</tr>
+<tr class="row-even"><td><p>1400</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_LOAD_INFO</span></code></p></td>
+<td><p>Load info</p></td>
+</tr>
+<tr class="row-odd"><td><p>1500</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_INV_INFO</span></code></p></td>
+<td><p>Inverter status info</p></td>
+</tr>
+<tr class="row-even"><td><p>1700</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_METER_INFO</span></code></p></td>
+<td><p>Meter data</p></td>
+</tr>
+<tr class="row-odd"><td><p>1900</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_METER_SETTINGS</span></code></p></td>
+<td><p>Meter settings</p></td>
+</tr>
+<tr class="row-even"><td><p>3500</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_TOTAL_ENERGY_INFO</span></code></p></td>
+<td><p>Lifetime energy totals</p></td>
+</tr>
+<tr class="row-odd"><td><p>3600</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_CURR_YEAR_ENERGY_INFO</span></code></p></td>
+<td><p>Current year energy</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Device Control (write operations):</strong></p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>R/W</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>2000</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_BASE_SETTINGS</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Base settings</p></td>
+</tr>
+<tr class="row-odd"><td><p>2001</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYSTEM_TIME</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>System clock</p></td>
+</tr>
+<tr class="row-even"><td><p>2005</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WORKING_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Working mode</p></td>
+</tr>
+<tr class="row-odd"><td><p>2006</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_EVENT</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Control events</p></td>
+</tr>
+<tr class="row-even"><td><p>2007</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_LED</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>LED control</p></td>
+</tr>
+<tr class="row-odd"><td><p>2008</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_METER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Meter control</p></td>
+</tr>
+<tr class="row-even"><td><p>2010</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_INVERTER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Inverter control</p></td>
+</tr>
+<tr class="row-odd"><td><p>2011</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AC_SWITCH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>AC output</p></td>
+</tr>
+<tr class="row-even"><td><p>2012</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DC_SWITCH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>DC output</p></td>
+</tr>
+<tr class="row-odd"><td><p>2013</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYSTEM_POWER_OFF</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Power off</p></td>
+</tr>
+<tr class="row-even"><td><p>2014</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_DC_ECO_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>DC ECO mode</p></td>
+</tr>
+<tr class="row-odd"><td><p>2015</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DC_ECO_AUTO_OFF_TIME</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>ECO auto-off time</p></td>
+</tr>
+<tr class="row-even"><td><p>2016</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DC_ECO_POWER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>ECO power threshold</p></td>
+</tr>
+<tr class="row-odd"><td><p>2017</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_AC_ECO_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>AC ECO mode</p></td>
+</tr>
+<tr class="row-even"><td><p>2018</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AC_ECO_AUTO_OFF_TIME</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>AC ECO auto-off</p></td>
+</tr>
+<tr class="row-odd"><td><p>2019</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AC_ECO_POWER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>AC ECO power</p></td>
+</tr>
+<tr class="row-even"><td><p>2020</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CHARGING_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Charging mode (Standard/Turbo/Silent)</p></td>
+</tr>
+<tr class="row-odd"><td><p>2021</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_SUPER_POWER_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Power lifting mode</p></td>
+</tr>
+<tr class="row-even"><td><p>2022</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYS_SOC_LOW_CAPACITY</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Low SOC threshold</p></td>
+</tr>
+<tr class="row-odd"><td><p>2023</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYS_SOC_HIGH_CAPACITY</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>High SOC threshold</p></td>
+</tr>
+<tr class="row-even"><td><p>2026</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SET_HISTORY_ENERGY_TYPE</span></code></p></td>
+<td><p>W</p></td>
+<td><p>History energy type</p></td>
+</tr>
+<tr class="row-odd"><td><p>2027</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SET_CURR_ENERGY_TYPE</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Current energy type</p></td>
+</tr>
+<tr class="row-even"><td><p>2028</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SET_LOG_HISTORY_PAGE</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Log history page</p></td>
+</tr>
+<tr class="row-odd"><td><p>2029</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_CHG_DSG_TIME</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Charge/discharge time control</p></td>
+</tr>
+<tr class="row-even"><td><p>2030</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WORKING_TIME_START</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Working time start</p></td>
+</tr>
+<tr class="row-odd"><td><p>2060</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PV_TYPE_SET</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>PV type setting</p></td>
+</tr>
+<tr class="row-even"><td><p>2066</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_ALARM_SOUND</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Alarm sound</p></td>
+</tr>
+<tr class="row-odd"><td><p>2067</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LCD_SCREEN_TIME</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>LCD timeout</p></td>
+</tr>
+<tr class="row-even"><td><p>2075</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SOC_SET_LOW</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>SOC low setting</p></td>
+</tr>
+<tr class="row-odd"><td><p>2078</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LED_COLOR_SET</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>LED color</p></td>
+</tr>
+<tr class="row-even"><td><p>2083</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SOC_SET_HIGH</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>SOC high setting</p></td>
+</tr>
+<tr class="row-odd"><td><p>2084</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PV_ADV_SET</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>PV advanced settings</p></td>
+</tr>
+<tr class="row-even"><td><p>2086</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">JA12_ENABLE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>12V output enable</p></td>
+</tr>
+<tr class="row-odd"><td><p>2200</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_ADVANCE_SETTINGS</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Advanced settings</p></td>
+</tr>
+<tr class="row-even"><td><p>2206</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SYSTEM_FACTORY_RESET</span></code></p></td>
+<td><p>W</p></td>
+<td><p>Factory reset</p></td>
+</tr>
+<tr class="row-odd"><td><p>2207</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_GRID</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Grid control</p></td>
+</tr>
+<tr class="row-even"><td><p>2208</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_FEED</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Feed-in control</p></td>
+</tr>
+<tr class="row-odd"><td><p>2209</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_VOLTAGE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Output voltage (120/220/230/240V)</p></td>
+</tr>
+<tr class="row-even"><td><p>2210</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INV_FREQ</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Output frequency (50/60Hz)</p></td>
+</tr>
+<tr class="row-odd"><td><p>2211</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CHG_MAX_VOLTAGE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max charge voltage</p></td>
+</tr>
+<tr class="row-even"><td><p>2212</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CHG_MAX_CURRENT</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max charge current</p></td>
+</tr>
+<tr class="row-odd"><td><p>2213</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">GRID_MAX_POWER</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max grid power</p></td>
+</tr>
+<tr class="row-even"><td><p>2214</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">GRID_MAX_CURRENT</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Max grid current</p></td>
+</tr>
+<tr class="row-odd"><td><p>2225</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CTRL_GRID_PLUS_MODE</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>Grid+ mode toggle</p></td>
+</tr>
+<tr class="row-even"><td><p>2241</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">EMS_CTRL_MODE_SET</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>EMS control mode</p></td>
+</tr>
+<tr class="row-odd"><td><p>2269</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ADV_PV_SET</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>PV advanced settings</p></td>
+</tr>
+<tr class="row-even"><td><p>2271</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DC_OUTPUT_VOLT_LEVEL</span></code></p></td>
+<td><p>R/W</p></td>
+<td><p>DC output voltage level</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>IoT / Network:</strong></p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>11000</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_BASE_INFO</span></code></p></td>
+<td><p>IoT module info</p></td>
+</tr>
+<tr class="row-odd"><td><p>11106</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WIFI_MULT_INFO</span></code></p></td>
+<td><p>WiFi multi-info</p></td>
+</tr>
+<tr class="row-even"><td><p>11127</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_SERVER_BLE_SN</span></code></p></td>
+<td><p>Server BLE serial</p></td>
+</tr>
+<tr class="row-odd"><td><p>12002</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WIFI_SETTING</span></code></p></td>
+<td><p>WiFi settings</p></td>
+</tr>
+<tr class="row-even"><td><p>12161</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_ENABLE_INFO</span></code></p></td>
+<td><p>IoT enable info</p></td>
+</tr>
+<tr class="row-odd"><td><p>12163</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DISASTER_WARNING_MODE</span></code></p></td>
+<td><p>Disaster warning</p></td>
+</tr>
+<tr class="row-even"><td><p>13500</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_WIFI_MESH</span></code></p></td>
+<td><p>WiFi mesh settings</p></td>
+</tr>
+<tr class="row-odd"><td><p>13600</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_EXTENSION_SETTINGS</span></code></p></td>
+<td><p>Extension settings</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Battery Pack:</strong></p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6000</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PACK_MAIN_INFO</span></code></p></td>
+<td><p>Pack main info</p></td>
+</tr>
+<tr class="row-odd"><td><p>6100</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PACK_ITEM_INFO</span></code></p></td>
+<td><p>Pack item info</p></td>
+</tr>
+<tr class="row-even"><td><p>6300</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PACK_SUB_PACK_INFO</span></code></p></td>
+<td><p>Sub-pack info</p></td>
+</tr>
+<tr class="row-odd"><td><p>7000</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PACK_SETTINGS_INFO</span></code></p></td>
+<td><p>Pack settings</p></td>
+</tr>
+<tr class="row-even"><td><p>7200</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PACK_BMU_INFO</span></code></p></td>
+<td><p>BMU info</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="real-time-data-parsing-register-10-base-real-data">
+<h2>15.6 Real-Time Data Parsing (Register 10 / <code class="docutils literal notranslate"><span class="pre">BASE_REAL_DATA</span></code>)<a class="headerlink" href="#real-time-data-parsing-register-10-base-real-data" title="Link to this heading">¶</a></h2>
+<p>Response format (<code class="docutils literal notranslate"><span class="pre">ProtocolParse.getDeviceRealtimeData()</span></code>): a <code class="docutils literal notranslate"><span class="pre">List&lt;String&gt;</span></code> of hex bytes (2-char strings each). Index is 0-based.</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Index</p></th>
+<th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Parsing</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0–11</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">deviceModel</span></code></p></td>
+<td><p>String</p></td>
+<td><p>ASCII chars from non-zero hex values</p></td>
+</tr>
+<tr class="row-odd"><td><p>12–13</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">protocolVer</span></code></p></td>
+<td><p>int</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">parseInt(dataRes[12]+dataRes[13],</span> <span class="pre">16)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>14–21</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">deviceSN</span></code></p></td>
+<td><p>ULong</p></td>
+<td><p>Reverse-endian pairs, base-16</p></td>
+</tr>
+<tr class="row-odd"><td><p>22–25</p></td>
+<td><p>(reserved)</p></td>
+<td><p>—</p></td>
+<td><p>Skipped</p></td>
+</tr>
+<tr class="row-even"><td><p>24–25</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mcuBusyStatus</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Only if proto ≥ 1018; binary from hex</p></td>
+</tr>
+<tr class="row-odd"><td><p>26–29</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mcu1SoftwareVer</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Endian <code class="docutils literal notranslate"><span class="pre">[2][3][0][1]</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>30–33</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mcu2SoftwareVer</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-odd"><td><p>34–37</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mcu3SoftwareVer</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-even"><td><p>38–41</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mcu4SoftwareVer</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-odd"><td><p>42–45</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">hmi1Ver</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-even"><td><p>46–49</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">hmi2Ver</span></code></p></td>
+<td><p>String</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-odd"><td><p>50–51</p></td>
+<td><p>(padding)</p></td>
+<td><p>—</p></td>
+<td><p>Skipped</p></td>
+</tr>
+<tr class="row-even"><td><p>52–53</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pvChargingPower</span></code></p></td>
+<td><p>int</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">parseInt(hex,</span> <span class="pre">16)</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>54–55</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gridChargingPower</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-even"><td><p>56–57</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">acLoadPower</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-odd"><td><p>58–59</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dcLoadPower</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-even"><td><p>60–61</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">feedBackPower</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Same</p></td>
+</tr>
+<tr class="row-odd"><td><p>62–65</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">totalPVPower</span></code></p></td>
+<td><p>float</p></td>
+<td><p>Endian <code class="docutils literal notranslate"><span class="pre">[2][3][0][1]</span></code>, divided by 10.0</p></td>
+</tr>
+<tr class="row-even"><td><p>66–67</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">batterySOC</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Battery state of charge %</p></td>
+</tr>
+<tr class="row-odd"><td><p>68–69</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pvIconDisplay</span></code></p></td>
+<td><p>int</p></td>
+<td><p>PV icon flag</p></td>
+</tr>
+<tr class="row-even"><td><p>70–71</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gridIconDisplay</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Grid icon flag</p></td>
+</tr>
+<tr class="row-odd"><td><p>72–73</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pv2BatteryEnergyLine</span></code></p></td>
+<td><p>int</p></td>
+<td><p>PV→Battery flow</p></td>
+</tr>
+<tr class="row-even"><td><p>74–75</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grid2BatteryEnergyLine</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Grid→Battery flow</p></td>
+</tr>
+<tr class="row-odd"><td><p>76–77</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">battery2ACEnergyLine</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Battery→AC flow</p></td>
+</tr>
+<tr class="row-even"><td><p>78–79</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">battery2DCEnergyLine</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Battery→DC flow</p></td>
+</tr>
+<tr class="row-odd"><td><p>80–81</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">battery2GridEnergyLine</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Battery→Grid flow</p></td>
+</tr>
+<tr class="row-even"><td><p>82–83</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grid2LoadEnergyLine</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Grid→Load flow</p></td>
+</tr>
+<tr class="row-odd"><td><p>84–85</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pv2GridEnergyLine</span></code></p></td>
+<td><p>int</p></td>
+<td><p>PV→Grid flow</p></td>
+</tr>
+<tr class="row-even"><td><p>86–87</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">batteryDischargingStatus</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Discharge status flag</p></td>
+</tr>
+<tr class="row-odd"><td><p>88–95</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">alarmInfo</span></code></p></td>
+<td><p>bitmask</p></td>
+<td><p>4× 16-bit alarm flags (V1 reg 54–57)</p></td>
+</tr>
+<tr class="row-even"><td><p>96–109</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">faultInfo</span></code></p></td>
+<td><p>bitmask</p></td>
+<td><p>7× 16-bit fault flags (V1 reg 58–64)</p></td>
+</tr>
+<tr class="row-odd"><td><p>106–107</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">chgFullTime</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Minutes until full (if present)</p></td>
+</tr>
+<tr class="row-even"><td><p>108–109</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dsgEmptyTime</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Minutes until empty (if present)</p></td>
+</tr>
+<tr class="row-odd"><td><p>111</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sysIsHighVolt</span></code></p></td>
+<td><p>int</p></td>
+<td><p>High voltage system flag</p></td>
+</tr>
+<tr class="row-even"><td><p>112</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">maxGridChgCurrentEnable</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Max grid charge current enable</p></td>
+</tr>
+<tr class="row-odd"><td><p>113</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gridPlusModeEnable</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Grid+ mode enable</p></td>
+</tr>
+<tr class="row-even"><td><p>114–115</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rateVoltage</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Rated voltage (if present)</p></td>
+</tr>
+<tr class="row-odd"><td><p>116–117</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rateFrequency</span></code></p></td>
+<td><p>int</p></td>
+<td><p>Rated frequency (if present)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The alarm/fault bitmasks decode against different name maps depending on the
+protocol path and the model’s <code class="docutils literal notranslate"><span class="pre">DeviceFunction.isLowPower</span></code> flag.</p>
+<p><strong>V1 path (<code class="docutils literal notranslate"><span class="pre">ProtocolParse.getDeviceRealtimeData</span></code>, protocolVer &lt; 2000):</strong></p>
+<div class="highlight-java notranslate"><div class="highlight"><pre><span></span><span class="n">zIsLowPower</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">ConnConstantsV2</span><span class="p">.</span><span class="na">lowPowerWarnNames</span><span class="w">  </span><span class="p">:</span><span class="w"> </span><span class="n">ConnectConstants</span><span class="p">.</span><span class="na">alarmInfoNames</span>
+<span class="n">zIsLowPower</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">ConnConstantsV2</span><span class="p">.</span><span class="na">lowPowerFaultNames</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ConnectConstants</span><span class="p">.</span><span class="na">faultInfoNames</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">isLowPower</span> <span class="pre">==</span> <span class="pre">false</span></code> (default — EB3A, AC200M, AC300, AC500, etc.):
+<code class="docutils literal notranslate"><span class="pre">ConnectConstants.alarmInfoNames</span></code> (1 word, 9 bits — grid voltage/frequency/
+oscillation, meter comm, PV voltage, generator voltage) and
+<code class="docutils literal notranslate"><span class="pre">ConnectConstants.faultInfoNames</span></code> (5 words: inverter/AC charger/battery pack/
+generic fault4/fault5).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">isLowPower</span> <span class="pre">==</span> <span class="pre">true</span></code> (AC240/AC200L/AC200PL, plus PES_BASE-derived models):
+<code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.lowPowerWarnNames</span></code> (2 words) and
+<code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.lowPowerFaultNames</span></code> (5 words).</p></li>
+</ul>
+<p><strong>V2 path (<code class="docutils literal notranslate"><span class="pre">ProtocolParserV2.parseDeviceData</span></code>, protocolVer ≥ 2000):</strong></p>
+<ul class="simple">
+<li><p>Inverter type 3 (high-power): <code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.highPowerWarnNames</span></code> /
+<code class="docutils literal notranslate"><span class="pre">highPowerFaultNames</span></code>.</p></li>
+<li><p>Micro-inverter type: <code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.microInvWarnNames</span></code> / <code class="docutils literal notranslate"><span class="pre">microInvFaultNames</span></code>.</p></li>
+<li><p>Otherwise: <code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.lowPowerWarnNames</span></code> / <code class="docutils literal notranslate"><span class="pre">lowPowerFaultNames</span></code>.</p></li>
+</ul>
+<p><strong>BMS_PACK (V2 only, address 6000/6100/7200) is a separate path</strong> that uses
+<code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.packHighVoltAlarmNames</span></code>, <code class="docutils literal notranslate"><span class="pre">packHighVoltErrorNames</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">bmuWarnNames</span></code>. It does <strong>not</strong> decode the BASE_REAL_DATA alarm/fault region.</p>
+</section>
+<section id="base-config-parsing-parsebaseconfig">
+<h2>15.7 Base Config Parsing (<code class="docutils literal notranslate"><span class="pre">parseBaseConfig()</span></code>)<a class="headerlink" href="#base-config-parsing-parsebaseconfig" title="Link to this heading">¶</a></h2>
+<p>From V1 protocol register 1. Fields parsed in order:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Source</p></th>
+<th class="head"><p>Width</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">specs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[0]</span></code></p></td>
+<td><p>1 byte</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">voltageType</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[1]</span></code></p></td>
+<td><p>1 byte</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lcdBroadcastEnable</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[5]</span></code> bit 0</p></td>
+<td><p>1 bit</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">isSupportMeter</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[5]</span></code> bit 1</p></td>
+<td><p>1 bit</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">isSupportPlug</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[5]</span></code> bit 2</p></td>
+<td><p>1 bit</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">emsCtrlMode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[7]</span></code> low nibble</p></td>
+<td><p>4 bits</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">comboxScene</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[9]</span></code></p></td>
+<td><p>1 byte</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">isInitializedConfig</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[9]</span></code> (same byte)</p></td>
+<td><p>1 byte</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">projectType</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[8]</span></code> low nibble</p></td>
+<td><p>4 bits</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">btPswEnable</span></code></p></td>
+<td><p>binary bits <code class="docutils literal notranslate"><span class="pre">[1][0]</span></code> of <code class="docutils literal notranslate"><span class="pre">dataRes[10]+dataRes[11]</span></code></p></td>
+<td><p>2 bits</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">guestModeEnable</span></code></p></td>
+<td><p>binary bits <code class="docutils literal notranslate"><span class="pre">[3][2]</span></code> of <code class="docutils literal notranslate"><span class="pre">dataRes[10]+dataRes[11]</span></code></p></td>
+<td><p>2 bits</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">btLoginPsw</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[12..17]</span></code> ASCII (only if btPswEnable==1)</p></td>
+<td><p>6 bytes</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">iotModbusVer</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[28]+dataRes[29]</span></code></p></td>
+<td><p>2 bytes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">protocolVer</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataRes[30]+dataRes[31]</span></code></p></td>
+<td><p>2 bytes</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>For V2 protocol devices like the AC2A, base settings are read from <code class="docutils literal notranslate"><span class="pre">INV_BASE_SETTINGS</span></code> (address 2000).</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="device-models.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Device Models</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="security.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Security</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, Michael McCallister
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Modbus Registers</a><ul>
+<li><a class="reference internal" href="#modbus-frame-construction">15.3 Modbus Frame Construction</a><ul>
+<li><a class="reference internal" href="#read-single-multiple-registers">Read Single/Multiple Registers</a></li>
+<li><a class="reference internal" href="#write-single-register-value-fits-in-1-register">Write Single Register (value fits in 1 register)</a></li>
+<li><a class="reference internal" href="#write-multiple-registers">Write Multiple Registers</a></li>
+<li><a class="reference internal" href="#ascii-string-write">ASCII String Write</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#complete-modbus-register-map">15.5 Complete Modbus Register Map</a><ul>
+<li><a class="reference internal" href="#v1-protocol-protocoladdr-protocolver-2000">V1 Protocol (<code class="docutils literal notranslate"><span class="pre">ProtocolAddr</span></code>) — protocolVer &lt; 2000</a></li>
+<li><a class="reference internal" href="#v2-protocol-protocoladdrv2-protocolver-2000-ac2a-uses-this">V2 Protocol (<code class="docutils literal notranslate"><span class="pre">ProtocolAddrV2</span></code>) — protocolVer ≥ 2000 (AC2A uses this)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#real-time-data-parsing-register-10-base-real-data">15.6 Real-Time Data Parsing (Register 10 / <code class="docutils literal notranslate"><span class="pre">BASE_REAL_DATA</span></code>)</a></li>
+<li><a class="reference internal" href="#base-config-parsing-parsebaseconfig">15.7 Base Config Parsing (<code class="docutils literal notranslate"><span class="pre">parseBaseConfig()</span></code>)</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>

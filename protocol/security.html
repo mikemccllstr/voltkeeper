@@ -1,0 +1,679 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Modbus Registers" href="modbus-registers.html"><link rel="prev" title="BLE Communication" href="ble-communication.html">
+        <link rel="prefetch" href="../_static/voltkeeper-logo.svg" as="image">
+
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+        <title>Security - voltkeeper</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">voltkeeper</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/voltkeeper-logo.svg" alt="Logo"/>
+  </div>
+  
+  <span class="sidebar-brand-text">voltkeeper</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../user-guide/index.html">User Guide</a><input aria-label="Toggle navigation of User Guide" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/scan.html">scan</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/status.html">status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/write.html">write</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/mqtt.html">MQTT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/load-test.html">Load Test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/probe-annotate.html">Probe and Annotate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/systemd.html">Systemd Services</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../developer/index.html">Developer Guide</a><input aria-label="Toggle navigation of Developer Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../developer/contributing-devices.html">Contributing a new Bluetti device</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../developer/maintaining.html">Maintainer Guide — Adding a New Device from Contributor Submissions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Protocol Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Protocol Reference</a><input aria-label="Toggle navigation of Protocol Reference" checked="" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ble-communication.html">BLE Communication</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Security</a></li>
+<li class="toctree-l2"><a class="reference internal" href="modbus-registers.html">Modbus Registers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device-models.html">Device Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="encryption-details.html">Encryption Details</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backend-services.html">Backend Services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="firmware-updates.html">Firmware Updates</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">About</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../about/index.html">About voltkeeper</a><input aria-label="Toggle navigation of About voltkeeper" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../about/naming.html">Project Naming</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about/brand.html">Brand Assets</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../man/voltkeeper.1.html">voltkeeper(1) – CLI tool for Bluetti power stations</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../_sources/protocol/security.md.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="security">
+<h1>Security<a class="headerlink" href="#security" title="Link to this heading">¶</a></h1>
+<p>This page covers the Bluetti BLE encryption protocols: the legacy challenge-response handshake, ECDH+ECDSA mutual authentication (protocol v2), the Bluetooth password PIN mechanism, and the complete cryptographic material.</p>
+<!-- Extracted from FINDINGS.md §12, §15.2, and §15.8 -->
+<section id="section-12-ble-encryption-key-retrieval">
+<h2>Section 12 — BLE Encryption Key Retrieval<a class="headerlink" href="#section-12-ble-encryption-key-retrieval" title="Link to this heading">¶</a></h2>
+<section id="overview">
+<h3>12.1 Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h3>
+<p>The app uses two distinct BLE security protocols depending on device firmware generation. Neither protocol fetches a session key from the cloud at runtime — all cryptographic material is either hardcoded in the APK or derived on-device from a challenge-response exchange.</p>
+</section>
+<section id="path-1-legacy-challenge-response-protocol-v1">
+<h3>12.2 Path 1 — Legacy Challenge-Response (Protocol v1)<a class="headerlink" href="#path-1-legacy-challenge-response-protocol-v1" title="Link to this heading">¶</a></h3>
+<p>Applies to older devices where <code class="docutils literal notranslate"><span class="pre">protocolVer</span> <span class="pre">&lt;</span> <span class="pre">2000</span></code>.</p>
+<p><strong>Flow:</strong></p>
+<ol class="arabic simple">
+<li><p>Device sends a BLE “hello” packet containing a 4-byte random value at bytes 4–7.</p></li>
+<li><p>App reverses the 4 random bytes, computes MD5 → stores as <code class="docutils literal notranslate"><span class="pre">randomMd5</span></code>.</p></li>
+<li><p>App responds with a challenge packet: <code class="docutils literal notranslate"><span class="pre">&quot;2A2A0204&quot;</span> <span class="pre">+</span> <span class="pre">randomMd5.substring(16,</span> <span class="pre">24)</span></code> + 1-byte checksum.</p></li>
+<li><p>Session AES key is derived as:</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bleConnAESKey</span> <span class="o">=</span> <span class="n">XOR</span><span class="p">(</span><span class="n">randomMd5</span><span class="p">,</span> <span class="n">LOCAL_AES_KEY</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Hardcoded key</strong> (<code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.LOCAL_AES_KEY</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">459</span><span class="n">FC535808941F17091E0993EE3E93D</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="5">
+<li><p>All subsequent BLE data is encrypted/decrypted with <code class="docutils literal notranslate"><span class="pre">AES-CBC</span></code> using <code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span></code>.</p></li>
+</ol>
+<p><strong>Key source files:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ConnectManager.java:1909–1925</span></code> — challenge-response derivation</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.java:98</span></code> — <code class="docutils literal notranslate"><span class="pre">LOCAL_AES_KEY</span></code> constant</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ProtocolParse.java:1424</span></code> — <code class="docutils literal notranslate"><span class="pre">buildAESCBCCmd(cmd,</span> <span class="pre">aesKey,</span> <span class="pre">iv)</span></code></p></li>
+</ul>
+</section>
+<section id="path-2-ecdh-ecdsa-mutual-authentication-protocol-v2">
+<h3>12.3 Path 2 — ECDH + ECDSA Mutual Authentication (Protocol v2)<a class="headerlink" href="#path-2-ecdh-ecdsa-mutual-authentication-protocol-v2" title="Link to this heading">¶</a></h3>
+<p>Applies to newer devices (protocol v2+, e.g., EPAD, PLP025, and other 2nd-gen IoT modules). This path adds ECDSA-based device identity verification and ECDH-based forward-secret session key derivation.</p>
+<p><strong>Flow:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Challenge-response</strong> (same as Path 1, establishes <code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span></code> as a temporary transport key).</p></li>
+<li><p><strong>Device sends ECDH public key + ECDSA signature</strong> (encrypted with <code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span></code>):</p>
+<ul class="simple">
+<li><p>Response type <code class="docutils literal notranslate"><span class="pre">0x04</span></code>: payload contains <code class="docutils literal notranslate"><span class="pre">iotPkHexStr</span></code> (64-byte uncompressed SECP-256R1 public key) + <code class="docutils literal notranslate"><span class="pre">signature</span></code> (64-byte raw ECDSA-SHA256 signature over <code class="docutils literal notranslate"><span class="pre">iotPublicKey</span> <span class="pre">||</span> <span class="pre">randomMd5</span></code>).</p></li>
+</ul>
+</li>
+<li><p><strong>App verifies signature</strong> using hardcoded ECDSA verification key <code class="docutils literal notranslate"><span class="pre">PUBLIC_KEY_K2</span></code>:</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">PUBLIC_KEY_K2</span> <span class="o">=</span>
+<span class="s2">&quot;3059301306072a8648ce3d020106082a8648ce3d03010703420004</span>
+ <span class="n">A73ABF5D2232C8C1C72E68304343C272495E3A8FD6F30EA96DE2F4B3CE60B251</span>
+ <span class="n">EE21AC667CF8A71E18B46B664EAEFFE3C489F24F695B6411DB7E22CCC85A8594</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>This is an X.509-encoded SECP-256R1 (P-256) public key.</p>
+<ol class="arabic simple" start="4">
+<li><p><strong>App generates ephemeral ECDH keypair</strong> (SECP-256R1), then <strong>signs</strong> <code class="docutils literal notranslate"><span class="pre">(appPublicKey</span> <span class="pre">||</span> <span class="pre">randomMd5)</span></code> with hardcoded private key <code class="docutils literal notranslate"><span class="pre">PRIVATE_KEY_L1</span></code>:</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">PRIVATE_KEY_L1</span> <span class="o">=</span> <span class="s2">&quot;4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337&quot;</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="5">
+<li><p><strong>App sends</strong> its ephemeral public key + own ECDSA signature to the device (<code class="docutils literal notranslate"><span class="pre">0x2A2A0580</span></code> packet).</p></li>
+<li><p><strong>Device responds</strong> with response type <code class="docutils literal notranslate"><span class="pre">0x06</span></code> confirming acceptance.</p></li>
+<li><p><strong>Session key derived</strong> via ECDH:</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bleConnShareKey</span> <span class="o">=</span> <span class="n">ECDH_SharedSecret</span><span class="p">(</span><span class="n">appEphemeralPrivKey</span><span class="p">,</span> <span class="n">deviceIoTPublicKey</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span></code> is discarded; all subsequent BLE traffic is encrypted with <code class="docutils literal notranslate"><span class="pre">bleConnShareKey</span></code> using AES-CBC.</p>
+<p><strong>Key source files:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ConnectManager.java:1934–1961</span></code> — ECDH key exchange logic</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ConnectManager$bleEncryptedHandle$2$1.java:67–154</span></code> — ECDSA verify + ECDH keypair generation</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SignatureCrypt.java:32–33</span></code> — hardcoded <code class="docutils literal notranslate"><span class="pre">PUBLIC_KEY_K2</span></code> and <code class="docutils literal notranslate"><span class="pre">PRIVATE_KEY_L1</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ECDHUtils.java:29–33</span></code> — SECP-256R1 ASN.1 DER prefixes</p></li>
+</ul>
+</section>
+<section id="server-ble-key-and-related-device-registers">
+<h3>12.4 “Server BLE Key” and Related Device Registers<a class="headerlink" href="#server-ble-key-and-related-device-registers" title="Link to this heading">¶</a></h3>
+<p>A separate per-device key (<code class="docutils literal notranslate"><span class="pre">serverBLEKey</span></code>) is stored in the IoT module at <strong>Modbus register 13603</strong> (<code class="docutils literal notranslate"><span class="pre">ProtocolAddrV2.IOT_BLE_SERVER_KEY</span></code>). This is not a session key; it is a long-lived key provisioned into the device by the server during manufacturing or cloud registration.</p>
+<p><strong>Usage:</strong> When pairing a Fingerprint Screen (FPS) accessory to a main device, the app:</p>
+<ol class="arabic simple">
+<li><p>Reads the main device’s server BLE key over BLE (<code class="docutils literal notranslate"><span class="pre">getReadTask(13603)</span></code>).</p></li>
+<li><p>Broadcasts the key via <code class="docutils literal notranslate"><span class="pre">LiveEventBus</span></code> event <code class="docutils literal notranslate"><span class="pre">&quot;IOT_SERVER_KEY&quot;</span></code>.</p></li>
+<li><p>Passes it as Intent extra <code class="docutils literal notranslate"><span class="pre">&quot;serverBLEKey&quot;</span></code> to <code class="docutils literal notranslate"><span class="pre">DeviceBluetoothScanActivity</span></code> for the screen pairing flow.</p></li>
+</ol>
+<p>This key is not fetched from a cloud REST API by the app at runtime; it is read directly from the device register over BLE.</p>
+<p><strong>Related registers (not used for general BLE device control):</strong></p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Register</p></th>
+<th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>13603</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_BLE_SERVER_KEY</span></code></p></td>
+<td><p>Server BLE Key</p></td>
+<td><p>FPS/screen accessory pairing key</p></td>
+</tr>
+<tr class="row-odd"><td><p>12185</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IOT_BLE_SERVER_SET</span></code></p></td>
+<td><p>Server BLE Set</p></td>
+<td><p>Write register for provisioning the server BLE key</p></td>
+</tr>
+<tr class="row-even"><td><p>13776</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BLE_CLIENT_PAIR_SN</span></code></p></td>
+<td><p>BLE Client Pair SN</p></td>
+<td><p>Sub-device/accessory pairing serial number</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Key source files:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ConnectManager.java:2266–2267</span></code> — register 13603 → <code class="docutils literal notranslate"><span class="pre">ACTION_IOT_SERVER_KEY</span></code> event</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DeviceFPSResetActivity.java:198–221</span></code> — subscribes to event, stores <code class="docutils literal notranslate"><span class="pre">serverBLEKey</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DeviceFPSResetActivity.java:161–170</span></code> — passes key as Intent extra to scan activity</p></li>
+</ul>
+</section>
+<section id="security-observations">
+<h3>12.5 Security Observations<a class="headerlink" href="#security-observations" title="Link to this heading">¶</a></h3>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Issue</p></th>
+<th class="head"><p>Detail</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Hardcoded local AES key</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LOCAL_AES_KEY</span> <span class="pre">=</span> <span class="pre">459FC535808941F17091E0993EE3E93D</span></code> is identical across all app installations. Any attacker who captures a BLE session can decrypt it given the <code class="docutils literal notranslate"><span class="pre">randomMd5</span></code> (derivable from the challenge packet).</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Hardcoded ECDSA private key</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PRIVATE_KEY_L1</span></code> is embedded in the APK. An attacker can extract it, sign arbitrary ECDH public keys, and impersonate the official Bluetti app to any device.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Hardcoded ECDSA verification key</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PUBLIC_KEY_K2</span></code> is the only device-authenticity anchor. All Bluetti devices share the same IoT identity signing key.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>No cloud key fetch for sessions</strong></p></td>
+<td><p>BLE session keys are fully self-contained; revocation or re-keying without an app update is not possible.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>getQrCodeEncrypt endpoint</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/blusmartprod/device/basic/v1/getQrCodeEncrypt</span></code> exists in the API list but is not used in the BLE session key flow — it appears to be related to QR-code-based device pairing, not BLE encryption.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>BLE password checked client-side only</strong></p></td>
+<td><p>The 6-digit PIN is read from the device over BLE, then compared against user input in the app. An attacker who completes the BLE handshake can read the register holding the PIN and bypass the check.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>BLE password stored on device, readable over BLE</strong></p></td>
+<td><p>Once the encrypted session is established, the PIN value is transmitted in the clear (encrypted at the transport layer by the global session key).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="bluetooth-password-per-device-pin-authorization">
+<h3>12.6 Bluetooth Password — Per-Device PIN Authorization<a class="headerlink" href="#bluetooth-password-per-device-pin-authorization" title="Link to this heading">¶</a></h3>
+<p>Separate from session encryption, the app supports an <strong>optional per-device 6-digit BLE password</strong> that gates access after a successful BLE connection and handshake. This is not an encryption key — it is an authorization PIN.</p>
+<p><strong>Config flags</strong> (stored in <code class="docutils literal notranslate"><span class="pre">DeviceBaseConfigBean</span></code>):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">btPswEnable</span></code> (int): Whether a BLE password is active on this device</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">btLoginPsw</span></code> (String): The 6-digit PIN value</p></li>
+</ul>
+<p><strong>How the password is read:</strong> Both fields are parsed from the base config response at <code class="docutils literal notranslate"><span class="pre">ProtocolParse.java:97-99</span></code>:</p>
+<div class="highlight-java notranslate"><div class="highlight"><pre><span></span><span class="c1">// btPswEnable from bits 0-1 of hex positions 10+11</span>
+<span class="n">deviceBaseConfigBean</span><span class="p">.</span><span class="na">setBtPswEnable</span><span class="p">(</span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span>
+<span class="w">    </span><span class="n">list</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="mi">2</span><span class="p">));</span>
+<span class="c1">// btLoginPsw from hex positions 12-17 (6 ASCII bytes)</span>
+<span class="n">deviceBaseConfigBean</span><span class="p">.</span><span class="na">setBtLoginPsw</span><span class="p">(</span>
+<span class="w">    </span><span class="n">getASCIIStr</span><span class="p">(</span><span class="n">dataRes</span><span class="p">.</span><span class="na">subList</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="mi">18</span><span class="p">),</span><span class="w"> </span><span class="kc">true</span><span class="p">));</span>
+</pre></div>
+</div>
+<p><strong>How the password is checked:</strong> After BLE connect succeeds, <code class="docutils literal notranslate"><span class="pre">DeviceBluetoothScanActivity.java:961-986</span></code> checks <code class="docutils literal notranslate"><span class="pre">btPswEnable</span> <span class="pre">==</span> <span class="pre">1</span></code>. If active, it shows <code class="docutils literal notranslate"><span class="pre">DeviceBluetoothPswCheckDialog</span></code> (<code class="docutils literal notranslate"><span class="pre">DeviceBluetoothPswCheckDialog.java</span></code>) — a 6-digit PIN entry popup. The check at line 96 is a simple string comparison:</p>
+<div class="highlight-java notranslate"><div class="highlight"><pre><span></span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Intrinsics</span><span class="p">.</span><span class="na">areEqual</span><span class="p">(</span><span class="n">strUserInput</span><span class="p">,</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">bluetoothPassword</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">successHandle</span><span class="p">();</span><span class="w">  </span><span class="c1">// proceed to device home</span>
+<span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// show error toast, retry count, disconnect on timeout</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>If the user closes the dialog or fails the check, <code class="docutils literal notranslate"><span class="pre">ConnectManager.disconnectDevice()</span></code> is called — the BLE connection is terminated. The dialog has a 60-second countdown timer.</p>
+<p><strong>How the password is set:</strong> The device owner sets it from the device settings screen via <code class="docutils literal notranslate"><span class="pre">DeviceBluetoothPswSetupDialog</span></code> (<code class="docutils literal notranslate"><span class="pre">DeviceBluetoothPswSetupDialog.java</span></code>), which calls <code class="docutils literal notranslate"><span class="pre">ProtocolParse.bluetoothPswSetupData(password)</span></code> (<code class="docutils literal notranslate"><span class="pre">ProtocolParse.java:1164-1196</span></code>). This encodes a 6-character password as a 12-byte hex string and writes it to the <code class="docutils literal notranslate"><span class="pre">BLUETOOTH_PASSWORD</span></code> register (address 7 in <code class="docutils literal notranslate"><span class="pre">ProtocolAddr.java:16</span></code>).</p>
+<p><strong>To remove the password:</strong> The <code class="docutils literal notranslate"><span class="pre">negativeClick</span></code> handler in <code class="docutils literal notranslate"><span class="pre">DeviceBluetoothPswSetupDialog.java:242</span></code> sends the “no password” message and writes zeroes (6 × “00” bytes) to clear the stored PIN, setting <code class="docutils literal notranslate"><span class="pre">btPswEnable</span></code> back to 0.</p>
+<p><strong>Key source files:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ProtocolParse.java:97-99</span></code> — <code class="docutils literal notranslate"><span class="pre">btPswEnable</span></code> and <code class="docutils literal notranslate"><span class="pre">btLoginPsw</span></code> parsing from base config</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ProtocolParse.java:1164-1196</span></code> — <code class="docutils literal notranslate"><span class="pre">bluetoothPswSetupData()</span></code> password encoding</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ProtocolAddr.java:16</span></code> — <code class="docutils literal notranslate"><span class="pre">BLUETOOTH_PASSWORD</span></code> register address (7)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DeviceBluetoothScanActivity.java:961-986</span></code> — password check trigger after BLE connect</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DeviceBluetoothPswCheckDialog.java:89-106</span></code> — PIN comparison and success/failure handling</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DeviceBluetoothPswSetupDialog.java:46-58,</span> <span class="pre">204-242</span></code> — password setup and clear dialogs</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="ble-connection-and-handshake-flow">
+<h3>15.2 BLE Connection and Handshake Flow<a class="headerlink" href="#ble-connection-and-handshake-flow" title="Link to this heading">¶</a></h3>
+<section id="step-1-scan-connect">
+<h4>Step 1: Scan &amp; Connect<a class="headerlink" href="#step-1-scan-connect" title="Link to this heading">¶</a></h4>
+<ol class="arabic simple">
+<li><p>Start BLE scan filtered by service <code class="docutils literal notranslate"><span class="pre">0000ff00-...</span></code></p></li>
+<li><p>On device found, call <code class="docutils literal notranslate"><span class="pre">connectGatt()</span></code> with <code class="docutils literal notranslate"><span class="pre">transport=LE</span></code></p></li>
+<li><p>Wait for services discovery (500ms delay auto-triggered)</p></li>
+<li><p>Find <code class="docutils literal notranslate"><span class="pre">BluetoothGattService</span></code> using service UUID from scanned device</p></li>
+<li><p>Get write characteristic (<code class="docutils literal notranslate"><span class="pre">ff02</span></code>) and read/notify characteristic (<code class="docutils literal notranslate"><span class="pre">ff01</span></code>)</p></li>
+<li><p>Enable notifications on <code class="docutils literal notranslate"><span class="pre">ff01</span></code> with descriptor <code class="docutils literal notranslate"><span class="pre">00002902-...</span></code> using <code class="docutils literal notranslate"><span class="pre">ENABLE_NOTIFICATION_VALUE</span></code> (<code class="docutils literal notranslate"><span class="pre">{0x01,</span> <span class="pre">0x00}</span></code>)</p></li>
+</ol>
+</section>
+<section id="step-2-read-device-snapshot">
+<h4>Step 2: Read Device Snapshot<a class="headerlink" href="#step-2-read-device-snapshot" title="Link to this heading">¶</a></h4>
+<p>After connection, the app reads the base config to determine protocol version and capabilities:</p>
+<ol class="arabic simple">
+<li><p>Read protocol version from Modbus register 16 (v1: <code class="docutils literal notranslate"><span class="pre">0103</span> <span class="pre">0010</span> <span class="pre">0001</span> <span class="pre">...</span></code>) or V2 equivalent</p></li>
+<li><p>Read base config from register 1</p></li>
+<li><p>Read device SN from register 21</p></li>
+<li><p>Read real-time data from register 10</p></li>
+</ol>
+</section>
+<section id="step-3-encryption-handshake-for-encrypted-devices">
+<h4>Step 3: Encryption Handshake (for encrypted devices)<a class="headerlink" href="#step-3-encryption-handshake-for-encrypted-devices" title="Link to this heading">¶</a></h4>
+<p>For devices where <code class="docutils literal notranslate"><span class="pre">isESP32Encrypted</span> <span class="pre">==</span> <span class="pre">true</span></code> or <code class="docutils literal notranslate"><span class="pre">isBLEEncrypted</span> <span class="pre">==</span> <span class="pre">true</span></code>:</p>
+<p><strong>3a. Challenge-Response:</strong></p>
+<ol class="arabic simple">
+<li><p>Device sends: <code class="docutils literal notranslate"><span class="pre">2A</span> <span class="pre">2A</span> <span class="pre">01</span></code> followed by 4 random bytes (position 4-7)</p></li>
+<li><p>App reverses the 4 random bytes, computes MD5 → <code class="docutils literal notranslate"><span class="pre">randomMd5</span></code></p></li>
+<li><p>App responds: <code class="docutils literal notranslate"><span class="pre">2A</span> <span class="pre">2A</span> <span class="pre">02</span> <span class="pre">04</span></code> + <code class="docutils literal notranslate"><span class="pre">randomMd5.substring(16,</span> <span class="pre">24)</span></code> + 2-byte checksum</p></li>
+<li><p>App derives temporary key: <code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span> <span class="pre">=</span> <span class="pre">XOR(randomMd5,</span> <span class="pre">LOCAL_AES_KEY)</span></code></p></li>
+</ol>
+<p><strong>3b. ECDH Key Exchange (protocol v2+):</strong></p>
+<ol class="arabic simple">
+<li><p>Device sends <code class="docutils literal notranslate"><span class="pre">2A</span> <span class="pre">2A</span> <span class="pre">04</span> <span class="pre">...</span></code> (AES-CBC encrypted with <code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span></code>, IV=MD5(randomMd5))</p>
+<ul class="simple">
+<li><p>Bytes 4-67: device’s SECP-256R1 public key (64 bytes, raw X+Y, no 04 prefix)</p></li>
+<li><p>Bytes 68 to (end-2): raw ECDSA signature (r||s, 64 bytes) over <code class="docutils literal notranslate"><span class="pre">(devicePublicKey</span> <span class="pre">||</span> <span class="pre">randomMd5)</span></code></p></li>
+<li><p>Last 2 bytes: checksum (little-endian sum of preceding bytes)</p></li>
+</ul>
+</li>
+<li><p>App verifies ECDSA signature using hardcoded <code class="docutils literal notranslate"><span class="pre">PUBLIC_KEY_K2</span></code></p></li>
+<li><p>App generates ephemeral SECP-256R1 keypair</p></li>
+<li><p>App signs <code class="docutils literal notranslate"><span class="pre">(appPublicKey</span> <span class="pre">||</span> <span class="pre">randomMd5)</span></code> with hardcoded <code class="docutils literal notranslate"><span class="pre">PRIVATE_KEY_L1</span></code></p></li>
+<li><p>App sends <code class="docutils literal notranslate"><span class="pre">2A</span> <span class="pre">2A</span> <span class="pre">05</span> <span class="pre">80</span> <span class="pre">...</span></code> with app public key + signature</p></li>
+<li><p>Device responds <code class="docutils literal notranslate"><span class="pre">2A</span> <span class="pre">2A</span> <span class="pre">06</span> <span class="pre">00</span> <span class="pre">...</span></code> confirming acceptance</p></li>
+<li><p>App derives shared secret via ECDH: <code class="docutils literal notranslate"><span class="pre">bleConnShareKey</span> <span class="pre">=</span> <span class="pre">ECDH(appPrivKey,</span> <span class="pre">devicePubKey)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span></code> discarded; all subsequent traffic encrypted with <code class="docutils literal notranslate"><span class="pre">bleConnShareKey</span></code></p></li>
+</ol>
+<p><strong>3c. Post-handshake encryption:</strong>
+All subsequent Modbus frames are AES-CBC encrypted using <code class="docutils literal notranslate"><span class="pre">bleConnShareKey</span></code> (or <code class="docutils literal notranslate"><span class="pre">bleConnAESKey</span></code> if ECDH not completed):</p>
+<ul class="simple">
+<li><p>Written via <code class="docutils literal notranslate"><span class="pre">buildAESCBCCmd(cmd,</span> <span class="pre">aesKey,</span> <span class="pre">iv)</span></code></p></li>
+<li><p>The IV for the first block is derived from MD5(randomMd5), then chained from previous ciphertext</p></li>
+<li><p>Each 16-byte block padded to exactly 16 bytes (no PKCS padding)</p></li>
+</ul>
+</section>
+<section id="step-4-modbus-data-protocol-post-handshake">
+<h4>Step 4: Modbus Data Protocol (post-handshake)<a class="headerlink" href="#step-4-modbus-data-protocol-post-handshake" title="Link to this heading">¶</a></h4>
+<p>Once encrypted channel is established, device communication uses standard Modbus RTU-style frames.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="complete-crypto-material">
+<h3>15.8 Complete Crypto Material<a class="headerlink" href="#complete-crypto-material" title="Link to this heading">¶</a></h3>
+<p>All keys are hardcoded in the APK and identical across all installations.</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Value</p></th>
+<th class="head"><p>Source File</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">LOCAL_AES_KEY</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">459FC535808941F17091E0993EE3E93D</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ConnConstantsV2.java:98</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">PRIVATE_KEY_L1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SignatureCrypt.java:34</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">PUBLIC_KEY_K2</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">3059301306072a8648ce3d020106082a8648ce3d03010703420004A73ABF5D2232C8C1C72E68304343C272495E3A8FD6F30EA96DE2F4B3CE60B251EE21AC667CF8A71E18B46B664EAEFFE3C489F24F695B6411DB7E22CCC85A8594</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SignatureCrypt.java:35</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Key derivation formulas:</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Legacy challenge-response:</span>
+<span class="n">random_bytes</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">4</span><span class="p">:</span><span class="mi">8</span><span class="p">]</span>                           <span class="c1"># from device hello packet</span>
+<span class="n">randomMd5</span> <span class="o">=</span> <span class="n">MD5</span><span class="p">(</span><span class="n">reverse</span><span class="p">(</span><span class="n">random_bytes</span><span class="p">))</span>              <span class="c1"># 32 hex chars</span>
+<span class="n">bleConnAESKey</span> <span class="o">=</span> <span class="n">XOR</span><span class="p">(</span><span class="n">randomMd5</span><span class="p">,</span> <span class="n">LOCAL_AES_KEY</span><span class="p">)</span>       <span class="c1"># 32 hex chars → 16 bytes</span>
+
+<span class="c1"># ECDH (protocol v2+):</span>
+<span class="n">ecdh_shared_secret</span> <span class="o">=</span> <span class="n">ECDH_secp256r1</span><span class="p">(</span><span class="n">app_ephemeral_privkey</span><span class="p">,</span> <span class="n">device_iot_pubkey</span><span class="p">)</span>
+<span class="n">bleConnShareKey</span> <span class="o">=</span> <span class="n">ecdh_shared_secret</span>                <span class="c1"># 32 hex chars → 16 bytes</span>
+</pre></div>
+</div>
+<p><strong>Cipher:</strong> AES-128-CBC, IV chained from MD5(randomMd5), 16-byte blocks, no padding.</p>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="modbus-registers.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Modbus Registers</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="ble-communication.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">BLE Communication</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, Michael McCallister
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Security</a><ul>
+<li><a class="reference internal" href="#section-12-ble-encryption-key-retrieval">Section 12 — BLE Encryption Key Retrieval</a><ul>
+<li><a class="reference internal" href="#overview">12.1 Overview</a></li>
+<li><a class="reference internal" href="#path-1-legacy-challenge-response-protocol-v1">12.2 Path 1 — Legacy Challenge-Response (Protocol v1)</a></li>
+<li><a class="reference internal" href="#path-2-ecdh-ecdsa-mutual-authentication-protocol-v2">12.3 Path 2 — ECDH + ECDSA Mutual Authentication (Protocol v2)</a></li>
+<li><a class="reference internal" href="#server-ble-key-and-related-device-registers">12.4 “Server BLE Key” and Related Device Registers</a></li>
+<li><a class="reference internal" href="#security-observations">12.5 Security Observations</a></li>
+<li><a class="reference internal" href="#bluetooth-password-per-device-pin-authorization">12.6 Bluetooth Password — Per-Device PIN Authorization</a></li>
+<li><a class="reference internal" href="#ble-connection-and-handshake-flow">15.2 BLE Connection and Handshake Flow</a><ul>
+<li><a class="reference internal" href="#step-1-scan-connect">Step 1: Scan &amp; Connect</a></li>
+<li><a class="reference internal" href="#step-2-read-device-snapshot">Step 2: Read Device Snapshot</a></li>
+<li><a class="reference internal" href="#step-3-encryption-handshake-for-encrypted-devices">Step 3: Encryption Handshake (for encrypted devices)</a></li>
+<li><a class="reference internal" href="#step-4-modbus-data-protocol-post-handshake">Step 4: Modbus Data Protocol (post-handshake)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#complete-crypto-material">15.8 Complete Crypto Material</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>
