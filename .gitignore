@@ -8,3 +8,6 @@ htmlcov/
 
 # voltkeeper load-test command writes per-run CSVs into the working dir
 *_load_test_*.csv
+
+# Sphinx build output
+docs/build/

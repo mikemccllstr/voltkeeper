@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 215" role="img" aria-label="Voltkeeper shield">
+  <title>Voltkeeper shield</title>
+  <desc>A dark heater shield containing a yellow lightning bolt flanked by two vertical stacks of upright battery cells, bordered by a thin yellow inner outline.</desc>
+
+  <!-- Outer shield silhouette (filled). Drawn first so it sits beneath everything else. -->
+  <path fill="#0F172A" d="M 100 0
+    L 200 0
+    L 200 110
+    Q 200 170 150 195
+    L 100 215
+    L 50 195
+    Q 0 170 0 110
+    L 0 0 Z"/>
+
+  <!-- Lightning bolt, pointed at both ends, centered horizontally and vertically inside the shield. -->
+  <path fill="#FACC15" d="M 116 30
+    L 78 112
+    L 100 112
+    L 84 188
+    L 124 102
+    L 102 102
+    L 116 30 Z"/>
+
+  <!-- Left battery stack: two upright cells with small terminal caps on top. -->
+  <g transform="translate(28, 36)">
+    <rect fill="#FACC15" x="6" y="0" width="10" height="6" rx="1"/>
+    <rect fill="none" stroke="#FACC15" stroke-width="2" x="0" y="6" width="22" height="32" rx="2"/>
+    <rect fill="#FACC15" x="6" y="46" width="10" height="6" rx="1"/>
+    <rect fill="none" stroke="#FACC15" stroke-width="2" x="0" y="52" width="22" height="32" rx="2"/>
+  </g>
+
+  <!-- Right battery stack: mirrors the left stack. -->
+  <g transform="translate(150, 36)">
+    <rect fill="#FACC15" x="6" y="0" width="10" height="6" rx="1"/>
+    <rect fill="none" stroke="#FACC15" stroke-width="2" x="0" y="6" width="22" height="32" rx="2"/>
+    <rect fill="#FACC15" x="6" y="46" width="10" height="6" rx="1"/>
+    <rect fill="none" stroke="#FACC15" stroke-width="2" x="0" y="52" width="22" height="32" rx="2"/>
+  </g>
+
+  <!-- Inner shield outline. Drawn LAST so it always rides cleanly on top of the cells. -->
+  <path fill="none" stroke="#FACC15" stroke-width="3" d="M 100 14
+    L 186 14
+    L 186 110
+    Q 186 162 144 183
+    L 100 200
+    L 56 183
+    Q 14 162 14 110
+    L 14 14 Z"/>
+</svg>

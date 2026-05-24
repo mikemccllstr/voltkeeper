@@ -49,3 +49,7 @@ run = [
 description = "Run tests across all supported Python versions"
 run = "tox run"
 
+[tasks.docs]
+description = "Build Sphinx documentation (HTML + man pages)"
+run = "uv run sphinx-build -b html docs/source/ docs/build/html/ && uv run sphinx-build -b man docs/source/ docs/build/man/"
+
