@@ -63,7 +63,7 @@ class Daemon:
 
     def _resolve_host(self) -> str:
         if self._config.server.interface:
-            return _get_interface_ip(self._config.server.interface, self._config.server.host)
+            return _get_interface_ip(self._config.server.interface)
         return self._config.server.host
 
     def _handle_signal(self) -> None:
@@ -86,19 +86,26 @@ class Daemon:
         logger.info("voltkeeperd stopped")
 
 
-def _get_interface_ip(interface: str, fallback: str) -> str:
-    import fcntl
+def _get_interface_ip(interface: str) -> str:
+    try:
+        import fcntl
+    except ImportError as e:
+        raise RuntimeError(
+            f"Cannot resolve interface {interface!r}: 'fcntl' is unavailable on this platform. "
+            "Remove server.interface and use server.host instead."
+        ) from e
     import socket
     import struct
 
     ifreq = struct.pack("256s", interface.encode("utf-8")[:15])
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        ip = socket.inet_ntoa(fcntl.ioctl(sock.fileno(), 0x8915, ifreq)[20:24])
-        return ip
-    except OSError:
-        logger.warning(f"Could not resolve interface {interface}, falling back to {fallback}")
-        return fallback
+        return socket.inet_ntoa(fcntl.ioctl(sock.fileno(), 0x8915, ifreq)[20:24])
+    except OSError as e:
+        raise RuntimeError(
+            f"Cannot resolve interface {interface!r}: {e}. "
+            "Check the interface name in config, or remove server.interface to use server.host."
+        ) from e
     finally:
         sock.close()
 

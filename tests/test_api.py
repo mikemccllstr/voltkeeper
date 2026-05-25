@@ -6,7 +6,7 @@ import aiohttp
 import pytest
 from aiohttp import web
 
-from voltkeeper.api import _RATE_LIMIT_WINDOW, _RATE_STORE_KEY, create_app
+from voltkeeper.api import _RATE_LIMIT_WINDOW, _RATE_STORE_KEY, _to_serializable, create_app
 from voltkeeper.bus import EventBus
 from voltkeeper.config import Config, DeviceEntry, ServerConfig
 from voltkeeper.core.devices.ac2a import AC2A
@@ -415,9 +415,39 @@ class TestWebSocket:
         asyncio.run(_run())
 
 
+class TestSerializable:
+    def test_to_serializable_handles_enum(self):
+        import json
+        from enum import Enum
+
+        class ChargingMode(Enum):
+            STANDARD = 0
+            TURBO = 1
+
+        result = _to_serializable({"mode": ChargingMode.TURBO, "soc": 85})
+        json.dumps(result)  # must not raise
+        assert result["mode"] == 1
+        assert result["soc"] == 85
+
+    def test_to_serializable_handles_nested_enum(self):
+        import json
+        from enum import Enum
+
+        class Mode(Enum):
+            X = "x_value"
+
+        result = _to_serializable({"outer": {"inner": Mode.X}, "list": [Mode.X]})
+        json.dumps(result)
+        assert result["outer"]["inner"] == "x_value"
+        assert result["list"] == ["x_value"]
+
+
 class TestRateLimit:
-    def test_stale_entries_evicted_on_window_reset(self, bus, store, unused_tcp_port):
+    def test_stale_entries_evicted_when_store_at_cap(self, bus, store, unused_tcp_port):
+        """A new IP arriving when store is at cap should trigger eviction of stale entries."""
         import time
+
+        from voltkeeper.api import _RATE_LIMIT_MAX_TRACKED
 
         config = Config(server=ServerConfig(api_key="key", port=unused_tcp_port), devices=[])
 
@@ -428,18 +458,20 @@ class TestRateLimit:
             try:
                 rate_store = app[_RATE_STORE_KEY]
                 stale_ts = time.monotonic() - _RATE_LIMIT_WINDOW - 1
-
-                # Inject a stale entry and an expired entry for the real client IP
-                rate_store["10.0.0.99"] = (5, stale_ts)
-                rate_store["127.0.0.1"] = (1, stale_ts)
+                # Fill the store to cap with stale entries
+                for i in range(_RATE_LIMIT_MAX_TRACKED):
+                    rate_store[f"10.0.{i // 256}.{i % 256}"] = (1, stale_ts)
+                assert len(rate_store) == _RATE_LIMIT_MAX_TRACKED
 
                 url = f"http://127.0.0.1:{unused_tcp_port}/api/devices"
                 async with aiohttp.ClientSession() as session:
-                    # Request resets 127.0.0.1 window → should evict 10.0.0.99
+                    # Fresh IP arriving on full store should trigger eviction
                     async with session.get(url, headers={"Authorization": "Bearer key"}) as resp:
                         assert resp.status == 200
 
-                assert "10.0.0.99" not in rate_store
+                # All stale entries evicted, only the live 127.0.0.1 remains
+                assert len(rate_store) == 1
+                assert "127.0.0.1" in rate_store
             finally:
                 await runner.cleanup()
 

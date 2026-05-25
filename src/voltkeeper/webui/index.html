@@ -115,6 +115,9 @@ button:hover { background: var(--accent-dim); }
 let apiKey = '';
 let ws = null;
 let devices = {};
+let wsOpenedThisAttempt = false;
+let consecutiveWsFailures = 0;
+const WS_MAX_FAILURES_BEFORE_REAUTH = 3;
 
 // -- Auth --
 function saveApiKey() {
@@ -122,6 +125,7 @@ function saveApiKey() {
   if (!key) return;
   apiKey = key;
   sessionStorage.setItem('vk_api_key', key);
+  consecutiveWsFailures = 0;
   document.getElementById('auth').classList.add('hidden');
   connect();
 }
@@ -135,9 +139,19 @@ function loadApiKey() {
   }
 }
 
+function clearAuth() {
+  apiKey = '';
+  sessionStorage.removeItem('vk_api_key');
+  if (ws) { try { ws.close(); } catch (e) { /* ignore */ } }
+  document.getElementById('auth').classList.remove('hidden');
+  document.getElementById('api-key-input').value = '';
+  document.getElementById('api-key-input').focus();
+}
+
 // -- HTTP helpers --
 async function apiGet(path) {
   const resp = await fetch(path, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+  if (resp.status === 401) { clearAuth(); throw new Error('Unauthorized'); }
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
 }
@@ -148,6 +162,7 @@ async function apiPost(path, body) {
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  if (resp.status === 401) { clearAuth(); throw new Error('Unauthorized'); }
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
 }
@@ -155,9 +170,12 @@ async function apiPost(path, body) {
 // -- WebSocket --
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  wsOpenedThisAttempt = false;
   ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(apiKey)}`);
 
   ws.onopen = () => {
+    wsOpenedThisAttempt = true;
+    consecutiveWsFailures = 0;
     document.getElementById('ws-dot').classList.add('connected');
     document.getElementById('ws-status').textContent = 'Connected';
     fetchDevices();
@@ -175,6 +193,14 @@ function connect() {
   ws.onclose = () => {
     document.getElementById('ws-dot').classList.remove('connected');
     document.getElementById('ws-status').textContent = 'Disconnected';
+    if (!wsOpenedThisAttempt) {
+      // Connection rejected before handshake (likely auth failure or server down)
+      consecutiveWsFailures++;
+      if (consecutiveWsFailures >= WS_MAX_FAILURES_BEFORE_REAUTH) {
+        clearAuth();
+        return;
+      }
+    }
     if (apiKey) {
       setTimeout(connect, 3000);
     }

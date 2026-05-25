@@ -10,6 +10,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from aiohttp import web
@@ -30,6 +31,7 @@ _RATE_STORE_KEY: Any = web.AppKey("rate_store", dict)
 
 _RATE_LIMIT_WINDOW = 60.0  # seconds
 _RATE_LIMIT_MAX = 60  # requests per window per IP
+_RATE_LIMIT_MAX_TRACKED = 1024  # cap on distinct IPs tracked; triggers eviction sweep
 
 
 def create_app(config: Config, bus: EventBus, store: StateStore, device_manager: DeviceManager) -> web.Application:
@@ -90,8 +92,9 @@ async def _rate_limit_middleware(request: web.Request, handler) -> web.StreamRes
             store[remote] = (count + 1, window_start)
         else:
             store[remote] = (1, now)
-            _evict_stale(store, now)
     else:
+        if len(store) >= _RATE_LIMIT_MAX_TRACKED:
+            _evict_stale(store, now)
         store[remote] = (1, now)
 
     return await handler(request)
@@ -248,7 +251,7 @@ async def _handle_websocket(request: web.Request) -> web.WebSocketResponse:
             )
             if state:
                 await ws.send_json(_to_serializable({"type": "state_update", "device": ds.address, "state": state}))
-    except Exception:
+    except ConnectionError:
         return ws
 
     async def on_parser_message(msg):
@@ -257,7 +260,7 @@ async def _handle_websocket(request: web.Request) -> web.WebSocketResponse:
         try:
             payload = {"type": "state_update", "device": msg.device.address, "state": msg.parsed}
             await ws.send_json(_to_serializable(payload))
-        except Exception:
+        except ConnectionError:
             pass
 
     bus.add_parser_listener(on_parser_message)
@@ -292,6 +295,8 @@ def _webui_path() -> str:
 def _to_serializable(obj: Any) -> Any:
     if isinstance(obj, Decimal):
         return float(obj)
+    if isinstance(obj, Enum):
+        return _to_serializable(obj.value)
     if isinstance(obj, dict):
         return {k: _to_serializable(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):

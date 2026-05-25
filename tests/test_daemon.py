@@ -79,9 +79,8 @@ class TestInterfaceResolution:
         # lo resolves to 127.0.0.1; on failure falls back to config host (127.0.0.1)
         assert host == "127.0.0.1"
 
-    def test_interface_fallback_uses_config_host(self, test_config):
+    def test_get_interface_ip_raises_on_unknown_interface(self):
         from voltkeeper.daemon import _get_interface_ip
 
-        test_config.server.host = "127.0.0.1"
-        result = _get_interface_ip("nonexistent_nic_xyz", test_config.server.host)
-        assert result == "127.0.0.1"
+        with pytest.raises(RuntimeError, match="nonexistent_nic_xyz"):
+            _get_interface_ip("nonexistent_nic_xyz")
