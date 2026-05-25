@@ -1,6 +1,6 @@
 # Device Models
 
-This page covers the protocol version thresholds that define device model generations, and provides AC2A-specific details as the reference implementation model.
+This page covers the protocol version thresholds that define device model generations, the device model catalog (120 models as of APK v3.0.9), and AC2A-specific details as the reference implementation model.
 
 <!-- Extracted from FINDINGS.md §15.4 and §15.10 -->
 
@@ -36,3 +36,25 @@ For the AC2A, the minimum protocol version is defined in `DeviceConnUtil.getDevi
 - **Has battery:** Yes (built-in)
 - **Supports:** AC output, DC output, PV input, grid charging, ECO mode, UPS mode, power lifting
 - **Device function flags:** Defined in `DeviceConnUtil.getDeviceFunc("AC2A", protocolVer, ...)` which returns a `DeviceFunction` with ~135 boolean capability flags
+
+## 15.11 Device Model Changes in v3.0.9
+
+APK v3.0.8 had 115 device models; v3.0.9 adds 5 new models for a total of 120.
+
+### New Models in v3.0.9
+
+| Ordinal | Model Code | Model Number | Notes |
+|---------|-----------|-------------|-------|
+| 54 | `AORA100_MINI` | 66 | AORA mini series |
+| 55 | `AORA30_MINI` | 67 | AORA mini series |
+| 56 | `AORA200_MINI` | 68 | AORA mini series |
+| 98 | `HB500S` | 4025 | Battery pack |
+| 99 | `BH500E` | 4026 | Battery pack |
+
+### Notable Enum Changes
+
+- **EB55** (model 14) was repositioned from ordinal 113 (near end of enum) to ordinal 20 (immediately after EB3A). This caused **all ordinals 20–113 to shift by +1 to +6 positions**, since EB55 insertion alone shifts +1, then the 3 MINI and 2 battery insertions add +3 and +2 respectively. Ordinal numbers are internal enum positions, not protocol identifiers — this is only relevant for mapping enum ordinals to model numbers.
+- **FPS** model number changed from 0 to -1 (PES_BASE reserved).
+- **AP200** model number changed from -1 to 69 (now has an assigned number).
+- **DeviceCategory** now actively used in dispatch routing: `PORTABLE_POWER`, `HOME_POWER`, `MICRO_INV`, `BALCONY_SOLAR_V2`, `COMBOX`, `FRIDGE`, `SMART_PLUG`, `CHARGER`, `DC_HUB`, `DCDC`, `BATTERY`, `RV5`, `AT1`, `AECC`, `PANEL`, `METER`, `SCREEN`.
+- **DeviceSeries** values: `PLP024`, `RV`, `AP300`, `NPP`, `HS`.

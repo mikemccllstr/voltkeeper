@@ -12,13 +12,14 @@ Two primary upgrade paths exist: **BLE local** (app downloads firmware, sends it
 
 ### 11.1 Step 1 — Version Check
 
-The app sends the device's current firmware state to the server, which responds with available updates. Four API versions exist, growing in capability. All are defined in `SmartProductService.java`:
+The app sends the device's current firmware state to the server, which responds with available updates. Five API versions exist, growing in capability. In v3.0.9, the batch endpoint was bumped from v2 to v3 (the old v2 endpoint is deprecated). All are defined in `SmartProductService.java`:
 
 | Endpoint | Return Type | Purpose |
 |---|---|---|
 | `POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList` | `BaseResponse<List<DeviceFmVer>>` | Single device (legacy) |
 | `POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v1 |
 | `POST /api/blusmartprod/device/firmware/v2/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v2 |
+| `POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v3 |
 | `POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList` | `BaseResponse<DeviceSoftwareVerResp>` | Single device v3 |
 
 Each endpoint uses a **different `gwcredentials` query parameter** — these are hardcoded static strings in `SmartProductService.java`:
@@ -227,7 +228,7 @@ Device responses over BLE (`ConnectManager.otaDataChange(result)`):
 
 Used when the device is connected to the internet via Wi-Fi and the app is not in local BLE range.
 
-**API endpoint:** `POST /api/blusmartprod/device/firmware/v1/appSentDeviceRemoteUpgrade`
+**API endpoint:** `POST /api/blusmartprod/device/firmware/v2/appSentDeviceRemoteUpgrade`
 
 **Request body** (constructed in `DeviceUpgradeBaseActivity.callRemoteUpgrade()`):
 ```text
@@ -323,6 +324,12 @@ ARM is flashed last on the POWER5, presumably because other components must be s
 - `isSupport` (int) — Whether boot upgrade is supported
 - `softwareVerTotal` (int) — Number of software versions in the boot binary
 
+**V2 Modbus registers** (new in v3.0.9):
+| Register | Constant | Description |
+|----------|----------|-------------|
+| 29770 | `BOOT_UPGRADE_SUPPORT` | Boot upgrade support status |
+| 29772 | `BOOT_SOFTWARE_INFO` | Boot software version info |
+
 **`DeviceUpgradeBootActivity.java`** is a minimal activity (`extends BaseConnActivity`) providing boot-specific upgrade UI. It extends the base connection activity but is essentially a shell — the actual boot upgrade logic reuses the standard firmware upgrade flow.
 
 ### 11.11 Step 6 — Upgrade Record (Server Reporting)
@@ -383,7 +390,7 @@ The app sends a record update with:
 1. VERSION CHECK
    Activity.getFirmwareVersion()
    → DeviceVersionModel.firmwareVerListBatchV2(requestMapList)
-   → POST /api/blusmartprod/device/firmware/v2/latest/firmwareVerList/batch?gwcredentials=...
+   → POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList/batch?gwcredentials=...
    ← List<DeviceSoftwareVerResp> (each with model, sn, List<DeviceFmVer>)
 
 2. USER SELECTS FIRMWARE
@@ -439,7 +446,7 @@ The app sends a record update with:
 1. REMOTE TRIGGER
    DeviceUpgradeBaseActivity.callRemoteUpgrade(firmware, masterSn, masterModel, snList)
    → DeviceVersionModel.remoteUpgrade(masterSn, model, request)
-   → POST /api/blusmartprod/device/firmware/v1/appSentDeviceRemoteUpgrade
+   → POST /api/blusmartprod/device/firmware/v2/appSentDeviceRemoteUpgrade
       Body: {masterSn, model, request: [{sn, model, firmwareVers: [{firmwareId, ver}]}]}
 
 2. SERVER → DEVICE via MQTT
