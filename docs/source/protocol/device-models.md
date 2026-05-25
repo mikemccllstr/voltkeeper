@@ -2,7 +2,7 @@
 
 This page covers the protocol version thresholds that define device model generations, the device model catalog (120 models as of APK v3.0.9), and AC2A-specific details as the reference implementation model.
 
-## 15.4 Protocol Version Thresholds
+## Protocol Version Thresholds
 
 | Version   | Changes                                                                                              |
 | --------- | ---------------------------------------------------------------------------------------------------- |
@@ -22,7 +22,7 @@ This page covers the protocol version thresholds that define device model genera
 
 For the AC2A, the minimum protocol version is defined in `DeviceConnUtil.getDeviceFunc()` and can be overridden by the device's actual reported version from the base config.
 
-## 15.10 AC2A-Specific Notes
+## AC2A-Specific Notes
 
 - **Model code:** `"AC2A"`, number 20 in `DeviceModel` enum
 - **Device category:** `POWER_STATION` (portable power station)
@@ -36,7 +36,7 @@ For the AC2A, the minimum protocol version is defined in `DeviceConnUtil.getDevi
 - **Supports:** AC output, DC output, PV input, grid charging, ECO mode, UPS mode, power lifting
 - **Device function flags:** Defined in `DeviceConnUtil.getDeviceFunc("AC2A", protocolVer, ...)` which returns a `DeviceFunction` with ~135 boolean capability flags
 
-## 15.11 Device Model Changes in v3.0.9
+## Device Model Changes in v3.0.9
 
 APK v3.0.8 had 115 device models; v3.0.9 adds 5 new models for a total of 120.
 
@@ -58,7 +58,7 @@ APK v3.0.8 had 115 device models; v3.0.9 adds 5 new models for a total of 120.
 - **DeviceCategory** now actively used in dispatch routing: `PORTABLE_POWER`, `HOME_POWER`, `MICRO_INV`, `BALCONY_SOLAR_V2`, `COMBOX`, `FRIDGE`, `SMART_PLUG`, `CHARGER`, `DC_HUB`, `DCDC`, `BATTERY`, `RV5`, `AT1`, `AECC`, `PANEL`, `METER`, `SCREEN`.
 - **DeviceSeries** values: `PLP024`, `RV`, `AP300`, `NPP`, `HS`.
 
-## 15.12 Voltkeeper-Supported Device Models
+## Voltkeeper-Supported Device Models
 
 The following device models are currently supported in voltkeeper, with model numbers and nominal voltages confirmed from the APK v3.0.9 `device_model_voltage.json`:
 

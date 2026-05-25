@@ -2,9 +2,9 @@
 
 This page documents the Bluetti cloud backend infrastructure: environment switching, production and dev/test service URLs, the complete Retrofit API endpoint catalog across all microservices, and the MQTT broker details.
 
-## 2. Backend Infrastructure
+## Backend Infrastructure
 
-### 2.1 Environment Switching
+### Environment Switching
 
 The app contains a fully functional three-environment architecture controlled by `EnvManager` (`net.poweroak.bluetticloud.http.env.EnvManager`). The active environment defaults to **RELEASE** but can be toggled at runtime.
 
@@ -14,7 +14,7 @@ The app contains a fully functional three-environment architecture controlled by
 | TEST                  | `https://test-gw.poweroak.ltd:18443` |
 | DEV                   | `https://dev-gw.poweroak.ltd:18443`  |
 
-### 2.2 Production Service URLs
+### Production Service URLs
 
 | Service                     | URL                                                                 |
 | --------------------------- | ------------------------------------------------------------------- |
@@ -29,7 +29,7 @@ The app contains a fully functional three-environment architecture controlled by
 | App Download                | `https://download.bluetti.app?sn=<sn>`                              |
 | App Download (alternate)    | `https://download.poweroak.ltd?sn=<sn>`                             |
 
-### 2.3 Test / Dev Service URLs (also embedded in binary)
+### Test / Dev Service URLs (also embedded in binary)
 
 | Service          | URL                                                        |
 | ---------------- | ---------------------------------------------------------- |
@@ -46,7 +46,7 @@ The app contains a fully functional three-environment architecture controlled by
 
 ______________________________________________________________________
 
-## 3. API Endpoints (Retrofit Services)
+## API Endpoints (Retrofit Services)
 
 The backend follows a microservice architecture. All endpoints are served under the gateway base URL. Each microservice has a `blu*` or `midp*` prefix.
 
@@ -357,7 +357,7 @@ GET  /api/bluelearn/app/videoClassify/v1/countrys
 
 ______________________________________________________________________
 
-## 4. IoT Communication — MQTT over SSL/TLS
+## IoT Communication — MQTT over SSL/TLS
 
 The app uses Eclipse Paho MQTT client (`org.eclipse.paho.client.mqttv3`) for real-time device communication.
 

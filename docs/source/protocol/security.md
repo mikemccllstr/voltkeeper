@@ -2,13 +2,13 @@
 
 This page covers the Bluetti BLE encryption protocols: the legacy challenge-response handshake, ECDH+ECDSA mutual authentication (protocol v2), the Bluetooth password PIN mechanism, and the complete cryptographic material.
 
-## Section 12 — BLE Encryption Key Retrieval
+## BLE Encryption Key Retrieval
 
-### 12.1 Overview
+### Overview
 
 The app uses two distinct BLE security protocols depending on device firmware generation. Neither protocol fetches a session key from the cloud at runtime — all cryptographic material is either hardcoded in the APK or derived on-device from a challenge-response exchange.
 
-### 12.2 Path 1 — Legacy Challenge-Response (Protocol v1)
+### Path 1 — Legacy Challenge-Response (Protocol v1)
 
 Applies to older devices where `protocolVer < 2000`.
 
@@ -37,7 +37,7 @@ bleConnAESKey = XOR(randomMd5, LOCAL_AES_KEY)
 - `ConnConstantsV2.java:98` — `LOCAL_AES_KEY` constant
 - `ProtocolParse.java:1424` — `buildAESCBCCmd(cmd, aesKey, iv)`
 
-### 12.3 Path 2 — ECDH + ECDSA Mutual Authentication (Protocol v2)
+### Path 2 — ECDH + ECDSA Mutual Authentication (Protocol v2)
 
 Applies to newer devices (protocol v2+, e.g., EPAD, PLP025, and other 2nd-gen IoT modules). This path adds ECDSA-based device identity verification and ECDH-based forward-secret session key derivation.
 
@@ -80,7 +80,7 @@ bleConnShareKey = ECDH_SharedSecret(appEphemeralPrivKey, deviceIoTPublicKey)
 - `SignatureCrypt.java:32–33` — hardcoded `PUBLIC_KEY_K2` and `PRIVATE_KEY_L1`
 - `ECDHUtils.java:29–33` — SECP-256R1 ASN.1 DER prefixes
 
-### 12.4 "Server BLE Key" and Related Device Registers
+### "Server BLE Key" and Related Device Registers
 
 A separate per-device key (`serverBLEKey`) is stored in the IoT module at **Modbus register 13603** (`ProtocolAddrV2.IOT_BLE_SERVER_KEY`). This is not a session key; it is a long-lived key provisioned into the device by the server during manufacturing or cloud registration.
 
@@ -106,7 +106,7 @@ This key is not fetched from a cloud REST API by the app at runtime; it is read 
 - `DeviceFPSResetActivity.java:198–221` — subscribes to event, stores `serverBLEKey`
 - `DeviceFPSResetActivity.java:161–170` — passes key as Intent extra to scan activity
 
-### 12.5 Security Observations
+### Security Observations
 
 | Issue                                                | Detail                                                                                                                                                                                                            |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -118,7 +118,7 @@ This key is not fetched from a cloud REST API by the app at runtime; it is read 
 | **BLE password checked client-side only**            | The 6-digit PIN is read from the device over BLE, then compared against user input in the app. An attacker who completes the BLE handshake can read the register holding the PIN and bypass the check.            |
 | **BLE password stored on device, readable over BLE** | Once the encrypted session is established, the PIN value is transmitted in the clear (encrypted at the transport layer by the global session key).                                                                |
 
-### 12.6 Bluetooth Password — Per-Device PIN Authorization
+### Bluetooth Password — Per-Device PIN Authorization
 
 Separate from session encryption, the app supports an **optional per-device 6-digit BLE password** that gates access after a successful BLE connection and handshake. This is not an encryption key — it is an authorization PIN.
 
@@ -165,7 +165,7 @@ If the user closes the dialog or fails the check, `ConnectManager.disconnectDevi
 
 ______________________________________________________________________
 
-### 15.2 BLE Connection and Handshake Flow
+### BLE Connection and Handshake Flow
 
 #### Step 1: Scan & Connect
 
@@ -223,7 +223,7 @@ Once encrypted channel is established, device communication uses standard Modbus
 
 ______________________________________________________________________
 
-### 15.8 Complete Crypto Material
+### Complete Crypto Material
 
 All keys are hardcoded in the APK and identical across all installations.
 

@@ -2,7 +2,7 @@
 
 This page documents the complete Modbus register maps for both V1 and V2 protocols, including register addresses, field layout tables, real-time data parsing indices, base config parsing, and the TLV protocol format introduced in APK v3.0.9.
 
-## 15.3 Modbus Frame Construction
+## Modbus Frame Construction
 
 All Modbus frames use **slave address 1** (`01`).
 
@@ -38,7 +38,7 @@ Where `byte_count = reg_count * 2`.
 
 For register writes containing ASCII strings (e.g., WiFi password, BLE password), each pair of characters is byte-swapped: position `i+1` is written before position `i`. Maximum length controls determine register count.
 
-## 15.5 Complete Modbus Register Map
+## Complete Modbus Register Map
 
 ### V1 Protocol (`ProtocolAddr`) — protocolVer < 2000
 
@@ -100,7 +100,7 @@ For register writes containing ASCII strings (e.g., WiFi password, BLE password)
 | 12205   | `IOT_DISPLAY_SET`               | R/W | IoT display settings                                                                                                      |
 | 13603   | `IOT_BLE_SERVER_KEY`            | R   | Server BLE key (FPS pairing)                                                                                              |
 
-## 15.9 TLV Protocol and Slave Address Routing *(v3.0.9+)*
+## TLV Protocol and Slave Address Routing *(v3.0.9+)*
 
 Starting with APK v3.0.9, the V2 protocol gains support for **TLV-encoded (Type-Length-Value) multi-device responses** and **sub-device slave address routing** via the `ModbusV2Dispatcher`.
 
@@ -542,7 +542,7 @@ app's UI. voltkeeper exposes them as writable for advanced use.
 | 29770   | `BOOT_UPGRADE_SUPPORT` | Boot upgrade support status |
 | 29772   | `BOOT_SOFTWARE_INFO`   | Boot software version info  |
 
-## 15.6 Real-Time Data Parsing (Register 10 / `BASE_REAL_DATA`)
+## Real-Time Data Parsing (Register 10 / `BASE_REAL_DATA`)
 
 Response format (`ProtocolParse.getDeviceRealtimeData()`): a `List<String>` of hex bytes (2-char strings each). Index is 0-based.
 
@@ -617,7 +617,7 @@ zIsLowPower ? ConnConstantsV2.lowPowerFaultNames : ConnectConstants.faultInfoNam
 `ConnConstantsV2.packHighVoltAlarmNames`, `packHighVoltErrorNames`, and
 `bmuWarnNames`. It does **not** decode the BASE_REAL_DATA alarm/fault region.
 
-## 15.7 Base Config Parsing (`parseBaseConfig()`)
+## Base Config Parsing (`parseBaseConfig()`)
 
 From V1 protocol register 1. Fields parsed in order:
 

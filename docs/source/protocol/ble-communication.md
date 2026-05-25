@@ -2,7 +2,7 @@
 
 This page covers the Bluetti device Bluetooth Low Energy (BLE) GATT service details, characteristic UUIDs, scan data patterns, and BLE advertising structure.
 
-## 5. Bluetooth (BLE) Communication
+## Overview
 
 - BLE is used for local device pairing, provisioning, and control (when not on Wi-Fi)
 - Encrypted BLE channel: `ConnectManager.bleEncryptedHandle` uses AES-CFB/NoPadding (`net.poweroak.lib_base.utils.AesExtKt`)
@@ -11,11 +11,11 @@ This page covers the Bluetti device Bluetooth Low Energy (BLE) GATT service deta
 
 ______________________________________________________________________
 
-## Section 15 — BLE Protocol Reference for Developers
+## GATT Protocol Details
 
 > **Target device:** AC2A (model code `"AC2A"`, number 20 in `DeviceModel` enum). The AC2A is an inverter-class device using protocol V2 (≥2000).
 
-### 15.1 BLE GATT Details
+### BLE GATT Details
 
 | Item                       | UUID                                   |
 | -------------------------- | -------------------------------------- |
