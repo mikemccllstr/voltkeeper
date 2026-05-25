@@ -26,5 +26,10 @@ This project uses [mise](https://mise.jdx.dev/) to define developer tasks. Alway
 | `mise run coverage` | Pytest + open HTML coverage report |
 | `mise run setup` | Install pre-commit hooks (run once after cloning) |
 | `mise run check` | Full quality gate: lint + typecheck + test |
+| `mise run docs` | Build Sphinx documentation (HTML + man pages) |
+| `mise run docs-serve` | Build and serve docs locally (default: http://127.0.0.1:3000) |
+| `mise run docs-lint` | Lint docs with sphinx-lint |
+| `mise run docs-format` | Format docs with mdformat — applies changes |
+| `mise run docs-format-check` | Format check only, no changes (used in CI) |
 
 Run `mise run check` before every commit to ensure lint, types, and tests all pass.

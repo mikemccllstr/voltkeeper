@@ -57,3 +57,21 @@ run = "tox run"
 description = "Build Sphinx documentation (HTML + man pages)"
 run = "uv run sphinx-build -b html docs/source/ docs/build/html/ && uv run sphinx-build -b man docs/source/ docs/build/man/"
 
+[tasks.docs-lint]
+description = "Lint docs with sphinx-lint"
+run = "uv run sphinx-lint docs/ README.md"
+
+[tasks.docs-format]
+description = "Format docs with mdformat (apply)"
+run = "uv run mdformat docs/ README.md --wrap=keep"
+
+[tasks.docs-format-check]
+description = "Check doc formatting without modifying files (for CI)"
+run = "uv run mdformat docs/ README.md --wrap=keep --check"
+
+[tasks.docs-serve]
+description = "Build and serve docs locally (default: http://127.0.0.1:3000)"
+usage = 'arg "[host]" default="127.0.0.1" help="Bind address"'
+depends = ["docs"]
+run = "uv run python -m http.server 3000 --bind {{usage.host}} --directory docs/build/html/"
+
