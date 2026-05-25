@@ -5,25 +5,63 @@
 [![CI](https://github.com/mikemccllstr/voltkeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/mikemccllstr/voltkeeper/actions/workflows/ci.yml)
 [![License](https://img.shields.io/pypi/l/voltkeeper.svg)](https://github.com/mikemccllstr/voltkeeper/blob/main/LICENSE)
 
-CLI tool for Bluetti power stations — scan, connect, and control over local BLE. No cloud account required.
+PC-based tooling for Bluetti power stations that replaces the official mobile app: scan, connect, and control your equipment locally. No cloud account required.
 
 ## Why voltkeeper?
 
-- **Local-first, offline control** — talk directly to your power station over Bluetooth. No internet connection, no cloud account, no vendor API.
-- **Your hardware, your data** — nothing leaves your local network unless you choose to publish it to MQTT.
+- **Local-first, offline control** — talk directly to your power station(s) over Bluetooth. No internet connection, no cloud account, no vendor API.
+- **Your hardware, your data** — nothing leaves your local network.
 - **Cross-platform** — runs on Linux, macOS, and Windows with a BLE adapter.
-- **Home Assistant ready** — built-in MQTT auto-discovery publishes device state to your Home Assistant dashboard.
+- **Multiple interfaces and integrations** — Control your devices from the CLI, a local web interface, and a local HTTP-based API. The future roadmap includes integration with Home Assistant and NUT.
 
 <!-- TODO: add terminal recording screenshot -->
 <!-- ![voltkeeper demo](docs/demo.svg) -->
 
+## Why **NOT** voltkeeper?
+
+:::{danger}
+This application is currently **pre-ALPHA** quality.
+
+- Most of the code was written by a [clanker](https://en.wikipedia.org/wiki/Clanker) (AI-based coding agents). 
+- We figured out how to control Bluetti devices by reverse-engineering the official mobile app, but there is no official documentation to work from.
+- This tool has only been tested by a single user, on a single AC2A device. I bought the AC2A for less than $150, and the test load is a $15 box fan.
+:::
+
+Your use of this app is at your own risk. If you doubt me, see the [LICENSE](https://github.com/mikemccllstr/voltkeeper/blob/main/LICENSE) file, which reads in part:
+
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
+If you have an expensive Bluetti device, connected to expensive battery packs, supplying critical loads, that keep people alive (or maybe just happy), maybe you should avoid being first in line to test this new thing I told a clanker to create. 
+
+## Still reading?
+
+My name is Mike McCallister. I'm a US-based IT guy who likes Python, Linux, and Home Assistant. I have several decades of experience with everything from microcontrollers to global enterprise technology. I am interested in solar, EVs, batteries, and electrical power, but I have a very modest understanding of these topics.
+
+I currently own a Bluetti AC2A, and I "needed" (wanted) a way to control it from a PC instead of a mobile phone. My initial needs were simple: I wanted to be able to cleanly shut down a Linux PC when tbe Bluetti device that was powering it began to run low on juice.
+
+I looked around on the internet and didn't find anything that quite fit my needs. Since 2026 is the first calendar year after the inflection point where AI coding agents (clankers) began to make software creation both easy and difficult in new ways, I thought this would be a good way to experiment and see whether the could solve my Bluetti-control problem in a way I found useful.
+
+Since the early experiment was successful, I began to get more excited about the possibilities. Using clankers like Claude Code (expensive) and DeepSeek via OpenCode (really cheap) helps me create seemingly well-engineered software quickly, without all the typing. I can ask the robot to do research while I sleep that would take me hours. I can "code" from my phone using a SSH session into a remote machine, answering questions to keep the clanker chugging while I do other things. I can make mistakes or poor choices and tell the robot to fix them just as easily.
+
+I have evolved the early work into this new application (voltkeeper) which I hope to continue developing to become the best way to control and integrate Bluetti devices in "offline mode" into an open source eco-system. I expect to use this software personally with my existing AC2A, plus an Elite 100V2 that I have on the way. I would like to find other users who are willing to test this device with their hardware and to share what they find, so we can eventually remove the "alpha" status from this software.
+
 ## Quick demo
+
+Run voltkeeper in standalone mode to make sure it can detect your device and read its status:
 
 ```bash
 voltkeeper scan                          # discover nearby Bluetti devices
 voltkeeper status                        # auto-detects device, shows battery SOC and load
 voltkeeper write AA:BB:CC:DD:EE:FF ac_output on   # toggle AC output
 ```
+
+If this works, you know its fundamentally working. If you run into an error with the steps above, let's troubleshoot before you move on to experimenting wtih daemon mode or integrations.
 
 ## Capabilities
 
@@ -43,7 +81,23 @@ voltkeeper write AA:BB:CC:DD:EE:FF ac_output on   # toggle AC output
 
 See the [User Guide](https://mikemccllstr.github.io/voltkeeper/user-guide/) for full command reference, or run `voltkeeper <command> --help`.
 
+## Requirements
+
+- Python 3.10+
+- Linux with BlueZ, macOS 11+, or Windows 10 build 19041+ (BLE support)
+- Bluetooth adapter with scan capability
+
+On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or `sudo`). Encrypted Bluetti devices (AES-CBC over BLE) are supported — the handshake is handled automatically.
+
+## Tested devices
+
+- **Bluetti AC2A:** seemingly works successfully for the author, one user.
+
+Devices not listed tested above have not been tested. If you are feeling adventurous, please consider testinsg your device and letting us know how it goes.
+
 ## Install
+
+The application is available as a Python package. Python tools like uv, pip, and pipx should be able to install this on most Linux, Windows, and macOS systems.
 
 ```bash
 pip install voltkeeper
@@ -62,14 +116,6 @@ git clone https://github.com/mikemccllstr/voltkeeper
 cd voltkeeper
 uv run voltkeeper --help
 ```
-
-## Requirements
-
-- Python 3.10+
-- Linux with BlueZ, macOS 11+, or Windows 10 build 19041+ (BLE support)
-- Bluetooth adapter with scan capability
-
-On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or `sudo`). Encrypted Bluetti devices (AES-CBC over BLE) are supported — the handshake is handled automatically.
 
 ## Daemon (long-running service)
 
