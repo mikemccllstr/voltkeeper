@@ -1,12 +1,5 @@
 # About voltkeeper
 
-```{toctree}
----
-hidden:
----
-naming
-brand
-```
 
 ## What This Is
 

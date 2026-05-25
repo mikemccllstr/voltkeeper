@@ -6,6 +6,8 @@ hidden:
 ---
 contributing-devices
 maintaining
+brand
+naming
 ```
 
 ## Setup
