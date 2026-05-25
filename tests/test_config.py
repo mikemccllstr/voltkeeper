@@ -29,7 +29,7 @@ class TestLoadConfig:
         config = load_config(config_path)
         assert isinstance(config, Config)
         assert config.server.api_key == "test-key-123"
-        assert config.server.host == "0.0.0.0"
+        assert config.server.host == "127.0.0.1"
         assert config.server.port == 8080
         assert config.devices == []
         assert config.scan.interval == 60
@@ -202,7 +202,7 @@ devices:
 class TestConfigDataclasses:
     def test_server_config_defaults(self):
         s = ServerConfig(api_key="test")
-        assert s.host == "0.0.0.0"
+        assert s.host == "127.0.0.1"
         assert s.port == 8080
         assert s.allowed_networks == []
         assert s.interface is None

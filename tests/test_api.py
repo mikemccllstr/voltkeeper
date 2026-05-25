@@ -359,14 +359,91 @@ class TestApiCommand:
 
 
 class TestWebSocket:
-    def test_websocket_connects(self, app, config):
+    def test_websocket_connects_with_valid_token(self, app, config):
+        async def _run():
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/ws?token={config.server.api_key}"
+                async with aiohttp.ClientSession() as session:
+                    async with session.ws_connect(url) as ws:
+                        assert ws is not None
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+    def test_websocket_rejected_without_token(self, app, config):
         async def _run():
             runner, site = await _create_cli(app, config.server.port)
             try:
                 url = f"http://127.0.0.1:{config.server.port}/ws"
                 async with aiohttp.ClientSession() as session:
-                    async with session.ws_connect(url) as ws:
-                        assert ws is not None
+                    resp = await session.get(url)
+                    assert resp.status == 401
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+    def test_websocket_rejected_with_wrong_token(self, app, config):
+        async def _run():
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/ws?token=wrong"
+                async with aiohttp.ClientSession() as session:
+                    resp = await session.get(url)
+                    assert resp.status == 401
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+
+class TestRateLimit:
+    def test_exceeding_rate_limit_returns_429(self, bus, store, unused_tcp_port):
+        from voltkeeper.api import _RATE_LIMIT_MAX
+
+        config = Config(server=ServerConfig(api_key="key", port=unused_tcp_port), devices=[])
+
+        async def _run():
+            dm = DeviceManager(config, bus)
+            app = create_app(config, bus, store, dm)
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/api/devices"
+                headers = {"Authorization": "Bearer key"}
+                async with aiohttp.ClientSession() as session:
+                    for _ in range(_RATE_LIMIT_MAX):
+                        async with session.get(url, headers=headers) as resp:
+                            assert resp.status == 200
+                    async with session.get(url, headers=headers) as resp:
+                        assert resp.status == 429
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+
+class TestCommandErrorPrivacy:
+    def test_command_error_does_not_leak_exception_details(self, app, config, device_manager, bus):
+        async def _run():
+            dev = AC2A("AA:BB:CC:DD:EE:FF", "1234567890")
+            device_manager._devices["AA:BB:CC:DD:EE:FF"] = dev
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/api/device/AA:BB:CC:DD:EE:FF/command"
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        url,
+                        # charging_mode expects an enum; passing a dict triggers ValueError
+                        json={"field": "charging_mode", "value": {"bad": "value"}},
+                        headers=_auth_headers(config),
+                    ) as resp:
+                        assert resp.status == 400
+                        data = await resp.json()
+                        assert "error" in data
+                        assert "TypeError" not in data["error"]
+                        assert "ValueError" not in data["error"]
             finally:
                 await runner.cleanup()
 

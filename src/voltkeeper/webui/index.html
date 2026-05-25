@@ -121,13 +121,13 @@ function saveApiKey() {
   const key = document.getElementById('api-key-input').value.trim();
   if (!key) return;
   apiKey = key;
-  localStorage.setItem('vk_api_key', key);
+  sessionStorage.setItem('vk_api_key', key);
   document.getElementById('auth').classList.add('hidden');
   connect();
 }
 
 function loadApiKey() {
-  const stored = localStorage.getItem('vk_api_key');
+  const stored = sessionStorage.getItem('vk_api_key');
   if (stored) {
     apiKey = stored;
     document.getElementById('auth').classList.add('hidden');
@@ -155,7 +155,7 @@ async function apiPost(path, body) {
 // -- WebSocket --
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(apiKey)}`);
 
   ws.onopen = () => {
     document.getElementById('ws-dot').classList.add('connected');
@@ -335,7 +335,7 @@ function renderDetail(address, data) {
     fields.forEach(f => {
       if (data[f] != null) {
         hasData = true;
-        rows += `<div class="detail-row"><span class="label">${formatFieldName(f)}</span><span>${formatValue(f, data[f])}</span></div>`;
+        rows += `<div class="detail-row"><span class="label">${formatFieldName(f)}</span><span>${escapeHtml(String(formatValue(f, data[f])))}</span></div>`;
       }
     });
     if (hasData) html += `<div class="detail-group"><h3>${group}</h3>${rows}</div>`;

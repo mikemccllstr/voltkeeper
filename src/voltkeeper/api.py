@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import hmac
 import ipaddress
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -24,14 +26,19 @@ CONFIG_KEY: Any = web.AppKey("config", dict)
 BUS_KEY: Any = web.AppKey("bus", EventBus)
 STORE_KEY: Any = web.AppKey("store", StateStore)
 DEVICE_MANAGER_KEY: Any = web.AppKey("device_manager", DeviceManager)
+_RATE_STORE_KEY: Any = web.AppKey("rate_store", dict)
+
+_RATE_LIMIT_WINDOW = 60.0  # seconds
+_RATE_LIMIT_MAX = 60  # requests per window per IP
 
 
 def create_app(config: Config, bus: EventBus, store: StateStore, device_manager: DeviceManager) -> web.Application:
-    app = web.Application(middlewares=[_acl_middleware, _auth_middleware])
+    app = web.Application(middlewares=[_acl_middleware, _rate_limit_middleware, _auth_middleware])
     app[CONFIG_KEY] = config
     app[BUS_KEY] = bus
     app[STORE_KEY] = store
     app[DEVICE_MANAGER_KEY] = device_manager
+    app[_RATE_STORE_KEY] = {}
 
     app.router.add_get("/api/devices", _handle_devices)
     app.router.add_get("/api/device/{address}", _handle_device)
@@ -67,18 +74,45 @@ async def _acl_middleware(request: web.Request, handler) -> web.StreamResponse:
 
 
 @web.middleware
+async def _rate_limit_middleware(request: web.Request, handler) -> web.StreamResponse:
+    remote = request.remote
+    if remote is None:
+        return await handler(request)
+
+    store = request.app[_RATE_STORE_KEY]
+    now = time.monotonic()
+
+    if remote in store:
+        count, window_start = store[remote]
+        if now - window_start < _RATE_LIMIT_WINDOW:
+            if count >= _RATE_LIMIT_MAX:
+                return web.json_response({"error": "Too Many Requests"}, status=429)
+            store[remote] = (count + 1, window_start)
+        else:
+            store[remote] = (1, now)
+    else:
+        store[remote] = (1, now)
+
+    return await handler(request)
+
+
+@web.middleware
 async def _auth_middleware(request: web.Request, handler) -> web.StreamResponse:
-    if request.path in ("/", "/ws"):
+    if request.path == "/":
         return await handler(request)
 
     config: Config = request.app[CONFIG_KEY]
+
+    # Accept Bearer token in Authorization header or ?token= query param (for WebSocket)
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         token = auth[7:]
-    else:
+    elif auth:
         token = auth
+    else:
+        token = request.rel_url.query.get("token", "")
 
-    if token != config.server.api_key:
+    if not hmac.compare_digest(token, config.server.api_key):
         return web.json_response({"error": "Unauthorized"}, status=401)
 
     return await handler(request)
@@ -170,7 +204,8 @@ async def _handle_command(request: web.Request) -> web.Response:
     try:
         command = device.build_setter_command(field, value)
     except (ValueError, TypeError) as e:
-        return web.json_response({"error": str(e)}, status=400)
+        logger.warning("Command build failed for device %s field %r: %s", address, field, e)
+        return web.json_response({"error": "Invalid command value"}, status=400)
 
     if not isinstance(command, WriteSingleRegister):
         command = WriteSingleRegister(command.address, command.value)
@@ -221,7 +256,7 @@ async def _handle_websocket(request: web.Request) -> web.WebSocketResponse:
         async for _msg in ws:
             pass
     finally:
-        pass
+        bus.remove_parser_listener(on_parser_message)
     return ws
 
 

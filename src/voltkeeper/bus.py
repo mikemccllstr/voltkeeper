@@ -30,6 +30,12 @@ class EventBus:
     def add_parser_listener(self, cb: Callable):
         self.parser_listeners.append(cb)
 
+    def remove_parser_listener(self, cb: Callable):
+        try:
+            self.parser_listeners.remove(cb)
+        except ValueError:
+            pass
+
     def add_command_listener(self, cb: Callable):
         self.command_listeners.append(cb)
 

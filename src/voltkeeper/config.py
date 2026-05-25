@@ -28,7 +28,7 @@ CONFIG_SEARCH_PATHS = [
 
 @dataclass
 class ServerConfig:
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8080
     api_key: str = ""
     allowed_networks: list[str] = field(default_factory=list)
@@ -131,7 +131,7 @@ def _parse_server(raw: dict, config_path: Path) -> ServerConfig:
     if not api_key:
         _fail("server.api_key", "is required", config_path)
 
-    host = raw.get("host", "0.0.0.0")
+    host = raw.get("host", "127.0.0.1")
     port = raw.get("port", 8080)
 
     if not isinstance(port, int) or port < 1 or port > 65535:
