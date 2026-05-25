@@ -8,7 +8,7 @@ from typing import Callable
 
 import yaml
 
-from .bluetooth import _DEVICE_NAME_SN_RE, _device_registry
+from .bluetooth import _device_registry
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError
 from .core.commands import ReadHoldingRegisters
@@ -72,6 +72,7 @@ V1_BLOCKS: list[tuple[int, str, Callable[[int], int]]] = [
     (130, "THREE_PHASE_DATA", lambda _: 27),
     (157, "PV_CHARGE_DATA", lambda _: 32),
     (190, "WIFI_SWITCH", lambda _: 1),
+    (2000, "FAULT_HISTORY_START", lambda _: 32),
     (3000, "SETTABLE_DATA", _v1_settable_data_size),
     (4997, "BLE_MAC", lambda _: 3),
     (5000, "INTERNET_STATUS", lambda _: 49),
@@ -105,18 +106,17 @@ async def _detect_protocol(client: BluetoothClient, name: str) -> ProtocolInfo:
     4. Both fail → unknown.
     """
     # ── Registry shortcut ──
-    m = _DEVICE_NAME_SN_RE.match(name.strip())
-    if m:
-        prefix = m[1]
-        registry = _device_registry()
-        if prefix in registry:
-            # Instantiate just to read protocol_version; no Modbus needed.
-            sn = m[2]
-            device = registry[prefix]("", sn)
-            return ProtocolInfo(
-                kind="v2" if device.protocol_version >= 2000 else "v1",
-                version=device.protocol_version,
-            )
+    registry = _device_registry()
+    for prefix, cls in registry.items():
+        if name.startswith(prefix):
+            sn_prefix_len = len(prefix)
+            if len(name) > sn_prefix_len and name[sn_prefix_len:].isdigit():
+                sn = name[sn_prefix_len:]
+                device = cls("", sn)
+                return ProtocolInfo(
+                    kind="v2" if device.protocol_version >= 2000 else "v1",
+                    version=device.protocol_version,
+                )
 
     # ── Dynamic probe ──
     try:

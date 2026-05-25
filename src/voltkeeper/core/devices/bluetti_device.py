@@ -6,11 +6,14 @@ from ..commands import ReadHoldingRegisters, WriteSingleRegister
 
 
 class BluettiDevice:
+    protocol_version: int = 0
+    has_battery_packs: bool = False
+    has_sub_devices: bool = False
+
     def __init__(self, address: str, type: str, sn: str):
         self.address = address
         self.type = type
         self.sn = sn
-        self.protocol_version = 0
 
     def parse(self, address: int, data: bytes) -> dict:
         raise NotImplementedError

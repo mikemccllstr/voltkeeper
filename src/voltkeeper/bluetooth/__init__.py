@@ -10,7 +10,7 @@ from bleak import BleakScanner
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 WRITE_UUID = "0000ff02-0000-1000-8000-00805f9b34fb"
 NOTIFY_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
-_DEVICE_NAME_SN_RE = re.compile(r"^(AC2A|AC60|EP600|EP500|EB3A|AC300|AC500|AC200L|AC200PL|AC200M)(\d+)$")
+_DEVICE_NAME_SN_RE = re.compile(r"(\d+)$")
 
 PREFIX_PLAINTEXT = bytes.fromhex("424c5545545449")
 PREFIX_ENCRYPTED = (
@@ -31,9 +31,9 @@ class ScanResult:
 
 
 def _parse_sn(name: str) -> str:
-    m = _DEVICE_NAME_SN_RE.match(name.strip())
+    m = _DEVICE_NAME_SN_RE.search(name.strip())
     if m:
-        return m[2]
+        return m[0]
     return name.replace(":", "").replace("-", "")
 
 
@@ -119,6 +119,8 @@ def _device_registry() -> dict[str, type]:
     from ..core.devices.ac200pl import AC200PL
     from ..core.devices.ac300 import AC300
     from ..core.devices.ac500 import AC500
+    from ..core.devices.aora_mini import Aora30Mini, Aora100Mini, Aora200Mini
+    from ..core.devices.battery_packs import BH500E, HB500S
     from ..core.devices.eb3a import EB3A
     from ..core.devices.ep500 import EP500
     from ..core.devices.ep600 import EP600
@@ -131,9 +133,14 @@ def _device_registry() -> dict[str, type]:
         "AC200PL": AC200PL,
         "AC300": AC300,
         "AC500": AC500,
+        "AORA100_MINI": Aora100Mini,
+        "AORA30_MINI": Aora30Mini,
+        "AORA200_MINI": Aora200Mini,
+        "BH500E": BH500E,
         "EB3A": EB3A,
         "EP500": EP500,
         "EP600": EP600,
+        "HB500S": HB500S,
     }
 
 
@@ -146,11 +153,10 @@ def is_supported_device_type(prefix: str) -> bool:
 
 
 def build_device(address: str, name: str):
-    sn = _parse_sn(name)
-    prefix_match = _DEVICE_NAME_SN_RE.match(name.strip())
-    prefix: str | None = prefix_match[1] if prefix_match else None
     registry = _device_registry()
-    cls = registry.get(prefix) if prefix else None
-    if cls is None:
-        raise ValueError(f"Unsupported device model: {name!r}. Known prefixes: {sorted(registry)}")
-    return cls(address, sn)
+    for prefix, cls in registry.items():
+        if name.startswith(prefix):
+            suffix = name[len(prefix) :]
+            if suffix.isdigit():
+                return cls(address, suffix)
+    raise ValueError(f"Unsupported device model: {name!r}. Known prefixes: {sorted(registry)}")
