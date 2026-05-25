@@ -21,8 +21,9 @@ class DeviceField:
 
 
 class UintField(DeviceField):
-    def __init__(self, name: str, address: int, range: Optional[Tuple[int, int]] = None):
+    def __init__(self, name: str, address: int, range: Optional[Tuple[int, int]] = None, unit: Optional[str] = None):
         self.range = range
+        self.unit = unit
         super().__init__(name, address, 1)
 
     def parse(self, data: bytes) -> int:
@@ -217,8 +218,10 @@ class DeviceStruct:
     def __init__(self):
         self.fields: list[DeviceField] = []
 
-    def add_uint_field(self, name: str, address: int, range: Optional[Tuple[int, int]] = None):
-        self.fields.append(UintField(name, address, range))
+    def add_uint_field(
+        self, name: str, address: int, range: Optional[Tuple[int, int]] = None, unit: Optional[str] = None
+    ):
+        self.fields.append(UintField(name, address, range, unit))
 
     def add_bool_field(self, name: str, address: int):
         self.fields.append(BoolField(name, address))

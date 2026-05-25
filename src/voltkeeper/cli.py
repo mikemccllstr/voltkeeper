@@ -269,6 +269,23 @@ def _print_status(home: dict) -> None:
     click.echo(sep)
 
 
+def _field_hint(field_obj) -> str:
+    from .core.struct import BoolField, EnumField, UintField
+
+    if isinstance(field_obj, BoolField):
+        return "[on|off]"
+    if isinstance(field_obj, EnumField):
+        opts = "|".join(m.name.lower() for m in field_obj.enum)
+        return f"[{opts}]"
+    if isinstance(field_obj, UintField):
+        unit = field_obj.unit or ""
+        if field_obj.range is not None:
+            lo, hi = field_obj.range
+            return f"[{lo}-{hi}]{unit}"
+        return f"[integer]{unit}"
+    return ""
+
+
 def _print_verbose(
     device,
     home: dict,
@@ -479,14 +496,16 @@ def _print_verbose(
             else:
                 display = str(val)
 
-            if name in ("dc_eco_auto_off_time", "ac_eco_auto_off_time"):
-                display = f"{display}h"
-            elif name in ("dc_eco_power", "ac_eco_power"):
-                display = f"{display}W"
+            field_obj = next((f for f in device.control_struct.fields if f.name == name), None)
+            unit = getattr(field_obj, "unit", None) or ""
+            if unit:
+                display = f"{display}{unit}"
             elif name == "system_timezone" and isinstance(val, int) and val != 0:
                 display = f"UTC{'+' if val > 0 else ''}{val}"
 
-            click.echo(f"    {name:<20s}  {display}")
+            hint = _field_hint(field_obj) if field_obj else ""
+            hint_str = click.style(hint, dim=True) if hint else ""
+            click.echo(f"    {name:<20s}  {display:<12s}  {hint_str}")
 
         ctrl_event = home.get("ctrl_event") or (controls or {}).get("ctrl_event")
         if ctrl_event is not None:
@@ -540,17 +559,11 @@ def _show_field_help(field_name: str, address: str) -> None:
         return
 
     device_field = matches[0]
-    field_type = type(device_field).__name__
-
-    if hasattr(device_field, "enum"):
-        values = [m.name.lower() for m in device_field.enum]
-        click.echo(f"{field_name}: {field_type}[{device_field.enum.__name__}] (values: {', '.join(values)})")
-    elif hasattr(device_field, "range") and device_field.range is not None:
-        click.echo(f"{field_name}: {field_type} (range: {device_field.range[0]}-{device_field.range[1]})")
-    elif field_type == "BoolField":
-        click.echo(f"{field_name}: BoolField (values: on, off)")
+    hint = _field_hint(device_field)
+    if hint:
+        click.echo(f"{field_name}: {hint}")
     else:
-        click.echo(f"{field_name}: {field_type}")
+        click.echo(f"{field_name}: {type(device_field).__name__}")
 
 
 @cli.command()

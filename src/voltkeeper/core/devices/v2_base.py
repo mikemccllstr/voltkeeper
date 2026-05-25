@@ -320,6 +320,9 @@ class V2Base(BluettiDevice):
 
         from ..struct import DecimalField, UintField
 
+        if isinstance(device_field, UintField) and device_field.unit and isinstance(value, str):
+            value = value.removesuffix(device_field.unit).strip()
+
         if isinstance(device_field, DecimalField) and device_field.range is not None:
             from decimal import Decimal
 

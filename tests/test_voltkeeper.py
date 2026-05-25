@@ -18,6 +18,7 @@ from voltkeeper.cli import cli
 from voltkeeper.core.commands import WriteMultipleRegisters, WriteSingleRegister
 from voltkeeper.core.devices.ac2a import AC2A, ChargingMode
 from voltkeeper.core.devices.bluetti_device import BluettiDevice
+from voltkeeper.core.struct import UintField
 from voltkeeper.core.utils import (
     _ascii,
     _bcd_sn,
@@ -48,6 +49,26 @@ def ac2a_device():
 def ac2a_device_num():
     """AC2A with a numeric SN so COMMAND_TOPIC_RE (requires \\d+) can match."""
     return AC2A("00:00:00:00:00:00", "12345678")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  UintField unit attribute
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestUintFieldUnit:
+    def test_unit_stored_when_provided(self):
+        f = UintField("eco_time", 2015, unit="h")
+        assert f.unit == "h"
+
+    def test_unit_none_by_default(self):
+        f = UintField("lcd_timeout", 2067)
+        assert f.unit is None
+
+    def test_unit_does_not_affect_range(self):
+        f = UintField("sys_low_power", 2022, range=(0, 100), unit="%")
+        assert f.in_range(50)
+        assert not f.in_range(150)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -471,6 +492,27 @@ class TestParseControlData:
         assert WorkingMode.TIME_CTRL_UPS.value == 4
         assert WorkingMode.V2_TIME_CTRL_UPS.value == 5
         assert WorkingMode.SELF_CONSUMPTION_EXPORT.value == 11
+
+    def test_build_setter_eco_time_suffixed(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("dc_eco_auto_off_time", "2h")
+        assert cmd.address == 2015
+        assert cmd.value == 2
+
+    def test_build_setter_eco_time_bare(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("dc_eco_auto_off_time", "2")
+        assert cmd.address == 2015
+        assert cmd.value == 2
+
+    def test_build_setter_eco_power_suffixed(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("dc_eco_power", "150W")
+        assert cmd.address == 2016
+        assert cmd.value == 150
+
+    def test_build_setter_eco_power_wrong_case_suffix_raises(self, ac2a_device):
+        import pytest as _pytest
+
+        with _pytest.raises((ValueError, TypeError)):
+            ac2a_device.build_setter_command("dc_eco_auto_off_time", "2H")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1533,6 +1575,99 @@ class TestDeviceHandler:
 # ═══════════════════════════════════════════════════════════════════════
 #  CLI unit tests (Click CliRunner)
 # ═══════════════════════════════════════════════════════════════════════
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  _print_verbose CONTROLS output
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestPrintVerboseControls:
+    def test_unit_suffix_and_hint_rendered(self, ac2a_device):
+        import unittest.mock as mock
+
+        from voltkeeper.cli import _print_verbose
+        from voltkeeper.core.devices.ac2a import ChargingMode
+
+        home = {"packTotalSoc": 80, "packTotalVoltage": 25.6, "packTotalCurrent": 0.0}
+        controls = {
+            "ac_output": True,
+            "dc_eco_auto_off_time": 2,
+            "dc_eco_power": 150,
+            "charging_mode": ChargingMode.TURBO,
+            "sys_low_power": 20,
+        }
+
+        output_lines = []
+
+        def fake_echo(msg="", **kw):
+            output_lines.append(str(msg))
+
+        with mock.patch("voltkeeper.cli.click.echo", side_effect=fake_echo):
+            _print_verbose(ac2a_device, home, {}, {}, {}, {}, {}, controls)
+
+        output = "\n".join(output_lines)
+        assert "2h" in output
+        assert "150W" in output
+        assert "[on|off]" in output
+        assert "[integer]h" in output
+        assert "[integer]W" in output
+        assert "[0-100]" in output
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  _field_hint helper
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestFieldHint:
+    def test_bool_field(self):
+        from voltkeeper.cli import _field_hint
+        from voltkeeper.core.struct import BoolField
+
+        assert _field_hint(BoolField("ac_output", 2011)) == "[on|off]"
+
+    def test_enum_field(self):
+        from enum import Enum
+
+        from voltkeeper.cli import _field_hint
+        from voltkeeper.core.struct import EnumField
+
+        class Mode(Enum):
+            STANDARD = 0
+            TURBO = 1
+
+        assert _field_hint(EnumField("mode", 2020, Mode)) == "[standard|turbo]"
+
+    def test_ranged_uint_no_unit(self):
+        from voltkeeper.cli import _field_hint
+        from voltkeeper.core.struct import UintField
+
+        assert _field_hint(UintField("sys_low_power", 2022, range=(0, 100))) == "[0-100]"
+
+    def test_ranged_uint_with_unit(self):
+        from voltkeeper.cli import _field_hint
+        from voltkeeper.core.struct import UintField
+
+        assert _field_hint(UintField("dc_eco_power", 2016, unit="W")) == "[integer]W"
+
+    def test_unranged_uint_no_unit(self):
+        from voltkeeper.cli import _field_hint
+        from voltkeeper.core.struct import UintField
+
+        assert _field_hint(UintField("lcd_timeout", 2067)) == "[integer]"
+
+    def test_unranged_uint_with_unit(self):
+        from voltkeeper.cli import _field_hint
+        from voltkeeper.core.struct import UintField
+
+        assert _field_hint(UintField("dc_eco_auto_off_time", 2015, unit="h")) == "[integer]h"
+
+    def test_other_field_type_returns_empty(self):
+        from voltkeeper.cli import _field_hint
+        from voltkeeper.core.struct import StringField
+
+        assert _field_hint(StringField("deviceModel", 110, 8)) == ""
 
 
 class TestCli:
