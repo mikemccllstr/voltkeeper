@@ -17,7 +17,7 @@ voltkeeper status AA:BB:CC:DD:EE:FF  # connect directly
 
 ## Options
 
-| Option | Description |
-|---|---|
-| `-t, --timeout FLOAT` | Scan timeout in seconds (default: 10.0, used only when no address given) |
-| `-v, --verbose` | Display all available device information (power meters, energy totals, PV strings, grid, loads, temperatures, software versions, writable controls, and device capabilities) |
+| Option                | Description                                                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --timeout FLOAT` | Scan timeout in seconds (default: 10.0, used only when no address given)                                                                                                     |
+| `-v, --verbose`       | Display all available device information (power meters, energy totals, PV strings, grid, loads, temperatures, software versions, writable controls, and device capabilities) |

@@ -12,15 +12,16 @@ Two primary upgrade paths exist: **BLE local** (app downloads firmware, sends it
 
 The app sends the device's current firmware state to the server, which responds with available updates. Five API versions exist, growing in capability. In v3.0.9, the batch endpoint was bumped from v2 to v3 (the old v2 endpoint is deprecated). All are defined in `SmartProductService.java`:
 
-| Endpoint | Return Type | Purpose |
-|---|---|---|
-| `POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList` | `BaseResponse<List<DeviceFmVer>>` | Single device (legacy) |
-| `POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v1 |
-| `POST /api/blusmartprod/device/firmware/v2/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v2 |
-| `POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v3 |
-| `POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList` | `BaseResponse<DeviceSoftwareVerResp>` | Single device v3 |
+| Endpoint                                                                 | Return Type                                 | Purpose                |
+| ------------------------------------------------------------------------ | ------------------------------------------- | ---------------------- |
+| `POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList`       | `BaseResponse<List<DeviceFmVer>>`           | Single device (legacy) |
+| `POST /api/blusmartprod/device/firmware/v1/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v1  |
+| `POST /api/blusmartprod/device/firmware/v2/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v2  |
+| `POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList/batch` | `BaseResponse<List<DeviceSoftwareVerResp>>` | Multi-device batch v3  |
+| `POST /api/blusmartprod/device/firmware/v3/latest/firmwareVerList`       | `BaseResponse<DeviceSoftwareVerResp>`       | Single device v3       |
 
 Each endpoint uses a **different `gwcredentials` query parameter** — these are hardcoded static strings in `SmartProductService.java`:
+
 - `firmwareVerList`: `"46qdFOnnZBoUxpEDVl/MSP0RDCe0PJGdAedIYCokg793SQddlu++dMJoaFLrexKdB6Y9Tk24XbWes5rcDHasgzZGEmQ+9f2FZqH0Jrm8Ltc="`
 - `firmwareVerListV3`: `"Jlm47JC5ddystdOYeOTR/8aCmnE3m55fDg5lKJQhp7GaBgiKPr9hiYpKqrsqpmurlBZKHyX5p3WfIQ2ekJQZaXTe99qUY0d8rIgKyOXb0nw="`
 - `firmwareVerListBatch / firmwareVerListBatchV2`: `"osUZ8ygqt1s/awsURLTwupGKN/CH8sRRODw/lZLlrv49jdBtu7UuRqxUkYHH6jWswlLPybPJ2WShH/r928K10amSgY0pWE2+eeijxYovV9DIcRgwZhBbSQ=="`
@@ -28,6 +29,7 @@ Each endpoint uses a **different `gwcredentials` query parameter** — these are
 These are Base64-encoded authentication/authorization tokens for the API gateway.
 
 **Request body** (`FirmwareVerReq` in `FirmwareVerReq.java`):
+
 ```json
 {
   "sn": "<device serial number>",
@@ -55,20 +57,20 @@ The app determines if a new version is available via `DeviceConnUtilKt.deviceFmN
 
 Defined in `DeviceFirmware.java` / `ConnectConstants.kt`. The `firmwareId` is the integer value.
 
-| ID | Name | Description | ID | Name | Description |
-|---|---|---|---|---|---|
-| 0 | IOT | IoT/WiFi module | 13 | RF | RF module |
-| 1 | ARM | Main ARM processor | 14 | DC_HUB | DC hub |
-| 2 | DSP | DSP chip | 15 | AC_HUB | AC hub |
-| 3 | BMS | Battery management system | 16 | DC_DC | DC-DC converter |
-| 4 | BA | Battery array | 17 | ATS | Auto transfer switch |
-| 5 | PACK_BCU | Battery pack BCU | 18 | PANEL | Solar panel controller |
-| 6 | PACK_BMU | Battery pack BMU | 19 | PARALLEL_BOX | Parallel box |
-| 7 | PACK_BMS | Battery pack BMS | 20 | INV_DSP2 | Second inverter DSP |
-| 8 | PACK_M1 | Pack M1 | 11 | HMI1 / HMI_BOOT / HMI_KERNEL / HMI_FILE_SYS / HMI_APP_UI / HMI_APP_BASE | Display sub-components |
-| 9 | PACK_SAFETY | Pack safety | 253 | PPS | PPS |
-| 10 | PACK_HIGH_VOLTAGE | Pack high voltage | 254 | BOOT | Bootloader |
-| 12 | HMI2 | Second display | 255 | SYSTEM | System |
+| ID  | Name              | Description               | ID  | Name                                                                    | Description            |
+| --- | ----------------- | ------------------------- | --- | ----------------------------------------------------------------------- | ---------------------- |
+| 0   | IOT               | IoT/WiFi module           | 13  | RF                                                                      | RF module              |
+| 1   | ARM               | Main ARM processor        | 14  | DC_HUB                                                                  | DC hub                 |
+| 2   | DSP               | DSP chip                  | 15  | AC_HUB                                                                  | AC hub                 |
+| 3   | BMS               | Battery management system | 16  | DC_DC                                                                   | DC-DC converter        |
+| 4   | BA                | Battery array             | 17  | ATS                                                                     | Auto transfer switch   |
+| 5   | PACK_BCU          | Battery pack BCU          | 18  | PANEL                                                                   | Solar panel controller |
+| 6   | PACK_BMU          | Battery pack BMU          | 19  | PARALLEL_BOX                                                            | Parallel box           |
+| 7   | PACK_BMS          | Battery pack BMS          | 20  | INV_DSP2                                                                | Second inverter DSP    |
+| 8   | PACK_M1           | Pack M1                   | 11  | HMI1 / HMI_BOOT / HMI_KERNEL / HMI_FILE_SYS / HMI_APP_UI / HMI_APP_BASE | Display sub-components |
+| 9   | PACK_SAFETY       | Pack safety               | 253 | PPS                                                                     | PPS                    |
+| 10  | PACK_HIGH_VOLTAGE | Pack high voltage         | 254 | BOOT                                                                    | Bootloader             |
+| 12  | HMI2              | Second display            | 255 | SYSTEM                                                                  | System                 |
 
 **HMI sub-components** (all share firmwareId 11): HMI_BOOT, HMI_KERNEL, HMI_FILE_SYS, HMI_APP_UI, HMI_APP_BASE. These represent different partitions of the display firmware.
 
@@ -78,26 +80,26 @@ Defined in `DeviceFirmware.java` / `ConnectConstants.kt`. The `firmwareId` is th
 
 The server returns one `DeviceFmVer` object per firmware component. Key fields (from `DeviceFmVer.java`):
 
-| Field | Type | Meaning |
-|---|---|---|
-| `firmwareType` | int | Component ID (from DeviceFirmware enum) |
-| `version` | String | Target version string |
-| `currVersion` | long | Device's current version (echoed back) |
-| `hasNewVersion` | bool | `true` if an update is available |
-| `downloadUrl` | String | Direct URL to download the binary (for unencrypted firmware) |
-| `fileMd5` | String | MD5 checksum for post-download integrity check |
-| `fileSize` | int | File size in bytes |
-| `encrypted` | bool | Whether the firmware file is encrypted |
-| `signature` | String | Firmware signature — sent as final OTA packet |
-| `checkSum` | String | Additional checksum field |
-| `shardSize` | int | Chunk size in bytes for BLE transfer (from `X-Shard-Size` header for encrypted firmware, else defaults to 1024) |
-| `supportBroadcastUpgrade` | bool | Can be pushed to multiple sub-devices at once via broadcast OTA |
-| `needToReconnect` | bool | Device requires BLE reconnect after flashing |
-| `versionList` | List<DeviceFmVer> | Sub-components (e.g. HMI has BOOT/KERNEL/APP parts with individual version info) |
-| `upgradeStrategy` | String | Upgrade strategy identifier (e.g., `"ARM_LAST"`) |
-| `firmwareId` | String | Firmware identifier string |
-| `sn` | String | Target device serial |
-| `model` | String | Target device model |
+| Field                     | Type              | Meaning                                                                                                         |
+| ------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `firmwareType`            | int               | Component ID (from DeviceFirmware enum)                                                                         |
+| `version`                 | String            | Target version string                                                                                           |
+| `currVersion`             | long              | Device's current version (echoed back)                                                                          |
+| `hasNewVersion`           | bool              | `true` if an update is available                                                                                |
+| `downloadUrl`             | String            | Direct URL to download the binary (for unencrypted firmware)                                                    |
+| `fileMd5`                 | String            | MD5 checksum for post-download integrity check                                                                  |
+| `fileSize`                | int               | File size in bytes                                                                                              |
+| `encrypted`               | bool              | Whether the firmware file is encrypted                                                                          |
+| `signature`               | String            | Firmware signature — sent as final OTA packet                                                                   |
+| `checkSum`                | String            | Additional checksum field                                                                                       |
+| `shardSize`               | int               | Chunk size in bytes for BLE transfer (from `X-Shard-Size` header for encrypted firmware, else defaults to 1024) |
+| `supportBroadcastUpgrade` | bool              | Can be pushed to multiple sub-devices at once via broadcast OTA                                                 |
+| `needToReconnect`         | bool              | Device requires BLE reconnect after flashing                                                                    |
+| `versionList`             | List<DeviceFmVer> | Sub-components (e.g. HMI has BOOT/KERNEL/APP parts with individual version info)                                |
+| `upgradeStrategy`         | String            | Upgrade strategy identifier (e.g., `"ARM_LAST"`)                                                                |
+| `firmwareId`              | String            | Firmware identifier string                                                                                      |
+| `sn`                      | String            | Target device serial                                                                                            |
+| `model`                   | String            | Target device model                                                                                             |
 
 ### 11.4 Step 3 — Firmware Download
 
@@ -117,6 +119,7 @@ The server returns one `DeviceFmVer` object per firmware component. Key fields (
 This credential is stored as constant `FIRMWARE_DOWNLOAD_GWCREDENTIALS` in `SmartProductService.java:69`. The full URL is appended to `EnvManager.getBaseUrl()` (e.g., `https://gw.bluettipower.com`).
 
 The encrypted download response contains firmware metadata in **HTTP response headers** (not in the body):
+
 - `X-Shard-Size` → stored as `firmware.shardSize` (chunk size for BLE OTA transfer)
 - `X-Signature` → stored as `firmware.signature` (sent as the final packet in OTA transfer)
 - `X-Checksum` → stored as `firmware.fileMd5` (MD5 checksum for validation)
@@ -126,21 +129,24 @@ The encrypted download response contains firmware metadata in **HTTP response he
 The download is managed through `FirmwareDownloadViewModel` → `FirmwareDownloadRepository`, using Kotlin coroutines and `Flow<DownloadStatus>`. The download streams the firmware binary to a cache file and returns progress updates.
 
 **Flow:**
+
 1. `DeviceUpgradeBaseActivity.firmwareDownload(firmware, showSuccessTips, showLoading)` is called
-2. A new file is created via `FirmwareDownloadViewModel.newFirmwareFile()`
-3. The download URL is constructed (if encrypted, using the hardcoded endpoint)
-4. A coroutine launches that calls `downloadVM.download(url, IDownloadBuild)`, collecting a `Flow<DownloadStatus>`
-5. On `DownloadSuccess`, response headers are parsed for encrypted firmware metadata
-6. `firmware.setDownload(true)` triggers the callback
+1. A new file is created via `FirmwareDownloadViewModel.newFirmwareFile()`
+1. The download URL is constructed (if encrypted, using the hardcoded endpoint)
+1. A coroutine launches that calls `downloadVM.download(url, IDownloadBuild)`, collecting a `Flow<DownloadStatus>`
+1. On `DownloadSuccess`, response headers are parsed for encrypted firmware metadata
+1. `firmware.setDownload(true)` triggers the callback
 
 #### 11.4.3 File Naming and Storage
 
 **File location:** App's cache directory (`context.getCacheDir()`).
 
 **File naming convention** (`FirmwareDownloadViewModel.java:59-69`):
+
 ```
 {modelCode}_{firmwareTypeName}_{version}_{firmwareId}
 ```
+
 Example: `AC200L_IOT_v9001.00_abc123`
 
 The `firmwareTypeName` is resolved from `ConnectConstantsKt.getFirmwareTypeName(firmwareType)`.
@@ -148,9 +154,10 @@ The `firmwareTypeName` is resolved from `ConnectConstantsKt.getFirmwareTypeName(
 #### 11.4.4 Cache Validation
 
 `FirmwareDownloadViewModel.isFirmwareFileExits()` checks:
+
 - The file exists on disk
 - If `fileMd5` is present, verifies the file's MD5 hash matches
-If both pass, the cached file is reused without re-downloading.
+  If both pass, the cached file is reused without re-downloading.
 
 ### 11.5 Step 4A — Delivery to Device via BLE (Local OTA)
 
@@ -161,9 +168,11 @@ This is the primary path when the phone is connected to the device via Bluetooth
 `ProtocolParse.otaStartCmd(firmware, deviceModel, protVer, otaType, idOfGroup, fmCount, modbusSlave)` builds the hex command string to initiate OTA.
 
 **For protocol ≥ 2000 (V2):** Uses register address `700` (`0x02BC`):
+
 ```
 {modbusSlave} 10 02BC 0006 0C {otaType} {fmType} {version_le32} {fileSizeKb} {otaGroup} {idOfGroup} CRC
 ```
+
 - `modbusSlave`: 1 normally, 0 for 2nd-gen IoT
 - `otaType`: 1 (normal), 3 (broadcast)
 - `version`: 4 bytes little-endian
@@ -172,32 +181,37 @@ This is the primary path when the phone is connected to the device via Bluetooth
 - `idOfGroup`: 255 for broadcast, null for normal
 
 **For protocol < 2000 (V1):** Uses register address `1080` (`0x0438`, `OTA_START` in `ProtocolAddr`):
+
 ```
 01 10 0438 <dataLen> <params> CRC
 ```
+
 Where `<params>` varies by device model — e.g., for AC240/AC240P/AC200L/AC200PL:
+
 ```
 00 05 0A {fmType} 0000 {idOfGroup} 0000 {fileSizeKb}
 ```
+
 And for other models: `0002 04 {fmType} 0000`.
 
 #### 11.5.2 OTA Initiation
 
 In `ConnectManager.otaRequest(firmwareBean, callback, isRemote)`:
+
 1. Sets `isOTA = true`, stores firmwareBean
-2. For BLE mode: Sends the OTA start command via `addTaskItem()` as a `BleTaskItem`
-3. For remote mode: Returns immediately (server triggers upgrade via MQTT)
-4. Up to 3 retries (`otaRequestCount`) on OTA start failure
+1. For BLE mode: Sends the OTA start command via `addTaskItem()` as a `BleTaskItem`
+1. For remote mode: Returns immediately (server triggers upgrade via MQTT)
+1. Up to 3 retries (`otaRequestCount`) on OTA start failure
 
 #### 11.5.3 OTA Data Transfer
 
 Once the device acknowledges the OTA start (response `"43"`), data transfer begins. `ConnectManager.getOTAFileData(index)`:
 
 1. **First call:** Reads the entire firmware file into memory via `OtaUtil.fileToByteArray()`
-2. **Total packs calculation:**
+1. **Total packs calculation:**
    - Encrypted: `ceil(fileSize / shardSize) + 1` (the +1 is the signature packet)
    - Non-encrypted: `ceil(fileSize / 1024)`
-3. **Per-packet construction:** Each packet is wrapped as:
+1. **Per-packet construction:** Each packet is wrapped as:
    ```
    {type}{index}{checkIndex}{hexData}{CRC16_XMODEM}
    ```
@@ -206,11 +220,12 @@ Once the device acknowledges the OTA start (response `"43"`), data transfer begi
    - `checkIndex`: `255 - index`
    - `hexData`: the chunk of firmware bytes
    - `CRC16_XMODEM`: checksum of the frame
-4. **ESP32 encrypted devices:** The entire wrapped packet is additionally AES-CBC encrypted with `bleConnShareKey` before BLE transmission.
+1. **ESP32 encrypted devices:** The entire wrapped packet is additionally AES-CBC encrypted with `bleConnShareKey` before BLE transmission.
 
 #### 11.5.4 OTA Response Handling
 
 Device responses over BLE (`ConnectManager.otaDataChange(result)`):
+
 - `"43"` — OTA start acknowledged → begin data transfer (`otaPackIndex = 1`)
 - `"06"` — Packet acknowledged → increment index, write next packet
 - `"15"` — NAK (negative acknowledge) → retry up to 10 times with 200ms delay
@@ -229,6 +244,7 @@ Used when the device is connected to the internet via Wi-Fi and the app is not i
 **API endpoint:** `POST /api/blusmartprod/device/firmware/v2/appSentDeviceRemoteUpgrade`
 
 **Request body** (constructed in `DeviceUpgradeBaseActivity.callRemoteUpgrade()`):
+
 ```text
 {
   "masterSn": "<master device serial>",
@@ -245,12 +261,14 @@ Used when the device is connected to the internet via Wi-Fi and the app is not i
 ```
 
 The cloud receives this request and sends an **MQTT command** to the device, instructing it to fetch and apply firmware autonomously over its own internet connection. The app then:
+
 1. Calls `firmwareUpgrade(firmware, isRemote=true)` — skips local file path setup, does NOT build OTA start command
-2. Delays 3000ms, then starts `otaStatusCountDown` timer
-3. Polls OTA status via BLE/MQTT
-4. Up to 3 retries
+1. Delays 3000ms, then starts `otaStatusCountDown` timer
+1. Polls OTA status via BLE/MQTT
+1. Up to 3 retries
 
 **AECC devices** use a separate endpoint:
+
 ```
 POST /api/blusmartprod/device/firmware/v1/aeccSentDeviceRemoteUpgrade
 ```
@@ -269,17 +287,17 @@ When `DeviceFmVer.supportBroadcastUpgrade` is `true`, a single OTA command can p
 
 `OTAGroup.java` enum maps firmware types to OTA groups, which determine the target device subsystem:
 
-| Group | Value | Firmware Types |
-|---|---|---|
-| INV | 1 | ARM, DSP, INV_DSP2, AC_HUB, DC_HUB |
-| PACK | 2 | PACK_BCU, PACK_BMU, PACK_BMS, PACK_M1, PACK_SAFETY, PACK_HIGH_VOLTAGE, DC_DC, BA |
-| IOT | 3 | IOT, HMI1, HMI2, RF |
-| LCD | 4 | EPAD HMI1 |
-| ATS | 5 | ATS, AT1 IOT |
-| PANEL | 6 | PANEL, EPANEL |
-| DCDC_OR_CHARGER | 7 | D400S |
-| WT | 8 | WT |
-| S1 | 9 | S1 |
+| Group           | Value | Firmware Types                                                                   |
+| --------------- | ----- | -------------------------------------------------------------------------------- |
+| INV             | 1     | ARM, DSP, INV_DSP2, AC_HUB, DC_HUB                                               |
+| PACK            | 2     | PACK_BCU, PACK_BMU, PACK_BMS, PACK_M1, PACK_SAFETY, PACK_HIGH_VOLTAGE, DC_DC, BA |
+| IOT             | 3     | IOT, HMI1, HMI2, RF                                                              |
+| LCD             | 4     | EPAD HMI1                                                                        |
+| ATS             | 5     | ATS, AT1 IOT                                                                     |
+| PANEL           | 6     | PANEL, EPANEL                                                                    |
+| DCDC_OR_CHARGER | 7     | D400S                                                                            |
+| WT              | 8     | WT                                                                               |
+| S1              | 9     | S1                                                                               |
 
 Group mapping is defined in `DeviceConnUtilKt.deviceFmOtaGroup(fmType, model)`.
 
@@ -293,7 +311,7 @@ Multiple firmware components are flashed **sequentially** in a device-model-spec
 - **`FirmwareUpgradeOrder.java`** — Data class with three fields:
   - `invOrder` (List<Integer>) — Order for inverter firmware types
   - `packOrder` (List<Integer>) — Order for battery pack firmware types
-  - `delays` (Map<Integer, Long>) — Optional delays in ms between firmware upgrades
+  - `delays` (Map\<Integer, Long>) — Optional delays in ms between firmware upgrades
 - **`FmUpgradeStrategy.java`** — Enum with two strategies:
   - `DEFAULT` — Uses both `invOrder` and `packOrder` as defined below
   - `ARM_LAST` — Custom order: `IOT(0) → DSP(2) → BMS(3) → ARM(1)`
@@ -301,32 +319,38 @@ Multiple firmware components are flashed **sequentially** in a device-model-spec
 #### Default Orders
 
 **Inverter order** (including AC2A, AC200L, AC240, etc.):
+
 ```
 IOT (0) → ARM (1) → DSP (2) → BMS (3) → DC_DC (16)
 ```
 
 **Pack/battery order:**
+
 ```
 PACK_SAFETY (9) → PACK_BMU (6) → PACK_HIGH_VOLTAGE (10) → DC_DC (16) → PACK_BCU (5) → PACK_BMS (7)
 ```
 
 **POWER5 exception** (`ARM_LAST` strategy):
+
 ```
 IOT (0) → DSP (2) → BMS (3) → ARM (1)
 ```
+
 ARM is flashed last on the POWER5, presumably because other components must be stable before the main processor firmware is replaced. No other device model has a special strategy — `DeviceModel.POWER5` is the only one with a custom configuration (`FirmwareUpgradeConfig.java:33`).
 
 ### 11.10 Boot Upgrade
 
 **`BootUpgradeSupport.java`** contains flags for bootloader upgrade support:
+
 - `isSupport` (int) — Whether boot upgrade is supported
 - `softwareVerTotal` (int) — Number of software versions in the boot binary
 
 **V2 Modbus registers** (new in v3.0.9):
-| Register | Constant | Description |
-|----------|----------|-------------|
-| 29770 | `BOOT_UPGRADE_SUPPORT` | Boot upgrade support status |
-| 29772 | `BOOT_SOFTWARE_INFO` | Boot software version info |
+
+| Register | Constant               | Description                 |
+| -------- | ---------------------- | --------------------------- |
+| 29770    | `BOOT_UPGRADE_SUPPORT` | Boot upgrade support status |
+| 29772    | `BOOT_SOFTWARE_INFO`   | Boot software version info  |
 
 **`DeviceUpgradeBootActivity.java`** is a minimal activity (`extends BaseConnActivity`) providing boot-specific upgrade UI. It extends the base connection activity but is essentially a shell — the actual boot upgrade logic reuses the standard firmware upgrade flow.
 
@@ -336,23 +360,24 @@ After each upgrade attempt, the app reports back to the server. The flow is hand
 
 #### API Endpoints
 
-| Endpoint | gwcredentials? | Purpose |
-|---|---|---|
-| `POST /api/blusmartprod/device/upgrade/record/v1/save` | Yes (`"ZFKVIQwNyA4BKtXPEMlMJ..."`) | Standard upgrade record |
-| `POST /api/blusmartprod/device/upgrade/record/v1/broadcastSave` | No | Broadcast upgrade record (returns `recordId`) |
+| Endpoint                                                        | gwcredentials?                     | Purpose                                       |
+| --------------------------------------------------------------- | ---------------------------------- | --------------------------------------------- |
+| `POST /api/blusmartprod/device/upgrade/record/v1/save`          | Yes (`"ZFKVIQwNyA4BKtXPEMlMJ..."`) | Standard upgrade record                       |
+| `POST /api/blusmartprod/device/upgrade/record/v1/broadcastSave` | No                                 | Broadcast upgrade record (returns `recordId`) |
 
 #### UpgradeStatus Enum
 
-| Status | Value |
-|---|---|
-| FAILURE | 0 |
-| SUCCESS | 1 |
-| UPGRADING | 2 |
+| Status    | Value |
+| --------- | ----- |
+| FAILURE   | 0     |
+| SUCCESS   | 1     |
+| UPGRADING | 2     |
 
 #### Record Save Flow (Two-Phase)
 
 **Phase 1 — UPGRADING** (called before OTA begins):
 The app sends a map with:
+
 - `deviceSn`, `deviceModel`, `firmwareType`
 - `oldVer` (current version, long), `upgradeVer` (target version)
 - `appVer` (Android app version)
@@ -365,12 +390,14 @@ The app sends a map with:
 
 **Phase 2 — SUCCESS/FAILURE** (called after OTA completes):
 The app sends a record update with:
+
 - `recordId` (from Phase 1 response)
 - `remark` (error description if failed, or empty string if success)
 - `upgradeStatus`: `"success"` or `"failure"`
 - `firmwareUpgradeProgressVoList`: optional list of `DeviceNodeOTAStatusItem` for multi-device upgrades
 
 **Auto-included fields** (by the service layer, not in the request body map):
+
 - `mobileModel`: `Build.BRAND + " " + Build.MODEL` (e.g., "Samsung SM-S908B")
 - `os`: 2 (Android)
 - `osVer`: `Build.VERSION.RELEASE` (e.g., "13")
@@ -461,6 +488,7 @@ The app sends a record update with:
 ### 11.13 Firmware Version Formatting
 
 `DeviceConnUtilKt.deviceFmVerFormat(fmVer)` formats raw version values for display:
+
 - Versions with >6 characters: splits as `{first5}.{chars5-6}.{rest}` → e.g., `v90010.00.123`
 - Versions with >4 characters (≤6): splits as `{first4}.{rest}` → e.g., `v9001.00`
 - Otherwise: plain prefix → e.g., `v100`

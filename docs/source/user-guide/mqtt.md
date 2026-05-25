@@ -14,15 +14,15 @@ voltkeeper mqtt-publish AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 
 ### Options
 
-| Option | Description |
-|---|---|
-| `--serial TEXT` | Device serial number (overrides BLE lookup for MQTT topic) |
-| `--broker TEXT` | MQTT broker hostname (required) |
-| `--port INTEGER` | MQTT broker port (default: 1883) |
-| `--username TEXT` | MQTT broker username |
-| `--password TEXT` | MQTT broker password |
-| `--interval INTEGER` | Seconds between polling cycles (default: 0 = as fast as possible) |
-| `--ha-config MODE` | Home Assistant discovery mode: `normal`, `none`, `advanced` (default: normal) |
+| Option                       | Description                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------ |
+| `--serial TEXT`              | Device serial number (overrides BLE lookup for MQTT topic)                           |
+| `--broker TEXT`              | MQTT broker hostname (required)                                                      |
+| `--port INTEGER`             | MQTT broker port (default: 1883)                                                     |
+| `--username TEXT`            | MQTT broker username                                                                 |
+| `--password TEXT`            | MQTT broker password                                                                 |
+| `--interval INTEGER`         | Seconds between polling cycles (default: 0 = as fast as possible)                    |
+| `--ha-config MODE`           | Home Assistant discovery mode: `normal`, `none`, `advanced` (default: normal)        |
 | `--restart-on-source-change` | Exit cleanly when the voltkeeper package is updated, so systemd restarts the process |
 
 ## mqtt-listen
@@ -44,13 +44,13 @@ MQTT from another host).
 
 ### Options
 
-| Option | Description |
-|---|---|
-| `--serial TEXT` | Device serial number (or provide ADDRESS for BLE lookup) |
-| `--broker TEXT` | MQTT broker hostname (required) |
-| `--port INTEGER` | MQTT broker port (default: 1883) |
-| `--username TEXT` | MQTT broker username |
-| `--password TEXT` | MQTT broker password |
-| `--shutdown-at INTEGER` | SOC % threshold for shutdown (default: 10) |
-| `--grace-period INTEGER` | Seconds below threshold before shutdown (default: 60) |
-| `--restart-on-source-change` | Exit cleanly when source code changes |
+| Option                       | Description                                              |
+| ---------------------------- | -------------------------------------------------------- |
+| `--serial TEXT`              | Device serial number (or provide ADDRESS for BLE lookup) |
+| `--broker TEXT`              | MQTT broker hostname (required)                          |
+| `--port INTEGER`             | MQTT broker port (default: 1883)                         |
+| `--username TEXT`            | MQTT broker username                                     |
+| `--password TEXT`            | MQTT broker password                                     |
+| `--shutdown-at INTEGER`      | SOC % threshold for shutdown (default: 10)               |
+| `--grace-period INTEGER`     | Seconds below threshold before shutdown (default: 60)    |
+| `--restart-on-source-change` | Exit cleanly when source code changes                    |

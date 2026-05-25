@@ -39,15 +39,15 @@ register values to field names.
 
 1. On your Android phone, enable Developer options, then enable
    **"Enable Bluetooth HCI snoop log"**.
-2. Open the Bluetti app and exercise the features you want to map
+1. Open the Bluetti app and exercise the features you want to map
    (toggle AC output, change charging mode, view battery details, etc.).
-3. Once you've exercised everything, disable Bluetooth HCI snoop log
+1. Once you've exercised everything, disable Bluetooth HCI snoop log
    (toggling it off writes the log buffer to disk).
-4. Pull the log with `adb bugreport` or extract directly:
+1. Pull the log with `adb bugreport` or extract directly:
    ```bash
    adb pull /sdcard/btsnoop_hci.log
    ```
-5. Parse the log into a CSV timeline:
+1. Parse the log into a CSV timeline:
    ```bash
    python scripts/parse_btsnoop.py btsnoop_hci.log > capture.csv
    ```

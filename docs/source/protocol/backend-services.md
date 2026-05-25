@@ -8,49 +8,50 @@ This page documents the Bluetti cloud backend infrastructure: environment switch
 
 The app contains a fully functional three-environment architecture controlled by `EnvManager` (`net.poweroak.bluetticloud.http.env.EnvManager`). The active environment defaults to **RELEASE** but can be toggled at runtime.
 
-| Environment | Gateway URL |
-|---|---|
-| **RELEASE (default)** | `https://gw.bluettipower.com` |
-| TEST | `https://test-gw.poweroak.ltd:18443` |
-| DEV | `https://dev-gw.poweroak.ltd:18443` |
+| Environment           | Gateway URL                          |
+| --------------------- | ------------------------------------ |
+| **RELEASE (default)** | `https://gw.bluettipower.com`        |
+| TEST                  | `https://test-gw.poweroak.ltd:18443` |
+| DEV                   | `https://dev-gw.poweroak.ltd:18443`  |
 
 ### 2.2 Production Service URLs
 
-| Service | URL |
-|---|---|
-| API Gateway (primary) | `https://gw.bluettipower.com` |
-| API Gateway (secondary/PRY) | `https://gwpry.bluettipower.com` |
-| SSO / Auth | `https://sso.bluettipower.com` |
-| H5 Frontend | `https://h5.bluettipower.com` |
-| Community H5 | `https://h5.bluettipower.com/app/community/dist/index.html#/home` |
-| After-Sales | `https://after-sales.bluettipower.com` |
-| IoT/MQTT Broker | `ssl://iot.bluettipower.com:18760` |
-| File (by ID) | `https://gw.bluettipower.com/api/midpfilec/file/v1/getFile?id=<id>` |
-| App Download | `https://download.bluetti.app?sn=<sn>` |
-| App Download (alternate) | `https://download.poweroak.ltd?sn=<sn>` |
+| Service                     | URL                                                                 |
+| --------------------------- | ------------------------------------------------------------------- |
+| API Gateway (primary)       | `https://gw.bluettipower.com`                                       |
+| API Gateway (secondary/PRY) | `https://gwpry.bluettipower.com`                                    |
+| SSO / Auth                  | `https://sso.bluettipower.com`                                      |
+| H5 Frontend                 | `https://h5.bluettipower.com`                                       |
+| Community H5                | `https://h5.bluettipower.com/app/community/dist/index.html#/home`   |
+| After-Sales                 | `https://after-sales.bluettipower.com`                              |
+| IoT/MQTT Broker             | `ssl://iot.bluettipower.com:18760`                                  |
+| File (by ID)                | `https://gw.bluettipower.com/api/midpfilec/file/v1/getFile?id=<id>` |
+| App Download                | `https://download.bluetti.app?sn=<sn>`                              |
+| App Download (alternate)    | `https://download.poweroak.ltd?sn=<sn>`                             |
 
 ### 2.3 Test / Dev Service URLs (also embedded in binary)
 
-| Service | URL |
-|---|---|
-| Dev Gateway | `https://dev-gw.poweroak.ltd:18443` |
-| Test Gateway | `https://test-gw.poweroak.ltd:18443` |
-| Dev SSO | `http://dev-sso.poweroak.ltd:18888` (**HTTP — no TLS**) |
-| Test SSO | `https://test-sso.poweroak.ltd:18443` |
-| Dev H5 | `https://dev-app-h5.poweroak.ltd:18443` |
-| Test H5 | `https://test-app-h5.poweroak.ltd:18443` |
-| Dev IoT/MQTT | `ssl://dev-iot.poweroak.ltd:18760` |
-| Test IoT/MQTT | `ssl://test-iot.poweroak.ltd:18760` |
-| Dev After-Sales | `http://dev-after.poweroak.ltd:18888` (**HTTP — no TLS**) |
+| Service          | URL                                                        |
+| ---------------- | ---------------------------------------------------------- |
+| Dev Gateway      | `https://dev-gw.poweroak.ltd:18443`                        |
+| Test Gateway     | `https://test-gw.poweroak.ltd:18443`                       |
+| Dev SSO          | `http://dev-sso.poweroak.ltd:18888` (**HTTP — no TLS**)    |
+| Test SSO         | `https://test-sso.poweroak.ltd:18443`                      |
+| Dev H5           | `https://dev-app-h5.poweroak.ltd:18443`                    |
+| Test H5          | `https://test-app-h5.poweroak.ltd:18443`                   |
+| Dev IoT/MQTT     | `ssl://dev-iot.poweroak.ltd:18760`                         |
+| Test IoT/MQTT    | `ssl://test-iot.poweroak.ltd:18760`                        |
+| Dev After-Sales  | `http://dev-after.poweroak.ltd:18888` (**HTTP — no TLS**)  |
 | Test After-Sales | `http://test-after.poweroak.ltd:18888` (**HTTP — no TLS**) |
 
----
+______________________________________________________________________
 
 ## 3. API Endpoints (Retrofit Services)
 
 The backend follows a microservice architecture. All endpoints are served under the gateway base URL. Each microservice has a `blu*` or `midp*` prefix.
 
 ### Authentication & User Accounts (`midpauthc`)
+
 ```
 POST /api/midpauthc/user/mgt/register/v1
 POST /api/midpauthc/user/mgt/forgotpwd/step1/v1
@@ -73,6 +74,7 @@ POST /accessToken
 ```
 
 ### Notifications & Captcha (`midpnc`)
+
 ```
 POST /api/midpnc/captcha/send/v1
 POST /api/midpnc/captcha/validate/v1
@@ -85,6 +87,7 @@ GET  /api/midpnc/notify/push/v1/message/userNotify
 ```
 
 ### PKI / Certificates (`midppkic`)
+
 ```
 POST /api/midppkic/cert/app/revoke
 POST /api/midppkic/cert/app/v1/pfx
@@ -92,6 +95,7 @@ GET  /api/midppkic/cert/app/v2/now/utc-time
 ```
 
 ### File Management (`midpfilec`)
+
 ```
 POST /api/midpfilec/file/pre/v1/apply
 POST /api/midpfilec/file/pre/v1/upload
@@ -102,6 +106,7 @@ GET  /api/midpfilec/vod/v1/play-url
 ```
 
 ### Master Data / App Config (`midpmdata`)
+
 ```
 GET  /api/midpmdata/app/version/v1/latest
 GET  /api/midpmdata/app/attribute/v1/engineering-machine
@@ -112,6 +117,7 @@ GET  /api/midpmdata/iso/country/v1/localized/administrative-divisions
 ```
 
 ### Payment (`midppayc`)
+
 ```
 GET  /api/midppayc/payment/v1/ability
 POST /api/midppayc/payment/v1/create
@@ -119,6 +125,7 @@ GET  /api/midppayc/payment/v1/query
 ```
 
 ### Logistics / Geo / Weather (`midplifec`)
+
 ```
 GET  /api/midplifec/api/logistics/v1/trackInfo
 GET  /api/midplifec/express/v1/logisticsDetailList
@@ -128,6 +135,7 @@ POST /api/midplifec/meteo/v1/find
 ```
 
 ### IoT Device Management (`blusmartprod`)
+
 ```
 POST /api/blusmartprod/device/basic/v2/bind
 POST /api/blusmartprod/device/basic/v2/unbind
@@ -181,6 +189,7 @@ POST /api/blusmartprod/vpp/site/v1/create
 ```
 
 ### IoT Telemetry Data (`bluiotdata`)
+
 ```
 GET  /api/bluiotdata/aecc/v1/getDeviceRealTimeData
 GET  /api/bluiotdata/aecc/v1/getDeviceBatteryDetailData
@@ -202,6 +211,7 @@ GET  /api/bluiotdata/device/openWeatherAlert/v1/queryDisasterDeviceBackupPowerPa
 ```
 
 ### Dynamic Electricity Pricing / VPP (`bluiotvpp`)
+
 ```
 GET  /api/bluiotvpp/dynamicElectricityPrice/user/v1/dyEpEnabled
 GET  /api/bluiotvpp/dynamicElectricityPrice/user/v1/dyEpStatus
@@ -212,6 +222,7 @@ POST /api/bluiotvpp/dynamicElectricityPrice/user/v1/policyInformationUp
 ```
 
 ### User Center (`bluuc`)
+
 ```
 GET  /api/bluuc/uc/v1/basic/get
 POST /api/bluuc/uc/v1/basic/update/{userId}
@@ -230,6 +241,7 @@ GET  /api/bluuc/uc/functionGrayscale/v1/checkFunction
 ```
 
 ### Community / Social (`blucomm`)
+
 ```
 GET  /api/blucomm/community/home/v1/findNews
 POST /api/blucomm/community/home/v1/saveComment
@@ -247,6 +259,7 @@ POST /api/blucomm/disUser/v1/update/avatar
 ```
 
 ### E-commerce / Shop (`blushopc`)
+
 ```
 GET  /api/blushopc/app/goods/v1/goodsDetail
 GET  /api/blushopc/app/goods/v1/search
@@ -264,6 +277,7 @@ POST /api/blushopc/app/birthday/gift/v1/claim
 ```
 
 ### After-Sales (`bluas`)
+
 ```
 POST /api/bluas/afterSaleOrder/v1/apply
 GET  /api/bluas/afterSaleOrder/v1/detail
@@ -278,6 +292,7 @@ POST /api/bluas/user/v1/repairOrder/page
 ```
 
 ### Marketing / Banners / Wiki (`blumktc`)
+
 ```
 GET  /api/blumktc/banner/v2/listBanner
 GET  /api/blumktc/v1/config?version=v1
@@ -295,6 +310,7 @@ POST /api/blumktc/subscribe/v1/customerSubscribe
 ```
 
 ### Loyalty / Bluetti Bucks (`blubucksc`)
+
 ```
 GET  /api/blubucksc/bucksApi/query/v1/summary
 GET  /api/blubucksc/bucksApi/query/v1/journal
@@ -303,6 +319,7 @@ GET  /api/blubucksc/bucksApi/query/v1/signInfo
 ```
 
 ### Distribution / Partners (`bludistc`)
+
 ```
 POST /api/bludistc/app/order/v1/add
 GET  /api/bludistc/app/order/v1/paged
@@ -313,6 +330,7 @@ GET  /api/bludistc/app/taxExempt/v1/paged
 ```
 
 ### Financial / Transactions (`blufic`)
+
 ```
 GET  /api/blufic/fic/app/transaction/v1/page
 POST /api/blufic/fic/app/withdrawal/v1/add
@@ -321,6 +339,7 @@ GET  /api/blufic/fic/app/distributor/v1/accountStats
 ```
 
 ### Installation Services (`bluinstp`)
+
 ```
 POST /api/bluinstp/app/order/v2/add
 GET  /api/bluinstp/app/order/v2/page
@@ -329,13 +348,14 @@ GET  /api/bluinstp/app/device/v1/overview
 ```
 
 ### Learning / Video (`bluelearn`)
+
 ```
 GET  /api/bluelearn/app/videoClassify/v1/classifications
 GET  /api/bluelearn/app/videoClassify/v1/getAppVideos
 GET  /api/bluelearn/app/videoClassify/v1/countrys
 ```
 
----
+______________________________________________________________________
 
 ## 4. IoT Communication — MQTT over SSL/TLS
 

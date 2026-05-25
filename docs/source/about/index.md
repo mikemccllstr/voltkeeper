@@ -1,8 +1,9 @@
 # About voltkeeper
 
 ```{toctree}
-:hidden:
-
+---
+hidden:
+---
 naming
 brand
 ```
@@ -68,13 +69,13 @@ decisions, reviewed every change, and verified behavior against real hardware.
 
 ## Repository Tour
 
-| Path | Purpose |
-|---|---|
+| Path              | Purpose                                                |
+| ----------------- | ------------------------------------------------------ |
 | `src/voltkeeper/` | CLI source (BLE client, device models, MQTT, commands) |
-| `bluetti-files/` | Decompiled APK artifacts |
-| `docs/source/` | Sphinx documentation source |
-| `tests/` | Test suite |
-| `scripts/` | APK download and btsnoop parsing automation |
+| `bluetti-files/`  | Decompiled APK artifacts                               |
+| `docs/source/`    | Sphinx documentation source                            |
+| `tests/`          | Test suite                                             |
+| `scripts/`        | APK download and btsnoop parsing automation            |
 
 ## Relationship to Bluetti's Official Repositories
 

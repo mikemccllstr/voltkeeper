@@ -11,8 +11,8 @@ to connect to each one.
 
 ## Options
 
-| Option | Description |
-|---|---|
+| Option                | Description                             |
+| --------------------- | --------------------------------------- |
 | `-t, --timeout FLOAT` | Scan timeout in seconds (default: 10.0) |
 
 ## Example

@@ -14,11 +14,11 @@ voltkeeper mqtt-publish-service AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 
 All options from `mqtt-publish` are accepted, plus:
 
-| Option | Description |
-|---|---|
-| `--user NAME` | System user to run as (default: current user) |
-| `--exec PATH` | Path to voltkeeper executable (default: auto-detect) |
-| `-o, --output PATH` | Write to file instead of stdout |
+| Option              | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| `--user NAME`       | System user to run as (default: current user)        |
+| `--exec PATH`       | Path to voltkeeper executable (default: auto-detect) |
+| `-o, --output PATH` | Write to file instead of stdout                      |
 
 ## mqtt-listen-service
 
@@ -32,11 +32,11 @@ voltkeeper mqtt-listen-service --serial 2409000123456 --broker 192.168.1.100
 
 All options from `mqtt-listen` are accepted, plus:
 
-| Option | Description |
-|---|---|
-| `--user NAME` | System user to run as (default: root, needed for shutdown) |
-| `--exec PATH` | Path to voltkeeper executable (default: auto-detect) |
-| `-o, --output PATH` | Write to file instead of stdout |
+| Option              | Description                                                |
+| ------------------- | ---------------------------------------------------------- |
+| `--user NAME`       | System user to run as (default: root, needed for shutdown) |
+| `--exec PATH`       | Path to voltkeeper executable (default: auto-detect)       |
+| `-o, --output PATH` | Write to file instead of stdout                            |
 
 ## Installing a generated service
 

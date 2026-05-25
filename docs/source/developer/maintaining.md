@@ -42,12 +42,12 @@ Document the divergence in the new model file's `# ABOUTME:` comment.
 
 ## 3. Pick the base class
 
-| `minProtocolVer` (from APK) | Base class | Notes |
-|---|---|---|
-| `< 2000` | `V1Base` | Use V1Base default alarm/fault names |
-| `< 2000` AND `isLowPower=true` | `V1Base` | Override to `LOW_POWER_*` alarm tables |
-| `>= 2000` | `V2Base` | Default /10 voltage scale |
-| `>= 2000`, high-voltage pack | `V2Base` | EP600 family |
+| `minProtocolVer` (from APK)    | Base class | Notes                                  |
+| ------------------------------ | ---------- | -------------------------------------- |
+| `< 2000`                       | `V1Base`   | Use V1Base default alarm/fault names   |
+| `< 2000` AND `isLowPower=true` | `V1Base`   | Override to `LOW_POWER_*` alarm tables |
+| `>= 2000`                      | `V2Base`   | Default /10 voltage scale              |
+| `>= 2000`, high-voltage pack   | `V2Base`   | EP600 family                           |
 
 ## 4. Build the class from a template
 
@@ -71,8 +71,8 @@ What to fill in:
 In `src/voltkeeper/bluetooth/__init__.py`:
 
 1. Import the new class in `_device_registry()`
-2. Add `"<PREFIX>": <ClassName>` to the returned dict
-3. Update `_DEVICE_NAME_SN_RE` to include the new prefix
+1. Add `"<PREFIX>": <ClassName>` to the returned dict
+1. Update `_DEVICE_NAME_SN_RE` to include the new prefix
 
 ## 6. Tests
 
@@ -96,12 +96,12 @@ If the contributor sent `btsnoop_hci.log` from a V2 device:
 1. Pair voltkeeper against the same physical device the contributor captured
    from. Patch `src/voltkeeper/bluetooth/handshake.py` temporarily to log
    `shared_key.hex()` and `initial_iv.hex()`
-2. Run `voltkeeper status <ADDR>` against the device with `-v`
-3. Feed key and IV into the parser:
+1. Run `voltkeeper status <ADDR>` against the device with `-v`
+1. Feed key and IV into the parser:
    ```bash
    python scripts/parse_btsnoop.py contributor.log --key <hex> --iv <hex> > capture.csv
    ```
-4. Revert the `handshake.py` patch immediately — verify with `git diff` before pushing
+1. Revert the `handshake.py` patch immediately — verify with `git diff` before pushing
 
 ## 8. Merge
 

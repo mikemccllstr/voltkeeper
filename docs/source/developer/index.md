@@ -1,8 +1,9 @@
 # Developer Guide
 
 ```{toctree}
-:hidden:
-
+---
+hidden:
+---
 contributing-devices
 maintaining
 ```
@@ -24,11 +25,11 @@ you'll save yourself a round-trip.
 
 voltkeeper is organized into three main packages under `src/voltkeeper/`:
 
-| Package | Purpose |
-|---|---|
-| `bluetooth/` | BLE client, scan, device factory, encryption, handshake |
-| `core/` | Modbus commands, field struct definitions, device model hierarchy |
-| `core/devices/` | Per-model device classes (V1 and V2 protocol) |
+| Package         | Purpose                                                           |
+| --------------- | ----------------------------------------------------------------- |
+| `bluetooth/`    | BLE client, scan, device factory, encryption, handshake           |
+| `core/`         | Modbus commands, field struct definitions, device model hierarchy |
+| `core/devices/` | Per-model device classes (V1 and V2 protocol)                     |
 
 Top-level modules handle CLI commands (`cli.py`), device polling (`device_handler.py`),
 MQTT integration (`mqtt_client.py`), load testing (`load_test.py`), probe and
@@ -46,15 +47,15 @@ mise run check
 
 This runs lint, typecheck, and tests. Individual checks:
 
-| Task | What it runs |
-|---|---|
-| `mise run lint` | Ruff linter |
-| `mise run typecheck` | Mypy type checker |
-| `mise run test` | Pytest with branch coverage |
-| `mise run test-fast` | Pytest without coverage overhead |
-| `mise run format` | Ruff formatter (applies changes) |
-| `mise run setup` | Install pre-commit hooks (run once after cloning) |
-| `mise run format-check` | Ruff formatter (check only) |
+| Task                    | What it runs                                      |
+| ----------------------- | ------------------------------------------------- |
+| `mise run lint`         | Ruff linter                                       |
+| `mise run typecheck`    | Mypy type checker                                 |
+| `mise run test`         | Pytest with branch coverage                       |
+| `mise run test-fast`    | Pytest without coverage overhead                  |
+| `mise run format`       | Ruff formatter (applies changes)                  |
+| `mise run setup`        | Install pre-commit hooks (run once after cloning) |
+| `mise run format-check` | Ruff formatter (check only)                       |
 
 ## Building documentation
 

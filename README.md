@@ -15,6 +15,7 @@ PC-based tooling for Bluetti power stations that replaces the official mobile ap
 - **Multiple interfaces and integrations** — Control your devices from the CLI, a local web interface, and a local HTTP-based API. The future roadmap includes integration with Home Assistant and NUT.
 
 <!-- TODO: add terminal recording screenshot -->
+
 <!-- ![voltkeeper demo](docs/demo.svg) -->
 
 ## Why **NOT** voltkeeper?
@@ -22,10 +23,10 @@ PC-based tooling for Bluetti power stations that replaces the official mobile ap
 :::{danger}
 This application is currently **pre-ALPHA** quality.
 
-- Most of the code was written by a [clanker](https://en.wikipedia.org/wiki/Clanker) (AI-based coding agents). 
+- Most of the code was written by a [clanker](https://en.wikipedia.org/wiki/Clanker) (AI-based coding agents).
 - We figured out how to control Bluetti devices by reverse-engineering the official mobile app, but there is no official documentation to work from.
 - This tool has only been tested by a single user, on a single AC2A device. I bought the AC2A for less than $150, and the test load is a $15 box fan.
-:::
+  :::
 
 Your use of this app is at your own risk. If you doubt me, see the [LICENSE](https://github.com/mikemccllstr/voltkeeper/blob/main/LICENSE) file, which reads in part:
 
@@ -37,7 +38,7 @@ Your use of this app is at your own risk. If you doubt me, see the [LICENSE](htt
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
 
-If you have an expensive Bluetti device, connected to expensive battery packs, supplying critical loads, that keep people alive (or maybe just happy), maybe you should avoid being first in line to test this new thing I told a clanker to create. 
+If you have an expensive Bluetti device, connected to expensive battery packs, supplying critical loads, that keep people alive (or maybe just happy), maybe you should avoid being first in line to test this new thing I told a clanker to create.
 
 ## Still reading?
 
@@ -65,19 +66,19 @@ If this works, you know its fundamentally working. If you run into an error with
 
 ## Capabilities
 
-| Command | What it does |
-|---|---|
-| `scan` | Discover nearby Bluetti devices and show exact connect commands |
-| `status` | Read battery SOC, pack voltage, load, and charging status |
-| `write` | Toggle AC/DC output, change charging mode, adjust device settings |
-| `mqtt-publish` | Stream device telemetry to MQTT with Home Assistant auto-discovery |
-| `mqtt-listen` | Watch battery SOC over MQTT and shut down host on low battery |
-| `load-test` | Run a controlled battery discharge test with CSV logging |
-| `probe` | Sweep register blocks for reverse-engineering device support |
-| `annotate` | Live-poll and interactively label register fields |
-| `mqtt-publish-service` | Generate systemd unit file for MQTT publishing |
-| `mqtt-listen-service` | Generate systemd unit file for MQTT listen watchdog |
-| `daemon` | Start/manage a persistent background service with HTTP API and Web UI |
+| Command                | What it does                                                          |
+| ---------------------- | --------------------------------------------------------------------- |
+| `scan`                 | Discover nearby Bluetti devices and show exact connect commands       |
+| `status`               | Read battery SOC, pack voltage, load, and charging status             |
+| `write`                | Toggle AC/DC output, change charging mode, adjust device settings     |
+| `mqtt-publish`         | Stream device telemetry to MQTT with Home Assistant auto-discovery    |
+| `mqtt-listen`          | Watch battery SOC over MQTT and shut down host on low battery         |
+| `load-test`            | Run a controlled battery discharge test with CSV logging              |
+| `probe`                | Sweep register blocks for reverse-engineering device support          |
+| `annotate`             | Live-poll and interactively label register fields                     |
+| `mqtt-publish-service` | Generate systemd unit file for MQTT publishing                        |
+| `mqtt-listen-service`  | Generate systemd unit file for MQTT listen watchdog                   |
+| `daemon`               | Start/manage a persistent background service with HTTP API and Web UI |
 
 See the [User Guide](https://mikemccllstr.github.io/voltkeeper/user-guide/) for full command reference, or run `voltkeeper <command> --help`.
 

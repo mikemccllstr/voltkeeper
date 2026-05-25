@@ -4,10 +4,10 @@ Voltkeeper visual identity — two SVG assets and design rationale.
 
 ## Assets
 
-| File | Purpose |
-|---|---|
-| `voltkeeper-shield.svg` | The icon mark. Square-ish shield with a lightning bolt flanked by two battery stacks. |
-| `voltkeeper-wordmark.svg` | The word "voltkeeper" with "volt" in amber and "keeper" in currentColor. |
+| File                      | Purpose                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `voltkeeper-shield.svg`   | The icon mark. Square-ish shield with a lightning bolt flanked by two battery stacks. |
+| `voltkeeper-wordmark.svg` | The word "voltkeeper" with "volt" in amber and "keeper" in currentColor.              |
 
 Both files are standalone — open in any browser or vector editor.
 
@@ -31,22 +31,22 @@ Layered in order: outer silhouette (slate), lightning bolt (amber),
 battery stacks (amber strokes), inner outline (3px amber stroke, last in
 source order so it always sits on top).
 
-| Element | Position |
-|---|---|
-| Bolt top point | (116, 30) |
-| Bolt bottom point | (84, 188) |
-| Left cell stack origin | translate(28, 36) |
+| Element                 | Position           |
+| ----------------------- | ------------------ |
+| Bolt top point          | (116, 30)          |
+| Bolt bottom point       | (84, 188)          |
+| Left cell stack origin  | translate(28, 36)  |
 | Right cell stack origin | translate(150, 36) |
 
 ## Wordmark (`voltkeeper-wordmark.svg`)
 
-| Property | Value |
-|---|---|
-| Font family | ui-sans-serif, system-ui, -apple-system, sans-serif |
-| Font size | 64px (SVG coordinate space) |
-| Font weight | 500 (medium) |
-| Letter spacing | -1.5 |
-| Case | All lowercase |
+| Property       | Value                                               |
+| -------------- | --------------------------------------------------- |
+| Font family    | ui-sans-serif, system-ui, -apple-system, sans-serif |
+| Font size      | 64px (SVG coordinate space)                         |
+| Font weight    | 500 (medium)                                        |
+| Letter spacing | -1.5                                                |
+| Case           | All lowercase                                       |
 
 ## Lockup (icon + wordmark)
 

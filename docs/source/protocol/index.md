@@ -9,8 +9,9 @@ Findings from reverse-engineering the Bluetti Android APK (v3.0.9).
 ## Sections
 
 ```{toctree}
-:hidden:
-
+---
+hidden:
+---
 ble-communication
 security
 modbus-registers

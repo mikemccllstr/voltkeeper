@@ -4,19 +4,19 @@ This page covers the protocol version thresholds that define device model genera
 
 ## 15.4 Protocol Version Thresholds
 
-| Version | Changes |
-|---------|---------|
-| 1016 | Original protocol |
-| 1017 | MCU status fields changed; `EB3A`/`AC200M` exceptions |
-| 1018 | Added `mcuBusyStatus` field |
-| 1019 | Data field extensions |
-| 1020–1023 | Incremental additions |
-| **2000** | **V2 protocol** — `ProtocolAddrV2` register addressing |
-| 2001 | `SYSTEM_TIME` register |
-| 2003 | Extended phase data |
-| 2004 | `SYSTEM_TIME_ZONE` register (unverified: APK does not parse this register in `parseInvBaseSettings`) |
-| 2005 | `WORKING_MODE` register, `CTRL_EVENT` |
-| 2006–2008 | Extended control registers |
+| Version   | Changes                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------- |
+| 1016      | Original protocol                                                                                    |
+| 1017      | MCU status fields changed; `EB3A`/`AC200M` exceptions                                                |
+| 1018      | Added `mcuBusyStatus` field                                                                          |
+| 1019      | Data field extensions                                                                                |
+| 1020–1023 | Incremental additions                                                                                |
+| **2000**  | **V2 protocol** — `ProtocolAddrV2` register addressing                                               |
+| 2001      | `SYSTEM_TIME` register                                                                               |
+| 2003      | Extended phase data                                                                                  |
+| 2004      | `SYSTEM_TIME_ZONE` register (unverified: APK does not parse this register in `parseInvBaseSettings`) |
+| 2005      | `WORKING_MODE` register, `CTRL_EVENT`                                                                |
+| 2006–2008 | Extended control registers                                                                           |
 
 **Key threshold:** `protocolVer < 2000` → V1 protocol (`ProtocolAddr`), `>= 2000` → V2 (`ProtocolAddrV2`).
 
@@ -42,13 +42,13 @@ APK v3.0.8 had 115 device models; v3.0.9 adds 5 new models for a total of 120.
 
 ### New Models in v3.0.9
 
-| Ordinal | Model Code | Model Number | Notes |
-|---------|-----------|-------------|-------|
-| 54 | `AORA100_MINI` | 66 | AORA mini series |
-| 55 | `AORA30_MINI` | 67 | AORA mini series |
-| 56 | `AORA200_MINI` | 68 | AORA mini series |
-| 98 | `HB500S` | 4025 | Battery pack |
-| 99 | `BH500E` | 4026 | Battery pack |
+| Ordinal | Model Code     | Model Number | Notes            |
+| ------- | -------------- | ------------ | ---------------- |
+| 54      | `AORA100_MINI` | 66           | AORA mini series |
+| 55      | `AORA30_MINI`  | 67           | AORA mini series |
+| 56      | `AORA200_MINI` | 68           | AORA mini series |
+| 98      | `HB500S`       | 4025         | Battery pack     |
+| 99      | `BH500E`       | 4026         | Battery pack     |
 
 ### Notable Enum Changes
 
@@ -64,58 +64,58 @@ The following device models are currently supported in voltkeeper, with model nu
 
 ### Portable Power Stations (V2 Protocol)
 
-| Model | APK Enum | Model # | Voltage | Notes |
-|-------|----------|---------|---------|-------|
-| AC2A | `AC2A` | 20 | 25V | Reference implementation |
-| AC60 | `AC60` | 8 | 56V | Compact portable |
-| AC180 | `AC180` | 23 | 56V | AC180/AC180P family base |
-| EL10V2 | `EL10V2` | 62 | 25V | Inherits PLP022/AC180 chain |
-| EL30V2 | `EL30V2` | 32 | 25V | Sibling of EL100V2 |
-| EL100V2 | `EL100V2` | 31 | 56V | ELITE200_V2 family |
-| EL400 | `EL400` | 29 | 56V | Remote power ctrl + sleep mode |
+| Model   | APK Enum  | Model # | Voltage | Notes                          |
+| ------- | --------- | ------- | ------- | ------------------------------ |
+| AC2A    | `AC2A`    | 20      | 25V     | Reference implementation       |
+| AC60    | `AC60`    | 8       | 56V     | Compact portable               |
+| AC180   | `AC180`   | 23      | 56V     | AC180/AC180P family base       |
+| EL10V2  | `EL10V2`  | 62      | 25V     | Inherits PLP022/AC180 chain    |
+| EL30V2  | `EL30V2`  | 32      | 25V     | Sibling of EL100V2             |
+| EL100V2 | `EL100V2` | 31      | 56V     | ELITE200_V2 family             |
+| EL400   | `EL400`   | 29      | 56V     | Remote power ctrl + sleep mode |
 
 ### Portable Power Stations (V1 Protocol)
 
-| Model | APK Enum | Model # | Voltage | Notes |
-|-------|----------|---------|---------|-------|
-| EB3A | `EB3A` | 2 | 25V | Compact, minimal writable |
-| AC200M | `AC200M` | 3 | 56V | Older mid-range |
-| AC200L | `AC200L` | 5 | 56V | Mid-range portable |
-| AC200PL | `AC200PL` | 6 | 56V | AC200L variant |
-| AC300 | `AC300` | 9 | 56V | Mid-large inverter |
-| AC500 | `AC500` | 10 | 56V | Large inverter |
+| Model   | APK Enum  | Model # | Voltage | Notes                     |
+| ------- | --------- | ------- | ------- | ------------------------- |
+| EB3A    | `EB3A`    | 2       | 25V     | Compact, minimal writable |
+| AC200M  | `AC200M`  | 3       | 56V     | Older mid-range           |
+| AC200L  | `AC200L`  | 5       | 56V     | Mid-range portable        |
+| AC200PL | `AC200PL` | 6       | 56V     | AC200L variant            |
+| AC300   | `AC300`   | 9       | 56V     | Mid-large inverter        |
+| AC500   | `AC500`   | 10      | 56V     | Large inverter            |
 
 ### Larger Systems (Mixed Protocol)
 
-| Model | APK Enum | Model # | Voltage | Notes |
-|-------|----------|---------|---------|-------|
-| EP500 | `EP500` | 35 | 56V | Home backup |
-| EP600 | `EP600` | 36 | 56V | Home backup |
+| Model | APK Enum | Model # | Voltage | Notes       |
+| ----- | -------- | ------- | ------- | ----------- |
+| EP500 | `EP500`  | 35      | 56V     | Home backup |
+| EP600 | `EP600`  | 36      | 56V     | Home backup |
 
 ### AORA Mini Series
 
-| Model | APK Enum | Model # | Voltage | Notes |
-|-------|----------|---------|---------|-------|
-| AORA30_MINI | `AORA30_MINI` | 67 | — | AORA mini base |
-| AORA100_MINI | `AORA100_MINI` | 66 | — | AORA mini base |
-| AORA200_MINI | `AORA200_MINI` | 68 | — | AORA mini base |
+| Model        | APK Enum       | Model # | Voltage | Notes          |
+| ------------ | -------------- | ------- | ------- | -------------- |
+| AORA30_MINI  | `AORA30_MINI`  | 67      | —       | AORA mini base |
+| AORA100_MINI | `AORA100_MINI` | 66      | —       | AORA mini base |
+| AORA200_MINI | `AORA200_MINI` | 68      | —       | AORA mini base |
 
 ### Battery Packs
 
-| Model | APK Enum | Model # | Notes |
-|-------|----------|---------|-------|
-| HB500S | `HB500S` | 4025 | Battery pack |
-| BH500E | `BH500E` | 4026 | Battery pack |
+| Model  | APK Enum | Model # | Notes        |
+| ------ | -------- | ------- | ------------ |
+| HB500S | `HB500S` | 4025    | Battery pack |
+| BH500E | `BH500E` | 4026    | Battery pack |
 
 ### Key Features by Model
 
-| Feature | AC2A | AC180 | EL10V2 | EL30V2 | EL100V2 | EL400 |
-|---------|------|-------|--------|--------|---------|-------|
-| Working Mode (UPS strategy) | y | y | y | y | y | y |
-| Child Lock | — | y | y | — | — | — |
-| Sleep Mode / Remote Power | — | — | — | — | — | y |
-| Grid Control | y | — | — | y | y | y |
-| Feed-in Control | y | — | — | y | y | y |
-| Charge/Grid Limits | y | — | — | y | y | y |
+| Feature                     | AC2A | AC180 | EL10V2 | EL30V2 | EL100V2 | EL400 |
+| --------------------------- | ---- | ----- | ------ | ------ | ------- | ----- |
+| Working Mode (UPS strategy) | y    | y     | y      | y      | y       | y     |
+| Child Lock                  | —    | y     | y      | —      | —       | —     |
+| Sleep Mode / Remote Power   | —    | —     | —      | —      | —       | y     |
+| Grid Control                | y    | —     | —      | y      | y       | y     |
+| Feed-in Control             | y    | —     | —      | y      | y       | y     |
+| Charge/Grid Limits          | y    | —     | —      | y      | y       | y     |
 
 All device classes marked with `# TODO(hardware): verify against physical device` are derived from APK data without hardware verification.

@@ -18,21 +18,21 @@ We needed a name for a Python package that:
 Hard constraints:
 
 1. **Must not infringe Bluetti's trademark**
-2. **Must be available on PyPI** and GitHub
-3. Should not collide with prominent existing brands, software projects,
+1. **Must be available on PyPI** and GitHub
+1. Should not collide with prominent existing brands, software projects,
    or trademarks in adjacent domains
 
 ## The short-list
 
 Five names were short-listed:
 
-| Name | Verdict | Key Issue |
-|---|---|---|
-| `kilowatch` | Ruled out | Registered US trademark in our exact category |
-| **`voltkeeper`** | **Selected** | Clean across all dimensions |
-| `wattling` | Ruled out | Means wickerwork or poultry anatomy |
-| `jouled` | Backup | Pronunciation ambiguity ("joold" vs "jowld") |
-| `amperage` | Ruled out | Too generic, SEO competition |
+| Name             | Verdict      | Key Issue                                     |
+| ---------------- | ------------ | --------------------------------------------- |
+| `kilowatch`      | Ruled out    | Registered US trademark in our exact category |
+| **`voltkeeper`** | **Selected** | Clean across all dimensions                   |
+| `wattling`       | Ruled out    | Means wickerwork or poultry anatomy           |
+| `jouled`         | Backup       | Pronunciation ambiguity ("joold" vs "jowld")  |
+| `amperage`       | Ruled out    | Too generic, SEO competition                  |
 
 ## Why voltkeeper
 
@@ -57,7 +57,7 @@ Five names were short-listed:
 If `voltkeeper` is ever blocked:
 
 1. `jouled` — accept the pronunciation tax
-2. A fresh round focused on invented words (`voltique`, `voltify`, `amperic`)
+1. A fresh round focused on invented words (`voltique`, `voltify`, `amperic`)
 
 ## Methodology
 

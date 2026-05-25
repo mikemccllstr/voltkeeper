@@ -1,8 +1,9 @@
 # User Guide
 
 ```{toctree}
-:hidden:
-
+---
+hidden:
+---
 scan
 status
 write
