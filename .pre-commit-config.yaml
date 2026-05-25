@@ -21,3 +21,17 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      - id: docs-lint
+        name: docs lint
+        entry: mise run docs-lint
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: docs-format
+        name: docs format
+        entry: mise run docs-format
+        language: system
+        pass_filenames: false
+        always_run: true
