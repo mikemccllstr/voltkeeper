@@ -22,7 +22,7 @@ PC-based tooling for Bluetti power stations that replaces the official mobile ap
 
 ## Why **NOT** voltkeeper?
 
-> ⚠️⚠️ **WARNING** This application is currently **pre-ALPHA** quality.
+> ⚠️⚠️ **WARNING** This application is currently **pre-ALPHA** quality. ⚠️⚠️
 
 - Most of the code was written by a [clanker](https://en.wikipedia.org/wiki/Clanker) (AI-based coding agents).
 - We figured out how to control Bluetti devices by reverse-engineering the official mobile app, but there is no official documentation to work from.
