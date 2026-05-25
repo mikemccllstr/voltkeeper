@@ -42,6 +42,11 @@ The system SHALL add module-level constants and control struct field definitions
 - **THEN** `SOC_HOLDING_LOW` (address 2075, APK name `socHoldingLow`) is included as a writable `UintField` with range (0, 100)
 - **THEN** `SOC_HOLDING_HIGH` (address 2083, APK name `socHoldingHigh`) is included as a writable `UintField` with range (0, 100)
 
+#### Scenario: SOC holding limits are writable on AC2A
+- **WHEN** building the control struct for AC2A
+- **THEN** `SOC_HOLDING_LOW` (address 2075, APK name `socHoldingLow`) is included as a writable `UintField` with range (0, 100)
+- **THEN** `SOC_HOLDING_HIGH` (address 2083, APK name `socHoldingHigh`) is included as a writable `UintField` with range (0, 100)
+
 #### Scenario: PV advanced and 12V output are writable on AC2A
 - **WHEN** building the control struct for AC2A
 - **THEN** `PV_ADV_SET` (address 2084) is included as a writable `UintField`
