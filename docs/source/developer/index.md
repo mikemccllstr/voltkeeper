@@ -73,6 +73,25 @@ Lowercase imperative, single line, no period:
 add cipher module: aes-128-cbc with chained iv per FINDINGS §15.8
 ```
 
+## Repository layout
+
+| Path              | Purpose                                                |
+| ----------------- | ------------------------------------------------------ |
+| `src/voltkeeper/` | CLI source (BLE client, device models, MQTT, commands) |
+| `bluetti-files/`  | Decompiled APK artifacts                               |
+| `docs/source/`    | Sphinx documentation source                            |
+| `tests/`          | Test suite                                             |
+| `scripts/`        | APK download and btsnoop parsing automation            |
+
+## Relationship to Bluetti's official repositories
+
+Bluetti publishes several repositories under `github.com/bluetti-official`,
+including a BLE encryption library, a Home Assistant integration, and future
+stubs for Modbus TCP and BLE broadcast documentation. We study these for
+protocol clues but do **not** vendor or import any of their source code. Test
+vectors — raw byte data from example files — are treated as factual data and
+may be used as known-answer test inputs. Source code is never copied.
+
 ## Adding a new device
 
 See [Contributing Devices](contributing-devices.md) for the contributor guide

@@ -67,31 +67,6 @@ decisions, reviewed every change, and verified behavior against real hardware.
 - The firmware update flow supports BLE local transfer, cloud-triggered MQTT
   over-the-air, and broadcast upgrades to multiple sub-devices simultaneously.
 
-## Repository Tour
-
-| Path              | Purpose                                                |
-| ----------------- | ------------------------------------------------------ |
-| `src/voltkeeper/` | CLI source (BLE client, device models, MQTT, commands) |
-| `bluetti-files/`  | Decompiled APK artifacts                               |
-| `docs/source/`    | Sphinx documentation source                            |
-| `tests/`          | Test suite                                             |
-| `scripts/`        | APK download and btsnoop parsing automation            |
-
-## Relationship to Bluetti's Official Repositories
-
-Bluetti publishes several repositories under `github.com/bluetti-official`,
-including a BLE encryption library, a Home Assistant integration, and future
-stubs for Modbus TCP and BLE broadcast documentation. We study these for
-protocol clues but do **not** vendor or import any of their source code. Test
-vectors — raw byte data from example files — are treated as factual data and
-may be used as known-answer test inputs. Source code is never copied.
-
-## Contributing
-
-A contributor guide for adding support for new device models is in
-the [Developer Guide](../developer/contributing-devices.md). All contributions follow
-test-driven development. Run `mise run check` before committing.
-
 ## License
 
 MIT — not affiliated with or endorsed by Bluetti. The APK decompilation was
