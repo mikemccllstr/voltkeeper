@@ -22,6 +22,13 @@ backend-services
 firmware-updates
 ```
 
+Static analysis of ~22,900 decompiled classes yielded the GATT service and
+characteristic UUIDs, both BLE security protocols, complete Modbus register
+maps for V1 and V2 devices, hardcoded encryption keys and ECDSA keypairs, and
+the full backend API and firmware update flows. From these findings, voltkeeper
+was built as a standalone Python CLI that speaks the same protocol — using only
+observation and reimplementation. No code was copied from Bluetti's libraries.
+
 ## Automated Setup
 
 The APK download and decompilation is automated via mise tasks:

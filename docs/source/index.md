@@ -28,15 +28,6 @@ protocol/index
 ```{toctree}
 ---
 maxdepth: 1
-caption: About
-hidden:
----
-about/index
-```
-
-```{toctree}
----
-maxdepth: 1
 caption: API Reference
 hidden:
 ---
