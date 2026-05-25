@@ -2,11 +2,11 @@
 # ABOUTME: Supports optional AES-CBC encryption via handshake (Unit 7).
 
 import asyncio
-from typing import Optional
+from typing import Optional, Union
 
 from bleak import BleakClient, BleakError
 
-from ..core.commands import DeviceCommand
+from ..core.commands import DeviceCommand, TlvReadHoldingRegisters
 from . import NOTIFY_UUID, WRITE_UUID
 from .cipher import CbcSession
 from .exc import BadConnectionError, ModbusError, ParseError
@@ -24,7 +24,7 @@ class BluetoothClient:
         self._session: Optional[CbcSession] = None
         self._notify_response = bytearray()
         self._notify_future: Optional[asyncio.Future] = None
-        self._current_cmd: Optional[DeviceCommand] = None
+        self._current_cmd: Optional[Union[DeviceCommand, TlvReadHoldingRegisters]] = None
 
     async def connect(self, timeout: float = 15.0) -> None:
         self.client = BleakClient(self.address)
@@ -44,7 +44,7 @@ class BluetoothClient:
             except BleakError:
                 pass
 
-    async def execute(self, cmd: DeviceCommand) -> bytes:
+    async def execute(self, cmd: Union[DeviceCommand, TlvReadHoldingRegisters]) -> bytes:
         loop = asyncio.get_running_loop()
         retries = 0
 

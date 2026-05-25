@@ -140,7 +140,9 @@ class AC2A(V2Base):
         return self.CTRL_EVENT_BITS
 
     def decode_ctrl_event(self, ctrl_event: int) -> dict[str, bool]:
-        return {name: bool(ctrl_event & (1 << i)) for i, (name, _) in enumerate(self.CTRL_EVENT_BITS)}
+        from .v2_base import decode_ctrl_event
+
+        return decode_ctrl_event(ctrl_event)
 
     # ── Parse dispatch (adds array helpers on top of V2Base) ────────────
 

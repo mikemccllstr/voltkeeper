@@ -14,7 +14,9 @@ from watchdog.observers import Observer
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .bus import CommandMessage, EventBus, ParserMessage
+from .core.commands import ReadHoldingRegisters
 from .core.devices.bluetti_device import BluettiDevice
+from .core.devices.v2_base import NODE_INFO, V2Base
 
 
 class SourceChangeWatcher:
@@ -71,6 +73,7 @@ class DeviceHandler:
                     try:
                         await self.client.connect()
                         logging.info(f"BLE connected to {self.address}")
+                        await self._discover_topology()
                     except (BleakError, asyncio.TimeoutError):
                         logging.info("BLE connect failed, retrying in 5s...")
                         await asyncio.sleep(5)
@@ -96,10 +99,52 @@ class DeviceHandler:
             return
         logging.debug(f"Performing command {msg.device}: {msg.command}")
         await self.client.perform_nowait(msg.command)
+        if isinstance(self.device, V2Base):
+            self.device.force_full_poll()
+
+    async def _discover_topology(self) -> None:
+        """Poll NODE_INFO to discover battery packs and sub-devices."""
+        if not isinstance(self.device, V2Base) or self.device._topology_discovered:
+            return
+        try:
+            cmd = ReadHoldingRegisters(NODE_INFO, 32, slave=1)
+            response = await self.client.execute(cmd)
+            self.device.discover_topology(response)
+            logging.info(f"Topology discovered: packs={self.device._discovered_packs}")
+        except Exception:
+            logging.debug("Topology discovery failed, using static configuration")
 
     async def _poll_once(self):
         start_time = time.monotonic()
 
+        if isinstance(self.device, V2Base) and self.device.use_tlv_polling:
+            await self._poll_once_tlv()
+        else:
+            await self._poll_once_individual()
+
+        if isinstance(self.device, V2Base):
+            self.device.tick_poll_counter()
+
+        elapsed = time.monotonic() - start_time
+        if self.interval > 0 and self.interval > elapsed:
+            await asyncio.sleep(self.interval - elapsed)
+
+    async def _poll_once_tlv(self):
+        assert isinstance(self.device, V2Base)
+        for command in self.device.tlv_polling_commands:
+            try:
+                response = await self.client.execute(command)
+                parsed = self.device.parse_tlv(response)
+                await self.bus.put(ParserMessage(self.device, parsed))
+            except ParseError:
+                logging.debug("Got a parse exception...")
+            except ModbusError as err:
+                logging.debug(f"Modbus error for {command}: {err}")
+            except (BadConnectionError, BleakError) as err:
+                logging.debug(f"Connection error: {err}")
+                raise
+
+    async def _poll_once_individual(self):
         for command in self.device.polling_commands:
             try:
                 response = await self.client.execute(command)
@@ -112,7 +157,3 @@ class DeviceHandler:
             except (BadConnectionError, BleakError) as err:
                 logging.debug(f"Connection error: {err}")
                 raise
-
-        elapsed = time.monotonic() - start_time
-        if self.interval > 0 and self.interval > elapsed:
-            await asyncio.sleep(self.interval - elapsed)

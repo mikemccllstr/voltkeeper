@@ -2,7 +2,7 @@
 
 from typing import Any, List
 
-from ..commands import ReadHoldingRegisters, WriteSingleRegister
+from ..commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
 from ..struct import BoolField, DeviceStruct, EnumField
 from ..tlv import TlvParser
 from .bluetti_device import BluettiDevice
@@ -21,6 +21,27 @@ NODE_INFO = 21000
 PACK_MAIN_INFO = 6000
 PACK_ITEM_INFO = 6100
 PACK_BMU_INFO = 7200
+
+# ── ctrl_event capability bits ──────────────────────────────────────
+
+V2_CTRL_EVENT_BITS: list[tuple[str, str]] = [
+    ("power_control", "power"),
+    ("ac_control", "ac"),
+    ("dc_control", "dc"),
+    ("inv_control", "inv"),
+    ("grid_control", "grid"),
+    ("pv_control", "pv"),
+    ("feedback", "feedback"),
+    ("meter", "meter"),
+    ("led", "led"),
+    ("eco", "eco"),
+    ("super_power", "super_power"),
+]
+
+
+def decode_ctrl_event(ctrl_event: int) -> dict[str, bool]:
+    """Decode a ctrl_event bitmask into named capability flags."""
+    return {name: bool(ctrl_event & (1 << i)) for i, (name, _) in enumerate(V2_CTRL_EVENT_BITS)}
 
 
 class V2Base(BluettiDevice):
@@ -68,6 +89,15 @@ class V2Base(BluettiDevice):
 
         self.pack_item_struct = DeviceStruct()
         self._build_pack_item_struct()
+
+        # ── Topology discovery (populated by discover_topology) ──────
+        self._topology_discovered: bool = False
+        self._discovered_packs: list[int] = []
+        self._discovered_sub_devices: list[Any] = []
+
+        # ── Time-sliced polling ─────────────────────────────────────
+        self._poll_counter: int = 0
+        self._force_full_poll: bool = False
 
         super().__init__(address, type, sn)
 
@@ -208,6 +238,20 @@ class V2Base(BluettiDevice):
             return self.pack_item_struct.parse(address, data) if hasattr(self, "pack_item_struct") else {}
         return {}
 
+    def parse_tlv(self, data: bytes) -> dict:
+        """Parse a TLV-bundled response and dispatch each item to its struct."""
+        result: dict = {}
+        items = TlvParser.parse(data)
+        for item in items:
+            parsed = self.parse(item.reg_addr, item.value)
+            if item.slave_addr != 0:
+                prefix = f"sub[{item.slave_addr}]"
+                for k, v in parsed.items():
+                    result[f"{prefix}.{k}"] = v
+            else:
+                result.update(parsed)
+        return result
+
     def _parse_node_info(self, data: bytes) -> dict:
         result: dict = {}
         items = TlvParser.parse(data)
@@ -273,18 +317,94 @@ class V2Base(BluettiDevice):
     # ── Device properties ──────────────────────────────────────────────
 
     @property
+    def use_tlv_polling(self) -> bool:
+        return self.protocol_version >= 2000
+
+    def _tlv_sections(self) -> list[tuple[int, int]]:
+        """Return register sections for a TLV-bundled poll request.
+
+        Fast blocks (every cycle): HOME, CONTROLS, PACK, NODE_INFO.
+        Slow blocks (every 3rd cycle): INV_BASE, PV, GRID, LOAD, INV.
+        """
+        sections: list[tuple[int, int]] = [
+            (APP_HOME_DATA, self.HOME_DATA_REGS),
+        ]
+        slow_blocks = [
+            (INV_BASE_INFO, 51),
+            (INV_PV_INFO, 70),
+            (INV_GRID_INFO, 31),
+            (INV_LOAD_INFO, 48),
+            (INV_INV_INFO, 30),
+        ]
+        include_slow = self._force_full_poll or (self._poll_counter % 3 == 0)
+        if include_slow:
+            sections.extend(slow_blocks)
+        if self.has_sub_devices:
+            sections.append((NODE_INFO, 32))
+        if self._discovered_packs:
+            for _ in self._discovered_packs:
+                sections.append((PACK_MAIN_INFO, 32))
+        elif self.has_battery_packs:
+            sections.append((PACK_MAIN_INFO, 32))
+        return sections
+
+    def tick_poll_counter(self) -> None:
+        """Advance the poll cycle counter after each poll."""
+        self._poll_counter += 1
+        if self._poll_counter >= 10000:
+            self._poll_counter = 0
+        self._force_full_poll = False
+
+    def force_full_poll(self) -> None:
+        """Force the next poll cycle to include all register blocks."""
+        self._force_full_poll = True
+        self._poll_counter = 3 * (self._poll_counter // 3 + 1) - 3
+
+    @property
+    def tlv_polling_commands(self) -> List[TlvReadHoldingRegisters]:
+        return [TlvReadHoldingRegisters(self._tlv_sections(), slave_addr=1)]
+
+    def discover_topology(self, tlv_data: bytes) -> None:
+        """Parse a NODE_INFO TLV response and update discovered topology.
+
+        Called once after BLE connect.  Extracts battery pack slave
+        addresses and sub-device entries from the TLV data.
+        """
+        items = TlvParser.parse(tlv_data)
+        self._discovered_packs.clear()
+        self._discovered_sub_devices.clear()
+        for item in items:
+            if PACK_MAIN_INFO <= item.reg_addr < PACK_BMU_INFO:
+                self._discovered_packs.append(item.slave_addr)
+            else:
+                self._discovered_sub_devices.append(item)
+        self._topology_discovered = True
+
+    @property
+    def topology_discovered(self) -> bool:
+        return hasattr(self, "has_battery_packs") and self.has_battery_packs or self._topology_discovered
+
+    @property
     def polling_commands(self) -> List[ReadHoldingRegisters]:
         cmds = [
             ReadHoldingRegisters(APP_HOME_DATA, self.HOME_DATA_REGS),
-            ReadHoldingRegisters(INV_BASE_INFO, 51),
-            ReadHoldingRegisters(INV_PV_INFO, 70),
-            ReadHoldingRegisters(INV_GRID_INFO, 31),
-            ReadHoldingRegisters(INV_LOAD_INFO, 48),
-            ReadHoldingRegisters(INV_INV_INFO, 30),
         ]
+        if self._force_full_poll or self._poll_counter % 3 == 0:
+            cmds.extend(
+                [
+                    ReadHoldingRegisters(INV_BASE_INFO, 51),
+                    ReadHoldingRegisters(INV_PV_INFO, 70),
+                    ReadHoldingRegisters(INV_GRID_INFO, 31),
+                    ReadHoldingRegisters(INV_LOAD_INFO, 48),
+                    ReadHoldingRegisters(INV_INV_INFO, 30),
+                ]
+            )
         if self.has_sub_devices:
             cmds.append(ReadHoldingRegisters(NODE_INFO, 32))
-        if self.has_battery_packs:
+        if self._discovered_packs:
+            for pack_slave in self._discovered_packs:
+                cmds.append(ReadHoldingRegisters(PACK_MAIN_INFO, 32, slave=pack_slave))
+        elif self.has_battery_packs:
             cmds.append(ReadHoldingRegisters(PACK_MAIN_INFO, 32))
         return cmds
 

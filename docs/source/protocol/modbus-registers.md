@@ -116,6 +116,24 @@ When the node info response (register 21000) begins with hex bytes `40004`, the 
 
 The `ModbusV2Dispatcher.tvlHandle()` iterates TLV items and dispatches each one through the same `dispatch(regAddr, slaveAddr, data)` method used for direct modbus reads. This means a single TLV response can carry data for multiple sub-devices and multiple register addresses simultaneously.
 
+### TLV Read Request Encoding *(v3.0.9+)*
+
+The APK can bundle multiple register reads into a single TLV-encoded write to
+NODE_INFO (register 21000).  The format, from ``ModbusTaskUtils.buildTLVReadTask()``:
+
+```
+00105208 <total_len/2:2B big-endian> <total_len:1B> 9C450101
+  [00 <slave_addr:1B> <reg_addr:2B> <byte_count:2B>]...
+<CRC16_MODBUS:2B>
+```
+
+Where ``byte_count`` is the number of bytes to read (= register count × 2).
+The device responds with the standard TLV response format (magic ``40 00 04``).
+
+voltkeeper implements this via ``TlvReadHoldingRegisters`` in
+``core/commands.py`` and uses it as the default polling method for V2 devices
+that support it.
+
 ### Slave Address Routing
 
 For multi-device systems (e.g., parallel inverters, multiple battery packs), the `dispatch()` method takes both a **register address** (`regAddr`) and a **slave address** (`slaveAddr`). The slave address identifies which physical sub-device produced the data.

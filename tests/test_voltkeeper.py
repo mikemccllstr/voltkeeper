@@ -490,6 +490,75 @@ class TestWriteCommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  TLV read request encoding
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestTlvReadCommands:
+    def test_single_section_payload(self):
+        from voltkeeper.core.commands import build_tlv_read_payload
+
+        payload = build_tlv_read_payload([(100, 62)], slave_addr=1)
+        assert payload[:4] == bytes.fromhex("00105208")
+        assert payload[-2:] == crc16_modbus(payload[:-2])
+        assert len(payload) > 15
+
+    def test_multiple_sections_payload(self):
+        from voltkeeper.core.commands import build_tlv_read_payload
+
+        sections = [(100, 62), (1100, 51), (1200, 70)]
+        payload = build_tlv_read_payload(sections, slave_addr=1)
+        assert payload[:4] == bytes.fromhex("00105208")
+        assert payload[-2:] == crc16_modbus(payload[:-2])
+
+    def test_tlv_read_command_bytes(self):
+        from voltkeeper.core.commands import TlvReadHoldingRegisters
+
+        cmd = TlvReadHoldingRegisters([(100, 62)])
+        raw = bytes(cmd)
+        assert raw[:4] == bytes.fromhex("00105208")
+        assert raw[-2:] == crc16_modbus(raw[:-2])
+
+    def test_tlv_read_command_repr(self):
+        from voltkeeper.core.commands import TlvReadHoldingRegisters
+
+        cmd = TlvReadHoldingRegisters([(100, 62), (1100, 51)])
+        r = repr(cmd)
+        assert "(100,62)" in r
+        assert "(1100,51)" in r
+
+    def test_tlv_response_size(self):
+        from voltkeeper.core.commands import TlvReadHoldingRegisters
+
+        cmd = TlvReadHoldingRegisters([(100, 62), (1100, 51)])
+        expected_body = 62 * 2 + 51 * 2
+        assert cmd.response_size() == expected_body + 32
+
+    def test_tlv_valid_response_detects_magic(self):
+        from voltkeeper.core.commands import TlvReadHoldingRegisters
+
+        cmd = TlvReadHoldingRegisters([(100, 62)])
+        resp = bytearray(b"\x40\x00\x04" + b"\x00" * 50)
+        resp.extend(crc16_modbus(bytes(resp)))
+        assert cmd.is_valid_response(resp)
+
+    def test_tlv_valid_response_detects_crc(self):
+        from voltkeeper.core.commands import TlvReadHoldingRegisters
+
+        cmd = TlvReadHoldingRegisters([(100, 62)])
+        resp = bytearray(b"\x01\x03\x20" + b"\x00" * 32)
+        resp.extend(crc16_modbus(bytes(resp)))
+        assert cmd.is_valid_response(resp)
+
+    def test_tlv_invalid_response_rejected(self):
+        from voltkeeper.core.commands import TlvReadHoldingRegisters
+
+        cmd = TlvReadHoldingRegisters([(100, 62)])
+        resp = b"\x00\x00\x00\x00\x00"
+        assert not cmd.is_valid_response(resp)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  ChargingMode enum
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -1069,7 +1138,7 @@ class TestDeviceHandler:
         bus.add_parser_listener(lambda msg: received.append(msg))
 
         bus_task = asyncio.create_task(bus.run())
-        await handler._poll_once()
+        await handler._poll_once_individual()
         await asyncio.sleep(0.1)
         bus_task.cancel()
 
@@ -2117,6 +2186,213 @@ class TestMqttListenService:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  NODE_INFO topology discovery
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestTopologyDiscovery:
+    def test_discover_topology_finds_packs(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        assert not v2._topology_discovered
+        assert v2._discovered_packs == []
+
+        tlv_data = bytearray(TLV_MAGIC)
+        tlv_data.append(0x29)
+        tlv_data.extend(b"\x17\x70\x00\x20")
+        tlv_data.extend(b"\x00" * 32)
+        tlv_data.extend(b"\x00\x00")
+        v2.discover_topology(bytes(tlv_data))
+        assert v2._topology_discovered
+        assert 0x29 in v2._discovered_packs
+
+    def test_discover_topology_empty_response(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2.discover_topology(bytes(TLV_MAGIC))
+        assert v2._topology_discovered
+        assert v2._discovered_packs == []
+
+    def test_discover_topology_no_magic(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2.discover_topology(b"\x00\x00\x00\x00")
+        assert v2._topology_discovered
+        assert v2._discovered_packs == []
+
+    def test_polling_commands_includes_packs_when_discovered(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        initial = {cmd.starting_address for cmd in v2.polling_commands}
+        assert 6000 not in initial
+
+        tlv_data = bytearray(TLV_MAGIC)
+        tlv_data.append(0x29)
+        tlv_data.extend(b"\x17\x70\x00\x20")
+        tlv_data.extend(b"\x00" * 32)
+        tlv_data.extend(b"\x00\x00")
+        v2.discover_topology(bytes(tlv_data))
+        addrs = {cmd.starting_address for cmd in v2.polling_commands}
+        assert 6000 in addrs
+
+    def test_polling_commands_no_packs_by_default(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        addrs = {cmd.starting_address for cmd in v2.polling_commands}
+        assert 6000 not in addrs
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  TLV-bundled polling
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestTlvBundledPolling:
+    def test_use_tlv_polling_true_for_v2(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        assert v2.use_tlv_polling is True
+
+    def test_tlv_polling_commands_returns_list(self):
+        from voltkeeper.core.commands import TlvReadHoldingRegisters
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        cmds = v2.tlv_polling_commands
+        assert len(cmds) == 1
+        assert isinstance(cmds[0], TlvReadHoldingRegisters)
+
+    def test_tlv_polling_commands_has_home_and_base(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        cmd = v2.tlv_polling_commands[0]
+        addrs = {a for a, _ in cmd.sections}
+        assert 100 in addrs
+        assert 1100 in addrs
+
+    def test_parse_tlv_dispatches_home_data(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        tlv_data = bytearray(TLV_MAGIC)
+        tlv_data.append(0x00)
+        tlv_data.extend(b"\x00\x64")
+        tlv_data.extend(bytes([0, 124]))
+        tlv_data.extend(b"\x00" * 124)
+        tlv_data.extend(b"\x00\x00")
+        result = v2.parse_tlv(bytes(tlv_data))
+        assert "packTotalVoltage" in result or len(result) > 0
+
+    def test_parse_tlv_empty_response(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        result = v2.parse_tlv(bytes(TLV_MAGIC))
+        assert result == {}
+
+    def test_polling_commands_still_works_for_non_tlv(self):
+        from voltkeeper.core.commands import ReadHoldingRegisters
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        cmds = v2.polling_commands
+        assert len(cmds) >= 6
+        for cmd in cmds:
+            assert isinstance(cmd, ReadHoldingRegisters)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Time-sliced polling
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestTimeSlicedPolling:
+    def test_counter_1_excludes_slow(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 1
+        addrs = {cmd.starting_address for cmd in v2.polling_commands}
+        assert 1100 not in addrs
+        assert 100 in addrs
+
+    def test_counter_3_includes_slow(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 3
+        addrs = {cmd.starting_address for cmd in v2.polling_commands}
+        assert 1100 in addrs
+        assert 1200 in addrs
+        assert 100 in addrs
+
+    def test_force_full_poll_includes_slow(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 1
+        v2._force_full_poll = True
+        addrs = {cmd.starting_address for cmd in v2.polling_commands}
+        assert 1100 in addrs
+
+    def test_counter_wraps_at_10000(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 9999
+        v2.tick_poll_counter()
+        assert v2._poll_counter == 0
+
+    def test_tick_poll_counter_increments(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 5
+        v2.tick_poll_counter()
+        assert v2._poll_counter == 6
+
+    def test_force_full_poll_resets_counter(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 5
+        v2.force_full_poll()
+        assert v2._force_full_poll is True
+        assert v2._poll_counter == 3
+
+    def test_tlv_sections_exclude_slow_on_counter_1(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 1
+        sections = v2._tlv_sections()
+        addrs = {a for a, _ in sections}
+        assert 100 in addrs
+        assert 1100 not in addrs
+
+    def test_tlv_sections_include_slow_on_counter_3(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        v2._poll_counter = 3
+        sections = v2._tlv_sections()
+        addrs = {a for a, _ in sections}
+        assert 1100 in addrs
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Unit 2 — base-class ctrl_event defaults and device-type resolution
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -2147,6 +2423,59 @@ def test_decode_ctrl_event_default_returns_none():
 
     d = MinimalDevice("00:00:00:00:00:00", "TEST", "123")
     assert d.decode_ctrl_event(0) is None
+
+
+def test_deviceresult2():
+    from voltkeeper.core.devices.v2_base import V2_CTRL_EVENT_BITS, decode_ctrl_event
+
+    caps = decode_ctrl_event(0)
+    assert all(not v for v in caps.values())
+    assert len(caps) == len(V2_CTRL_EVENT_BITS)
+
+
+def test_decode_ctrl_event_all_on():
+    from voltkeeper.core.devices.v2_base import V2_CTRL_EVENT_BITS, decode_ctrl_event
+
+    max_val = (1 << len(V2_CTRL_EVENT_BITS)) - 1
+    caps = decode_ctrl_event(max_val)
+    assert all(caps.values())
+
+
+def test_probe_emit_capabilities_v2():
+    from voltkeeper.probe import _emit_capabilities
+
+    profile = {
+        "blocks": {
+            "APP_HOME_DATA": {
+                "address": 100,
+                "size": 62,
+                "raw_hex": "00" * 48 + "0407" + "00" * 72,
+            }
+        }
+    }
+    _emit_capabilities(profile)
+    assert "capabilities" in profile
+    assert profile["capabilities"]["ctrl_event"] == 0x0407
+    decoded = profile["capabilities"]["decoded"]
+    assert decoded["power_control"] is True
+    assert decoded["ac_control"] is True
+    assert decoded["dc_control"] is True
+
+
+def test_probe_emit_capabilities_no_home_data():
+    from voltkeeper.probe import _emit_capabilities
+
+    profile = {"blocks": {}}
+    _emit_capabilities(profile)
+    assert "capabilities" not in profile
+
+
+def test_probe_emit_capabilities_short_data():
+    from voltkeeper.probe import _emit_capabilities
+
+    profile = {"blocks": {"APP_HOME_DATA": {"raw_hex": "00" * 20}}}
+    _emit_capabilities(profile)
+    assert "capabilities" not in profile
 
 
 def test_device_registry_is_public():

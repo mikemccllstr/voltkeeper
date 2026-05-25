@@ -16,6 +16,7 @@ security
 modbus-registers
 device-models
 encryption-details
+polling-strategy
 backend-services
 firmware-updates
 ```

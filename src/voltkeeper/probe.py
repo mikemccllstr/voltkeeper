@@ -12,6 +12,7 @@ from .bluetooth import _device_registry
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError
 from .core.commands import ReadHoldingRegisters
+from .core.devices.v2_base import decode_ctrl_event
 
 # ── Protocol detection result ─────────────────────────────────────────
 
@@ -135,6 +136,29 @@ async def _detect_protocol(client: BluetoothClient, name: str) -> ProtocolInfo:
     return ProtocolInfo(kind="unknown", version=None)
 
 
+# ── Capabilities emission ────────────────────────────────────────────
+
+
+def _emit_capabilities(profile: dict) -> None:
+    """Decode ctrl_event from APP_HOME_DATA and add to profile."""
+    home_block = profile.get("blocks", {}).get("APP_HOME_DATA", {})
+    raw_hex = home_block.get("raw_hex")
+    if raw_hex is None:
+        return
+    try:
+        raw = bytes.fromhex(raw_hex)
+    except ValueError:
+        return
+    ctrl_event_offset = 48
+    if len(raw) < ctrl_event_offset + 2:
+        return
+    ctrl_event = (raw[ctrl_event_offset] << 8) | raw[ctrl_event_offset + 1]
+    profile["capabilities"] = {
+        "ctrl_event": ctrl_event,
+        "decoded": decode_ctrl_event(ctrl_event),
+    }
+
+
 # ── Device probe ───────────────────────────────────────────────────────
 
 
@@ -182,6 +206,7 @@ async def probe_device(address: str, name: str, *, encrypted: bool) -> dict:
                     }
                 except (ModbusError, BadConnectionError):
                     profile["blocks"][block_name] = {"address": addr, "error": "no response"}
+            _emit_capabilities(profile)
         return profile
     finally:
         await client.disconnect()
