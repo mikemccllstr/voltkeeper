@@ -452,6 +452,61 @@ NORMAL_DEVICE_FIELDS = {
             "icon": "mdi:transmission-tower-export",
         },
     ),
+    "inv_freq": MqttFieldConfig(
+        type=MqttFieldType.ENUM,
+        setter=True,
+        advanced=True,
+        topic_name="inv_freq",
+        home_assistant_extra={
+            "name": "Inverter Frequency",
+            "icon": "mdi:sine-wave",
+            "options": ["hz_50", "hz_60"],
+        },
+    ),
+    "led_color": MqttFieldConfig(
+        type=MqttFieldType.ENUM,
+        setter=True,
+        advanced=False,
+        topic_name="led_color",
+        home_assistant_extra={
+            "name": "LED Color",
+            "icon": "mdi:led-strip-variant",
+            "options": ["off", "cool", "warm", "sos"],
+        },
+    ),
+    "pv_type_set": MqttFieldConfig(
+        type=MqttFieldType.ENUM,
+        setter=True,
+        advanced=True,
+        topic_name="pv_type",
+        home_assistant_extra={
+            "name": "PV Input Type",
+            "icon": "mdi:solar-panel",
+            "options": ["pv", "other"],
+        },
+    ),
+    "pv2_type_set": MqttFieldConfig(
+        type=MqttFieldType.ENUM,
+        setter=True,
+        advanced=True,
+        topic_name="pv2_type",
+        home_assistant_extra={
+            "name": "PV2 Input Type",
+            "icon": "mdi:solar-panel",
+            "options": ["pv", "other", "alternator"],
+        },
+    ),
+    "ems_ctrl_mode_set": MqttFieldConfig(
+        type=MqttFieldType.ENUM,
+        setter=True,
+        advanced=True,
+        topic_name="ems_ctrl_mode",
+        home_assistant_extra={
+            "name": "EMS Control Mode",
+            "icon": "mdi:cog",
+            "options": ["disable", "cloud", "local", "dynamic_price", "ai"],
+        },
+    ),
 }
 
 CHARGING_STATUS_MAP = {0: "IDLE", 1: "CHARGING", 2: "DISCHARGING", 3: "FLOATING"}

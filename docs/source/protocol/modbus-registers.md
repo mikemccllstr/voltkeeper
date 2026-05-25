@@ -160,6 +160,14 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 |---------|----------|-----|-------------|
 | 1 | `BASE_CONFIG` | R | 14-field base config (32 registers) |
 | 100 | `APP_HOME_DATA` | R | Home page data snapshot |
+
+Key `APP_HOME_DATA` fields at byte offsets within the 124-byte block:
+
+| Byte Offset | Field | Description |
+|---|---|---|
+| 160 | `chargingMode` | Charging mode (0=Standard, 1=Turbo, 2=Silent) |
+| 161 | `invWorkingStatus` | Inverter working status (3/4/5=Normal, 7=Abnormal) |
+| 167 | `packDsgEnergyTotal` | Lifetime pack discharge energy |
 | 700 | `OTA_START` | W | OTA start command |
 | 720 | `OTA_STATUS` | R | OTA progress status |
 
@@ -213,8 +221,8 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 | 2028 | `SET_LOG_HISTORY_PAGE` | W | Log history page selector |
 | 2029 | `CTRL_CHG_DSG_TIME` | W | Charge/discharge time control |
 | 2030 | `WORKING_TIME_START` | R/W | Working time start |
-| 2060 | `PV_TYPE_SET` | R/W | PV type setting |
-| 2061 | `PV2_TYPE_SET` | R/W | PV2 type setting |
+| 2060 | `PV_TYPE_SET` | R/W | PV input type (0=PV/Solar, 3=Other) |
+| 2061 | `PV2_TYPE_SET` | R/W | PV2 input type (0=PV/Solar, 3=Other, 4=Alternator Charger) |
 | 2066 | `CTRL_ALARM_SOUND` | R/W | Alarm sound toggle |
 | 2067 | `LCD_SCREEN_TIME` | R/W | LCD screen timeout |
 | 2075 | `SOC_HOLDING_LOW` | R/W | SOC holding low threshold |
@@ -222,7 +230,7 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 | 2073 | `AUTO_SLEEP_DAYS` | R/W | Auto-sleep day count |
 | 2074 | `REMOTE_STARTUP_SOC` | R/W | Remote startup SOC threshold (0-100%) |
 | 2076 | `CHILD_LOCK_LEVEL` | R/W | Child lock level — 1=block output ON, 2=block all output switches |
-| 2078 | `LED_COLOR_SET` | R/W | LED color selection |
+| 2078 | `LED_COLOR_SET` | R/W | LED color/brightness (0/4=Off, 1=Cool/Half, 2=Warm/Full, 3=SOS) |
 | 2079 | `SLEEP_POWER_THRESHOLD` | R/W | Sleep power threshold (watts) |
 | 2080 | `PACK_NUM_SET_SHOW` | R/W | Pack number display setting |
 | 2081 | `INV_NUM_SET` | R/W | Inverter count setting |
@@ -233,8 +241,8 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 | 2206 | `SYSTEM_FACTORY_RESET` | W | Factory reset |
 | 2207 | `CTRL_GRID` | R/W | Grid control |
 | 2208 | `CTRL_FEED` | R/W | Grid feed-in control |
-| 2209 | `INV_VOLTAGE` | R/W | Output voltage (120/220/230/240V) |
-| 2210 | `INV_FREQ` | R/W | Output frequency (50/60Hz) |
+| 2209 | `INV_VOLTAGE` | R/W | Output voltage — mapping depends on voltType (not discoverable): low-volt 0=100V,1=120V,2=208V; high-volt 0=220V,1=230V,2=240V |
+| 2210 | `INV_FREQ` | R/W | Output frequency (0=50Hz, 1=60Hz) |
 | 2211 | `CHG_MAX_VOLTAGE` | R/W | Max charge voltage |
 | 2212 | `CHG_MAX_CURRENT` | R/W | Max charge current |
 | 2213 | `GRID_MAX_POWER` | R/W | Max grid input power |
@@ -253,7 +261,7 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 | 2231 | `ADV_SETTINGS_CT_TEST` | R/W | CT sensor test |
 | 2232 | `ADV_SETTINGS_OTHER` | R/W | Other advanced settings |
 | 2233 | `ADV_BATTERY_AGING` | R/W | Battery aging mode |
-| 2241 | `EMS_CTRL_MODE_SET` | R/W | EMS control mode |
+| 2241 | `EMS_CTRL_MODE_SET` | R/W | EMS control mode (0=Disable, 3=Cloud, 4=Local, 5=DynamicPrice, 8=AI) |
 | 2242 | `ADV_SETTINGS_OTHER_2` | R/W | Other advanced settings 2 |
 | 2243 | `ADV_CHARGING_STATION_MODEL` | R/W | EV charging station model |
 | 2244 | `ADV_CT_RATIO` | R/W | CT ratio setting |

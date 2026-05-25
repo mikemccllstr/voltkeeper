@@ -211,6 +211,21 @@ class V1Base(BluettiDevice):
             else:
                 value = 1 if value else 0
 
+        from ..struct import DecimalField, UintField
+
+        if isinstance(device_field, DecimalField) and device_field.range is not None:
+            from decimal import Decimal
+
+            if not device_field.in_range(Decimal(value)):
+                raise ValueError(
+                    f"{field}: value {value} not in range ({device_field.range[0]}, {device_field.range[1]})"
+                )
+        elif isinstance(device_field, UintField) and device_field.range is not None:
+            if not device_field.in_range(int(value)):
+                raise ValueError(
+                    f"{field}: value {value} not in range ({device_field.range[0]}, {device_field.range[1]})"
+                )
+
         return WriteSingleRegister(device_field.address, int(value))
 
     # ── Device properties ──────────────────────────────────────────────

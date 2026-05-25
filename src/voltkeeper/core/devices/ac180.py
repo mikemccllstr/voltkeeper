@@ -6,7 +6,7 @@
 from enum import Enum, unique
 from typing import Any, List
 
-from ..commands import ReadHoldingRegisters, WorkingMode, WriteSingleRegister
+from ..commands import InvFrequency, ReadHoldingRegisters, WorkingMode, WriteSingleRegister
 from .v2_base import (
     CHILD_LOCK_LEVEL,
     CTRL_CHILD_LOCK,
@@ -57,7 +57,7 @@ class AC180(V2Base):
         s.add_bool_field("child_lock", CTRL_CHILD_LOCK)
         s.add_uint_field("child_lock_level", CHILD_LOCK_LEVEL, range=(1, 2))
         s.add_bool_field("factory_reset", 2206)
-        s.add_uint_field("inv_freq", 2210)
+        s.add_enum_field("inv_freq", 2210, InvFrequency)
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",

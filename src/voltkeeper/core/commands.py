@@ -16,6 +16,42 @@ class WorkingMode(Enum):
     SELF_CONSUMPTION_EXPORT = 11
 
 
+@unique
+class InvFrequency(Enum):
+    HZ_50 = 0
+    HZ_60 = 1
+
+
+@unique
+class PvType(Enum):
+    PV = 0
+    OTHER = 3
+
+
+@unique
+class Pv2Type(Enum):
+    PV = 0
+    OTHER = 3
+    ALTERNATOR = 4
+
+
+@unique
+class LedColor(Enum):
+    OFF = 0
+    COOL = 1
+    WARM = 2
+    SOS = 3
+
+
+@unique
+class EmsCtrlMode(Enum):
+    DISABLE = 0
+    CLOUD = 3
+    LOCAL = 4
+    DYNAMIC_PRICE = 5
+    AI = 8
+
+
 # ── TLV read request encoding ────────────────────────────────────────
 
 _TLV_REQ_HEADER = bytes.fromhex("00105208")

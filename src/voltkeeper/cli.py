@@ -440,7 +440,10 @@ def _print_verbose(
         mode_map = {0: "Standard", 1: "Turbo", 2: "Silent"}
         misc_parts.append(f"Charge Mode={mode_map.get(home['chargingMode'], str(home['chargingMode']))}")
     if home.get("invWorkingStatus", 0):
-        misc_parts.append(f"Inv Status={home['invWorkingStatus']}")
+        status_map = {3: "Normal", 4: "Normal", 5: "Normal", 7: "Abnormal"}
+        status_val = home["invWorkingStatus"]
+        label = status_map.get(status_val, "Unknown")
+        misc_parts.append(f"Inv Status={status_val} ({label})")
     if home.get("packAgingInfo", 0):
         misc_parts.append(f"Pack Aging={home['packAgingInfo']}")
     if home.get("gridParallelSoC", 0):
@@ -475,6 +478,14 @@ def _print_verbose(
                 display = val.name.lower()
             else:
                 display = str(val)
+
+            if name in ("dc_eco_auto_off_time", "ac_eco_auto_off_time"):
+                display = f"{display}h"
+            elif name in ("dc_eco_power", "ac_eco_power"):
+                display = f"{display}W"
+            elif name == "system_timezone" and isinstance(val, int) and val != 0:
+                display = f"UTC{'+' if val > 0 else ''}{val}"
+
             click.echo(f"    {name:<20s}  {display}")
 
         ctrl_event = home.get("ctrl_event") or (controls or {}).get("ctrl_event")
@@ -505,6 +516,43 @@ def _print_verbose(
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _show_field_help(field_name: str, address: str) -> None:
+    """Display type, enum values, and range for a writable field."""
+    import asyncio as _asyncio
+
+    loop = _asyncio.new_event_loop()
+    _asyncio.set_event_loop(loop)
+    try:
+        sr = loop.run_until_complete(lookup_scan_result(address))
+    finally:
+        loop.close()
+
+    device = build_device(address, sr.name)
+
+    if not device.has_field_setter(field_name):
+        click.secho(f"Unknown writable field: {field_name}", fg="red")
+        click.echo(f"Available fields: {', '.join(device.WRITABLE_FIELD_NAMES)}")
+        sys.exit(1)
+
+    matches = [f for f in device.control_struct.fields if f.name == field_name]
+    if not matches:
+        click.echo(f"Field {field_name} is writable but has no control struct definition.")
+        return
+
+    device_field = matches[0]
+    field_type = type(device_field).__name__
+
+    if hasattr(device_field, "enum"):
+        values = [m.name.lower() for m in device_field.enum]
+        click.echo(f"{field_name}: {field_type}[{device_field.enum.__name__}] (values: {', '.join(values)})")
+    elif hasattr(device_field, "range") and device_field.range is not None:
+        click.echo(f"{field_name}: {field_type} (range: {device_field.range[0]}-{device_field.range[1]})")
+    elif field_type == "BoolField":
+        click.echo(f"{field_name}: BoolField (values: on, off)")
+    else:
+        click.echo(f"{field_name}: {field_type}")
+
+
 @cli.command()
 @click.argument("address")
 @click.argument("field")
@@ -515,7 +563,13 @@ def _print_verbose(
     default=None,
     help="Send command through voltkeeperd daemon at this URL instead of BLE directly.",
 )
-def write(address, field, value, daemon):
+@click.option(
+    "--help-field",
+    type=str,
+    default=None,
+    help="Show valid values and type information for a specific writable field.",
+)
+def write(address, field, value, daemon, help_field):
     """Write a register on a Bluetti device.
 
     \b
@@ -525,12 +579,23 @@ def write(address, field, value, daemon):
       voltkeeper write AA:BB:CC:DD:EE:FF dc_output off
 
       voltkeeper write AA:BB:CC:DD:EE:FF charging_mode turbo
+
+    \b
+    Use --help-field <field> to see valid values for any writable field:
+      voltkeeper write --help-field charging_mode
+
+      voltkeeper write --help-field inv_freq
     """
     if daemon:
         _write_via_daemon(daemon, address, field, value)
         return
 
     address = address.upper()
+
+    # --help-field mode: show type and valid values without connecting
+    if help_field:
+        _show_field_help(help_field, address)
+        return
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -544,6 +609,7 @@ def write(address, field, value, daemon):
     if not device.has_field_setter(field):
         click.secho(f"Unknown writable field: {field}", fg="red")
         click.echo(f"Available fields: {', '.join(device.WRITABLE_FIELD_NAMES)}")
+        click.echo("Use --help-field <field> to see valid values for a specific field.")
         sys.exit(1)
 
     try:
@@ -1503,21 +1569,13 @@ def _write_via_daemon(raw_url: str, address: str, field: str, value: str) -> Non
 
 def _parse_field_value(field: str, value: str):
     lower = value.lower()
-    if lower == "on" or lower == "true":
+    if lower in ("on", "true"):
         return True
-    if lower == "off" or lower == "false":
+    if lower in ("off", "false"):
         return False
     if lower == "toggle":
         return "toggle"
-    if lower in ("standard", "turbo", "silent"):
-        return {"standard": 0, "turbo": 1, "silent": 2}[lower]
-    try:
-        return int(value)
-    except ValueError:
-        try:
-            return float(value)
-        except ValueError:
-            return value
+    return value
 
 
 if __name__ == "__main__":

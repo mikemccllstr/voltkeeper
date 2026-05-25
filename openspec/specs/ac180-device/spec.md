@@ -9,10 +9,11 @@ The system SHALL provide an `AC180` device class in `src/voltkeeper/core/devices
 - **THEN** it inherits from `V2Base`
 - **THEN** `protocol_version = 2000`
 
-#### Scenario: AC180 defines writable fields
+#### Scenario: AC180 defines writable fields with proper enums
 - **WHEN** inspecting AC180's `_build_control_struct()` method
-- **THEN** the following writable fields are defined: `ac_switch`, `dc_switch`, `dc_eco_mode`, `ac_eco_mode`, `charging_mode`, `power_lifting`, `working_mode`, `ups_mode`, `inv_frequency`, `child_lock`, `child_lock_level`, `sys_low_power`, `sys_high_power`
-- **THEN** WRITABLE_FIELD_NAMES includes all of these
+- **THEN** `inv_freq` is defined as `add_enum_field("inv_freq", 2210, InvFrequency)`
+- **THEN** `led_color` is defined as `add_enum_field("led_color", 2078, LedColor)` (if applicable per APK flags)
+- **THEN** WRITABLE_FIELD_NAMES includes all writable fields
 
 #### Scenario: AC180 voltage is 56V
 - **WHEN** creating an AC180 instance
@@ -21,17 +22,22 @@ The system SHALL provide an `AC180` device class in `src/voltkeeper/core/devices
 
 ### Requirement: EL10V2 device class
 
-The system SHALL provide an `EL10V2` device class in `src/voltkeeper/core/devices/el10v2.py` that inherits from `AC180` and customizes for the Elite 10 V2 model (model #62, 25V).
+The system SHALL provide an `EL10V2` device class in `src/voltkeeper/core/devices/el10v2.py` that inherits from `V2Base` and customizes for the Elite 10 V2 model (model #62, 25V).
 
-#### Scenario: EL10V2 inherits AC180
+#### Scenario: EL10V2 inherits V2Base
 - **WHEN** inspecting `EL10V2` class
-- **THEN** it inherits from `AC180`
+- **THEN** it inherits from `V2Base`
 - **THEN** `type = "EL10V2"`
 
 #### Scenario: EL10V2 voltage is 25V
 - **WHEN** creating an EL10V2 instance
 - **THEN** `DEFAULT_PACK_VOLTAGE_SCALE` is overridden to handle 25V nominal voltage
 - **THEN** pack voltage fields use 25V-compatible scaling
+
+#### Scenario: EL10V2 uses enum fields
+- **WHEN** inspecting EL10V2's `_build_control_struct()` method
+- **THEN** `inv_freq` is defined as `add_enum_field("inv_freq", 2210, InvFrequency)`
+- **THEN** `led_color` is defined as `add_enum_field("led_color", 2078, LedColor)`
 
 #### Scenario: EL10V2 registered in device registry
 - **WHEN** a BLE device with name prefix "EL10V2" is scanned
@@ -51,6 +57,12 @@ The system SHALL provide an `EL30V2` device class in `src/voltkeeper/core/device
 #### Scenario: EL30V2 has EL100V2-equivalent writable fields
 - **WHEN** inspecting EL30V2's WRITABLE_FIELD_NAMES
 - **THEN** it includes the same writable fields as EL100V2: `ac_switch`, `dc_switch`, `dc_eco_mode`, `ac_eco_mode`, `charging_mode`, `power_lifting`, `working_mode`, `inv_voltage`, `inv_freq`, `chg_max_voltage`, `chg_max_current`, `grid_max_power`, `grid_max_current`, `soc_holding_low`, `soc_holding_high`, `grid_max_input_current`, `ctrl_grid`, `ctrl_feed`, `feed_max_power`
+
+#### Scenario: EL30V2 uses enum fields
+- **WHEN** inspecting EL30V2's `_build_control_struct()` method
+- **THEN** `inv_freq` is defined as `add_enum_field("inv_freq", 2210, InvFrequency)`
+- **THEN** `pv_type_set` is defined as `add_enum_field("pv_type_set", 2060, PvType)`
+- **THEN** `pv2_type_set` is defined as `add_enum_field("pv2_type_set", 2061, Pv2Type)`
 
 #### Scenario: EL30V2 voltage is 25V
 - **WHEN** creating an EL30V2 instance
@@ -76,6 +88,12 @@ The system SHALL provide an `EL400` device class in `src/voltkeeper/core/devices
 #### Scenario: EL400 includes all standard writable fields
 - **WHEN** inspecting EL400's `_build_control_struct()` method
 - **THEN** it includes `ac_switch`, `dc_switch`, `dc_eco_mode`, `ac_eco_mode`, `charging_mode`, `power_lifting`, `working_mode`, `ups_mode`, `inv_voltage`, `inv_freq`, `chg_max_voltage`, `chg_max_current`, `grid_max_power`, `grid_max_current`, `grid_max_input_current`, `ctrl_grid`, `soc_holding_low`, `soc_holding_high`
+
+#### Scenario: EL400 uses enum fields
+- **WHEN** inspecting EL400's `_build_control_struct()` method
+- **THEN** `inv_freq` is defined as `add_enum_field("inv_freq", 2210, InvFrequency)`
+- **THEN** `pv_type_set` is defined as `add_enum_field("pv_type_set", 2060, PvType)`
+- **THEN** `pv2_type_set` is defined as `add_enum_field("pv2_type_set", 2061, Pv2Type)`
 
 #### Scenario: EL400 voltage is 56V
 - **WHEN** creating an EL400 instance

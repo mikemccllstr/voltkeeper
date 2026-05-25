@@ -2869,3 +2869,108 @@ def test_is_supported_device_type():
 
     assert is_supported_device_type("AC2A") is True
     assert is_supported_device_type("BOGUS") is False
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Range validation on writes
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRangeValidation:
+    @pytest.fixture
+    def ac2a_device(self):
+        from voltkeeper.core.devices.ac2a import AC2A
+
+        return AC2A("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_in_range_accepted(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("sys_low_power", 20)
+        assert cmd.address == 2022
+        assert cmd.value == 20
+
+    def test_out_of_range_rejected(self, ac2a_device):
+        with pytest.raises(ValueError, match="not in range"):
+            ac2a_device.build_setter_command("sys_low_power", 150)
+
+    def test_low_boundary_accepted(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("sys_low_power", 0)
+        assert cmd.value == 0
+
+    def test_high_boundary_accepted(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("sys_low_power", 100)
+        assert cmd.value == 100
+
+    def test_no_range_field_accepted(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("lcd_timeout", 9999)
+        assert cmd.value == 9999
+
+    def test_enum_field_not_range_checked(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("inv_freq", "HZ_50")
+        assert cmd.address == 2210
+        assert cmd.value == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  New enum field tests
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestFieldEnums:
+    @pytest.fixture
+    def ac2a_device(self):
+        from voltkeeper.core.devices.ac2a import AC2A
+
+        return AC2A("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_inv_freq_enum_values(self):
+        from voltkeeper.core.commands import InvFrequency
+
+        assert InvFrequency.HZ_50.value == 0
+        assert InvFrequency.HZ_60.value == 1
+
+    def test_inv_freq_build_setter_string(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("inv_freq", "HZ_60")
+        assert cmd.address == 2210
+        assert cmd.value == 1
+
+    def test_inv_freq_build_setter_int(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("inv_freq", 0)
+        assert cmd.address == 2210
+        assert cmd.value == 0
+
+    def test_led_color_enum_values(self):
+        from voltkeeper.core.commands import LedColor
+
+        assert LedColor.OFF.value == 0
+        assert LedColor.COOL.value == 1
+        assert LedColor.WARM.value == 2
+        assert LedColor.SOS.value == 3
+
+    def test_led_color_build_setter(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("led_color", "WARM")
+        assert cmd.address == 2078
+        assert cmd.value == 2
+
+    def test_pv_type_enum_values(self):
+        from voltkeeper.core.commands import PvType
+
+        assert PvType.PV.value == 0
+        assert PvType.OTHER.value == 3
+
+    def test_pv2_type_enum_values(self):
+        from voltkeeper.core.commands import Pv2Type
+
+        assert Pv2Type.PV.value == 0
+        assert Pv2Type.ALTERNATOR.value == 4
+
+    def test_ems_ctrl_mode_enum_values(self):
+        from voltkeeper.core.commands import EmsCtrlMode
+
+        assert EmsCtrlMode.DISABLE.value == 0
+        assert EmsCtrlMode.LOCAL.value == 4
+        assert EmsCtrlMode.AI.value == 8
+
+    def test_ems_ctrl_mode_build_setter(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("ems_ctrl_mode_set", "LOCAL")
+        assert cmd.address == 2241
+        assert cmd.value == 4

@@ -341,7 +341,6 @@ async function showDetail(address) {
 function renderDetail(address, data) {
   const content = document.getElementById('detail-content');
   const status = data._status || 'unknown';
-  const controls = buildControls(address, data);
 
   let html = `
     <button class="close" onclick="closeDetail()">&times;</button>
@@ -369,6 +368,11 @@ function renderDetail(address, data) {
     if (hasData) html += `<div class="detail-group"><h3>${group}</h3>${rows}</div>`;
   }
 
+  html += '<div class="detail-group"><h3>Controls</h3><div id="controls-container">Loading...</div></div>';
+  content.innerHTML = html;
+  loadControls(address, data);
+}
+
   if (controls) html += controls;
 
   content.innerHTML = html;
@@ -379,36 +383,50 @@ function closeDetail() {
 }
 
 // -- Controls --
-function buildControls(address, data) {
-  const writableFields = ['ac_output', 'dc_output', 'dc_eco_mode', 'ac_eco_mode', 'power_lifting', 'charging_mode'];
-  let html = '<div class="detail-group"><h3>Controls</h3>';
+async function loadControls(address, data) {
+  const container = document.getElementById('controls-container');
+  if (!container) return;
 
-  let hasAny = false;
+  let fieldsMeta;
+  try {
+    const resp = await apiGet(`/api/device/${address}/fields`);
+    fieldsMeta = resp.fields || [];
+  } catch (e) {
+    container.textContent = 'Controls unavailable';
+    return;
+  }
 
-  writableFields.forEach(field => {
-    const val = data[field];
+  let html = '';
+  fieldsMeta.forEach(field => {
+    const val = data[field.name];
     if (val === undefined || val === null) return;
 
-    if (field === 'charging_mode') {
-      hasAny = true;
-      const modes = { 0: 'Standard', 1: 'Turbo', 2: 'Silent' };
-      html += `<div class="control-row"><span>${formatFieldName(field)}</span>
-        <select onchange="sendCommand('${escapeAttr(address)}', '${field}', this.value)">
-          ${Object.entries(modes).map(([k, v]) => `<option value="${k}" ${String(val) === k ? 'selected' : ''}>${v}</option>`).join('')}
+    if (field.type === 'enum') {
+      const enumVals = field.values || [];
+      const currentName = (typeof val === 'object' && val.name) ? val.name.toLowerCase() : String(val).toLowerCase();
+      html += `<div class="control-row"><span>${formatFieldName(field.name)}</span>
+        <select onchange="sendCommand('${escapeAttr(address)}', '${field.name}', this.value)">
+          ${enumVals.map(v => {
+            const sel = v === currentName ? 'selected' : '';
+            const label = v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, ' ');
+            return `<option value="${v}" ${sel}>${label}</option>`;
+          }).join('')}
         </select></div>`;
-    } else if (typeof val === 'boolean' || val === 0 || val === 1) {
-      hasAny = true;
-      const checked = val === true || val === 1;
-      html += `<div class="control-row"><span>${formatFieldName(field)}</span>
+    } else if (field.type === 'bool') {
+      const checked = val === true || val === 1 || (typeof val === 'object' && val.name === 'ON');
+      html += `<div class="control-row"><span>${formatFieldName(field.name)}</span>
         <label class="toggle" onclick="event.stopPropagation()">
-          <input type="checkbox" ${checked ? 'checked' : ''} onchange="sendCommand('${escapeAttr(address)}', '${field}', this.checked)">
+          <input type="checkbox" ${checked ? 'checked' : ''} onchange="sendCommand('${escapeAttr(address)}', '${field.name}', this.checked)">
           <span class="slider"></span>
         </label></div>`;
+    } else if (field.type === 'int' && field.range) {
+      html += `<div class="control-row"><span>${formatFieldName(field.name)}</span>
+        <input type="number" min="${field.range[0]}" max="${field.range[1]}" value="${val}" style="width:80px"
+          onchange="sendCommand('${escapeAttr(address)}', '${field.name}', parseInt(this.value))"></div>`;
     }
   });
 
-  html += '</div>';
-  return hasAny ? html : '';
+  container.innerHTML = html || 'No controls available';
 }
 
 async function sendCommand(address, field, value) {
@@ -441,7 +459,8 @@ function formatValue(field, val) {
   if (field.includes('Frequency')) return `${Number(val).toFixed(1)} Hz`;
   if (field.includes('Energy')) return `${Number(val).toFixed(2)} kWh`;
   if (typeof val === 'boolean') return val ? 'ON' : 'OFF';
-  if (field === 'charging_mode') return { 0: 'Standard', 1: 'Turbo', 2: 'Silent' }[val] || val;
+  if (typeof val === 'string' && val.match(/^[a-z_]+$/)) return val.charAt(0).toUpperCase() + val.slice(1).replace(/_/g, ' ');
+  if (field === 'invWorkingStatus') return ({3:'Normal',4:'Normal',5:'Normal',7:'Abnormal'}[val] || `Unknown(${val})`);
   return val;
 }
 

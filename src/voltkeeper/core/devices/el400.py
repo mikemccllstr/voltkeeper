@@ -5,7 +5,7 @@
 from enum import Enum, unique
 from typing import Any, List
 
-from ..commands import ReadHoldingRegisters, WorkingMode, WriteSingleRegister
+from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, WorkingMode, WriteSingleRegister
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
@@ -56,14 +56,17 @@ class EL400(V2Base):
         s.add_uint_field("lcd_timeout", 2067)
         s.add_uint_field("remote_startup_soc", REMOTE_STARTUP_SOC, range=(0, 100))
         s.add_uint_field("soc_holding_low", 2075, range=(0, 100))
-        s.add_uint_field("led_color", 2078)
+        s.add_enum_field("led_color", 2078, LedColor)
         s.add_uint_field("sleep_power_threshold", SLEEP_POWER_THRESHOLD)
         s.add_uint_field("soc_holding_high", 2083, range=(0, 100))
         s.add_bool_field("factory_reset", 2206)
         s.add_bool_field("ctrl_grid", 2207)
         s.add_bool_field("ctrl_feed", 2208)
+        # inv_voltage mapping depends on voltType (not currently discoverable):
+        #   voltType=0 (low):  0=100V, 1=120V, 2=208V (EP6K only)
+        #   voltType=1 (high): 0=220V, 1=230V, 2=240V
         s.add_uint_field("inv_voltage", 2209)
-        s.add_uint_field("inv_freq", 2210)
+        s.add_enum_field("inv_freq", 2210, InvFrequency)
         s.add_decimal_field("chg_max_voltage", 2211, 1)
         s.add_decimal_field("chg_max_current", 2212, 1)
         s.add_uint_field("grid_max_power", 2213)

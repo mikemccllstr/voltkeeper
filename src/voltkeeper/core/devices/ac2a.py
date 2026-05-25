@@ -3,7 +3,7 @@
 from enum import Enum, unique
 from typing import List
 
-from ..commands import ReadHoldingRegisters, WorkingMode
+from ..commands import EmsCtrlMode, InvFrequency, LedColor, Pv2Type, PvType, ReadHoldingRegisters, WorkingMode
 from ..utils import _format_version, _s16, _u16
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
@@ -61,27 +61,30 @@ class AC2A(V2Base):
         s.add_bool_field("power_lifting", 2021)
         s.add_uint_field("sys_low_power", 2022, range=(0, 100))
         s.add_uint_field("sys_high_power", 2023, range=(0, 100))
-        s.add_uint_field("pv_type_set", 2060)
-        s.add_uint_field("pv2_type_set", 2061)
+        s.add_enum_field("pv_type_set", 2060, PvType)
+        s.add_enum_field("pv2_type_set", 2061, Pv2Type)
         s.add_bool_field("alarm_sound", 2066)
         s.add_uint_field("lcd_timeout", 2067)
         s.add_uint_field("soc_holding_low", 2075, range=(0, 100))
-        s.add_uint_field("led_color", 2078)
+        s.add_enum_field("led_color", 2078, LedColor)
         s.add_uint_field("soc_holding_high", 2083, range=(0, 100))
         s.add_uint_field("pv_adv_set", 2084)
         s.add_bool_field("ja12_enable", 2086)
         s.add_bool_field("factory_reset", 2206)
         s.add_bool_field("ctrl_grid", 2207)
         s.add_bool_field("ctrl_feed", 2208)
+        # inv_voltage mapping depends on voltType (not currently discoverable):
+        #   voltType=0 (low):  0=100V, 1=120V, 2=208V (EP6K only)
+        #   voltType=1 (high): 0=220V, 1=230V, 2=240V
         s.add_uint_field("inv_voltage", 2209)
-        s.add_uint_field("inv_freq", 2210)
+        s.add_enum_field("inv_freq", 2210, InvFrequency)
         s.add_decimal_field("chg_max_voltage", 2211, 1)
         s.add_decimal_field("chg_max_current", 2212, 1)
         s.add_uint_field("grid_max_power", 2213)
         s.add_decimal_field("grid_max_current", 2214, 1)
         s.add_uint_field("feed_max_power", 2215)
         s.add_decimal_field("feed_max_current", 2216, 1)
-        s.add_uint_field("ems_ctrl_mode_set", 2241)
+        s.add_enum_field("ems_ctrl_mode_set", 2241, EmsCtrlMode)
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",

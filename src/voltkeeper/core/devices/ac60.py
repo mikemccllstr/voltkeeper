@@ -6,7 +6,7 @@
 from enum import Enum, unique
 from typing import List
 
-from ..commands import ReadHoldingRegisters, WorkingMode
+from ..commands import InvFrequency, ReadHoldingRegisters, WorkingMode
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
@@ -76,8 +76,11 @@ class AC60(V2Base):
         s.add_uint_field("soc_low", 2075, range=(0, 100))
         s.add_uint_field("soc_high", 2083, range=(0, 100))
         s.add_bool_field("factory_reset", 2206)
+        # inv_voltage mapping depends on voltType (not currently discoverable):
+        #   voltType=0 (low):  0=100V, 1=120V, 2=208V (EP6K only)
+        #   voltType=1 (high): 0=220V, 1=230V, 2=240V
         s.add_uint_field("inv_voltage", 2209)
-        s.add_uint_field("inv_freq", 2210)
+        s.add_enum_field("inv_freq", 2210, InvFrequency)
 
     @property
     def control_commands(self) -> List[ReadHoldingRegisters]:

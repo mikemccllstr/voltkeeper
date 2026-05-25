@@ -18,6 +18,7 @@ from aiohttp import web
 from .bus import CommandMessage, EventBus
 from .config import Config
 from .core.commands import WriteSingleRegister
+from .core.struct import BoolField, DecimalField, EnumField, UintField
 from .device_manager import DeviceManager
 from .state_store import StateStore
 
@@ -44,6 +45,7 @@ def create_app(config: Config, bus: EventBus, store: StateStore, device_manager:
 
     app.router.add_get("/api/devices", _handle_devices)
     app.router.add_get("/api/device/{address}", _handle_device)
+    app.router.add_get("/api/device/{address}/fields", _handle_fields)
     app.router.add_post("/api/device/{address}/command", _handle_command)
     app.router.add_get("/ws", _handle_websocket)
     app.router.add_get("/", _handle_index)
@@ -213,15 +215,51 @@ async def _handle_command(request: web.Request) -> web.Response:
 
     try:
         command = device.build_setter_command(field, value)
-    except (ValueError, TypeError) as e:
+    except (ValueError, TypeError, KeyError) as e:
         logger.warning("Command build failed for device %s field %r: %s", address, field, e)
-        return web.json_response({"error": "Invalid command value"}, status=400)
+        return web.json_response({"error": f"Invalid value for '{field}': {e}"}, status=400)
 
     if not isinstance(command, WriteSingleRegister):
         command = WriteSingleRegister(command.address, command.value)
 
     await bus.put(CommandMessage(device, command))
     return web.json_response({"accepted": True})
+
+
+async def _handle_fields(request: web.Request) -> web.Response:
+    address = request.match_info["address"].upper()
+    device_manager: DeviceManager = request.app[DEVICE_MANAGER_KEY]
+
+    device = device_manager.get_device(address)
+    if device is None:
+        return web.json_response({"error": "Device not found"}, status=404)
+
+    writable_names = getattr(device, "WRITABLE_FIELD_NAMES", [])
+    control_struct = getattr(device, "control_struct", None)
+    if control_struct is None:
+        return web.json_response({"fields": []})
+
+    fields = []
+    for f in control_struct.fields:
+        if f.name not in writable_names:
+            continue
+        entry: dict[str, Any] = {"name": f.name}
+        if isinstance(f, EnumField):
+            entry["type"] = "enum"
+            entry["values"] = [m.name.lower() for m in f.enum]
+        elif isinstance(f, BoolField):
+            entry["type"] = "bool"
+        elif isinstance(f, UintField) and f.range is not None:
+            entry["type"] = "int"
+            entry["range"] = list(f.range)
+        elif isinstance(f, DecimalField) and f.range is not None:
+            entry["type"] = "int"
+            entry["range"] = [int(f.range[0]), int(f.range[1])]
+        else:
+            entry["type"] = "any"
+        fields.append(entry)
+
+    return web.json_response({"fields": fields})
 
 
 # ── WebSocket Handler ────────────────────────────────────────────────────
