@@ -1,8 +1,8 @@
 # API Reference
 
-API documentation will be added when the voltkeeper public API stabilizes.
+Python API documentation will be added when the voltkeeper public interface
+stabilizes.
 
-Currently, the codebase is under active development and the internal interfaces
-are subject to change. Once the module structure and public function signatures
-have stabilized, this section will be populated with auto-generated API reference
-documentation from the source docstrings.
+If you are looking for the **daemon HTTP API**, the daemon exposes a REST
+interface on `http://localhost:8080/api/` when running. See the
+[Daemon](../user-guide/daemon.md) page for how to start it and authenticate.

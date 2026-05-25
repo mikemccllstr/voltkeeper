@@ -23,7 +23,7 @@ voltkeeper mqtt-publish AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 | `--password TEXT` | MQTT broker password |
 | `--interval INTEGER` | Seconds between polling cycles (default: 0 = as fast as possible) |
 | `--ha-config MODE` | Home Assistant discovery mode: `normal`, `none`, `advanced` (default: normal) |
-| `--restart-on-source-change` | Exit cleanly when source code changes, so systemd restarts the process |
+| `--restart-on-source-change` | Exit cleanly when the voltkeeper package is updated, so systemd restarts the process |
 
 ## mqtt-listen
 
@@ -34,11 +34,13 @@ The shutdown is **latched** — once triggered, it cannot be cancelled by SOC
 recovery (use `systemctl stop` to abort before the grace period expires).
 
 ```bash
+voltkeeper mqtt-listen AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 voltkeeper mqtt-listen --serial 2409000123456 --broker 192.168.1.100
 ```
 
-ADDRESS may be omitted if `--serial` is provided (useful when running on a
-different machine without BLE).
+The BLE address argument can be omitted when `--serial` is provided — useful
+when running on a machine without Bluetooth (e.g. a NAS or server receiving
+MQTT from another host).
 
 ### Options
 

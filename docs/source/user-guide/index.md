@@ -7,6 +7,7 @@ scan
 status
 write
 mqtt
+daemon
 load-test
 probe-annotate
 systemd
@@ -18,13 +19,17 @@ MQTT, and runs load tests — all over local BLE, with no cloud account required
 
 ## Install
 
-### Quick run (no clone required)
+```bash
+pip install voltkeeper
+```
+
+### Quick run (no install required)
 
 ```bash
 uvx --from git+https://github.com/mikemccllstr/voltkeeper voltkeeper --help
 ```
 
-This downloads and runs the tool in an isolated environment.
+This downloads and runs the tool in an isolated environment without installing it.
 
 ### From source
 
@@ -36,7 +41,7 @@ uv run voltkeeper --help
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.10+
 - Linux with BlueZ, macOS 11+, or Windows 10 build 19041+ (BLE support)
 - Bluetooth adapter with scan capability
 
@@ -48,13 +53,4 @@ The tool reads plain Modbus RTU over BLE from Bluetti power stations.
 Encrypted devices (AES-CBC over BLE) are supported; the handshake is handled
 automatically.
 
-## Development
-
-Run the full quality gate before committing:
-
-```bash
-mise run check
-```
-
-This runs lint, typecheck, and tests. See the [Developer Guide](../developer/index.md)
-for contributing and adding new devices.
+See the [Developer Guide](../developer/index.md) for contributing and adding new devices.

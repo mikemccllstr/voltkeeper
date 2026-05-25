@@ -36,7 +36,7 @@ These three commands form a pipeline for adding support for an unfamiliar
 Bluetti device:
 
 1. **probe** — capture raw register data
-2. **validate** — check for obviously invalid values
+2. **validate-profile** — check for obviously invalid values
 3. **annotate** — identify fields that change during operation
 
 See [Contributing Devices](../developer/contributing-devices.md) for the

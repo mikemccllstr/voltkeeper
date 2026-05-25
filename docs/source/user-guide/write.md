@@ -26,14 +26,16 @@ Values are `on` or `off`:
 
 ## Numeric fields
 
-- `battery_range_start`
-- `battery_range_end`
-- `lcd_timeout`
-- `led_color`
-- `soc_low`
-- `soc_high`
-- `inv_voltage`
-- `inv_freq`
-- `working_mode`
+| Field | Description | Range |
+|---|---|---|
+| `battery_range_start` | Lower SOC limit for charge cycling (%) | 0–100 |
+| `battery_range_end` | Upper SOC limit for charge cycling (%) | 0–100 |
+| `soc_low` | Low-battery alert threshold (%) | 0–100 |
+| `soc_high` | High-battery alert threshold (%) | 0–100 |
+| `lcd_timeout` | Screen backlight off delay (minutes) | device-dependent |
+| `led_color` | Indicator LED color index | device-dependent |
+| `inv_voltage` | Output voltage setting (volts, e.g. 120 or 230) | device-dependent |
+| `inv_freq` | Output frequency setting (Hz, e.g. 50 or 60) | device-dependent |
+| `working_mode` | Operating mode index | device-dependent |
 
-Use `voltkeeper status --verbose` to see current values of all writable fields.
+Use `voltkeeper status --verbose` to see current values of all writable fields before changing them.

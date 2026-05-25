@@ -52,12 +52,11 @@ register values to field names.
    python scripts/parse_btsnoop.py btsnoop_hci.log > capture.csv
    ```
 
-If your device uses BLE encryption (`protocolVer >= 2000`), the
-parser can decrypt frames with `--key` and `--iv`, but extracting
-the per-session AES key is not yet automated. For now: submit the raw
-btsnoop log alongside your `my-device.yaml`, and a maintainer will pair
-it with a session derived from voltkeeper's handshake to decrypt and
-analyze.
+If your device uses BLE encryption (`protocolVer >= 2000`), extracting
+the per-session AES key is not yet automated. For encrypted devices:
+submit the **raw `btsnoop_hci.log`** alongside your `my-device.yaml`
+instead of a parsed CSV. A maintainer will derive the session key and
+decrypt it.
 
 Once you have a key (16 bytes / 32 hex chars) and initial IV:
 
@@ -69,10 +68,11 @@ python scripts/parse_btsnoop.py btsnoop_hci.log --key a1b2... --iv c3d4... > cap
 
 Open a GitHub issue on
 [voltkeeper](https://github.com/mikemccllstr/voltkeeper)
-with both files attached:
+and attach:
 
-- `my-device.yaml` (the probe output)
-- `capture.csv` (the parsed btsnoop timeline)
+- `my-device.yaml` (the probe output) — always required
+- `capture.csv` (the parsed btsnoop timeline) — for plaintext (V1) devices
+- `btsnoop_hci.log` (the raw log) — for encrypted (V2) devices instead of the CSV
 
 In your issue, include the device model name and any notes about what
 features you tested (e.g. "toggled AC output, observed grid+mode, max

@@ -12,7 +12,7 @@ voltkeeper mqtt-publish-service AA:BB:CC:DD:EE:FF --broker 192.168.1.100
 
 ### Options
 
-Options mirror `mqtt-publish` plus:
+All options from `mqtt-publish` are accepted, plus:
 
 | Option | Description |
 |---|---|
@@ -30,7 +30,7 @@ voltkeeper mqtt-listen-service --serial 2409000123456 --broker 192.168.1.100
 
 ### Options
 
-Options mirror `mqtt-listen` plus:
+All options from `mqtt-listen` are accepted, plus:
 
 | Option | Description |
 |---|---|

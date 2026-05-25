@@ -31,20 +31,12 @@ Layered in order: outer silhouette (slate), lightning bolt (amber),
 battery stacks (amber strokes), inner outline (3px amber stroke, last in
 source order so it always sits on top).
 
-```{list-table}
-:header-rows: 1
-
-* - Element
-  - Position
-* - Bolt top point
-  - (116, 30)
-* - Bolt bottom point
-  - (84, 188)
-* - Left cell stack origin
-  - translate(28, 36)
-* - Right cell stack origin
-  - translate(150, 36)
-```
+| Element | Position |
+|---|---|
+| Bolt top point | (116, 30) |
+| Bolt bottom point | (84, 188) |
+| Left cell stack origin | translate(28, 36) |
+| Right cell stack origin | translate(150, 36) |
 
 ## Wordmark (`voltkeeper-wordmark.svg`)
 

@@ -90,6 +90,9 @@ the new class automatically.
 
 If the contributor sent `btsnoop_hci.log` from a V2 device:
 
+> **Warning:** Steps 1–2 require a temporary patch that logs session key material.
+> This patch MUST be reverted and MUST NOT be committed or merged.
+
 1. Pair voltkeeper against the same physical device the contributor captured
    from. Patch `src/voltkeeper/bluetooth/handshake.py` temporarily to log
    `shared_key.hex()` and `initial_iv.hex()`
@@ -98,7 +101,7 @@ If the contributor sent `btsnoop_hci.log` from a V2 device:
    ```bash
    python scripts/parse_btsnoop.py contributor.log --key <hex> --iv <hex> > capture.csv
    ```
-4. Revert the handshake.py patch — don't merge the key-logging
+4. Revert the `handshake.py` patch immediately — verify with `git diff` before pushing
 
 ## 8. Merge
 

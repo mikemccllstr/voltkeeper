@@ -1,6 +1,6 @@
 # voltkeeper
 
-CLI tool for Bluetti power stations — scan, connect, and read battery data over BLE.
+CLI tool for Bluetti power stations — scan, connect, and control over local BLE. No cloud account required.
 
 ```{toctree}
 :maxdepth: 1

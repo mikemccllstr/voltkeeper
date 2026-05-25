@@ -27,8 +27,31 @@ The test will:
 
 ## CSV Output
 
-The CSV has 17 columns with a comment header block; empty cells for failed
-BLE reads are Excel-friendly.
+The default output filename (`ac2a_load_test_YYYYMMDD_HHMMSS.csv`) is hardcoded
+for the AC2A; use `-o` to specify a custom path for other devices.
+
+The file has a comment header block (lines beginning with `#`) followed by a row
+of column names. Empty cells indicate failed BLE reads and are Excel-friendly.
+
+| Column | Description |
+|---|---|
+| `timestamp` | ISO 8601 UTC timestamp of the sample |
+| `elapsed_s` | Seconds elapsed since test start |
+| `soc_pct` | Battery state of charge (%) |
+| `pack_v` | Battery pack voltage (V) |
+| `pack_a` | Battery pack current (A) |
+| `dc_power_w` | DC output power (W) |
+| `ac_power_w` | AC output power (W) |
+| `total_power_w` | Total output power (W) |
+| `pv_power_w` | Solar input power (W) |
+| `grid_power_w` | Grid/AC-in power (W) |
+| `charging_status` | Charging state (Idle, Charging, Discharging, Floating) |
+| `est_remaining_min` | Device-estimated time remaining (minutes) |
+| `ambient_temp_c` | Ambient temperature (°C) |
+| `inv_temp_c` | Inverter temperature (°C) |
+| `energy_computed_wh` | Cumulative Wh by trapezoidal integration |
+| `energy_register_wh` | Cumulative Wh from device's `totalDCEnergy` register |
+| `phase` | Phase label passed via `--phase` |
 
 ## Energy Measurements
 
