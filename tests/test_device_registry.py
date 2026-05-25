@@ -14,6 +14,7 @@ ALL_PREFIXES = [
     "AC200L",
     "AC200PL",
     "AC200M",
+    "EL100V2",
     "AORA100_MINI",
     "AORA30_MINI",
     "AORA200_MINI",
@@ -22,6 +23,7 @@ ALL_PREFIXES = [
 ]
 
 _CLASS_NAME_TO_PREFIX = {
+    "El100V2": "EL100V2",
     "Aora100Mini": "AORA100_MINI",
     "Aora30Mini": "AORA30_MINI",
     "Aora200Mini": "AORA200_MINI",
@@ -50,9 +52,10 @@ def test_registry_has_all_expected_prefixes():
 def test_v2_models_protocol_version():
     from voltkeeper.core.devices.ac2a import AC2A
     from voltkeeper.core.devices.ac60 import AC60
+    from voltkeeper.core.devices.el100v2 import El100V2
     from voltkeeper.core.devices.ep600 import EP600
 
-    for cls in (AC2A, AC60, EP600):
+    for cls in (AC2A, AC60, El100V2, EP600):
         d = cls("AA:BB:CC:DD:EE:FF", "1234567")
         assert d.protocol_version == 2000, f"{cls.__name__} should be V2"
 

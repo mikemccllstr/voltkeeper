@@ -122,6 +122,7 @@ def _device_registry() -> dict[str, type]:
     from ..core.devices.aora_mini import Aora30Mini, Aora100Mini, Aora200Mini
     from ..core.devices.battery_packs import BH500E, HB500S
     from ..core.devices.eb3a import EB3A
+    from ..core.devices.el100v2 import El100V2
     from ..core.devices.ep500 import EP500
     from ..core.devices.ep600 import EP600
 
@@ -138,6 +139,7 @@ def _device_registry() -> dict[str, type]:
         "AORA200_MINI": Aora200Mini,
         "BH500E": BH500E,
         "EB3A": EB3A,
+        "EL100V2": El100V2,
         "EP500": EP500,
         "EP600": EP600,
         "HB500S": HB500S,
