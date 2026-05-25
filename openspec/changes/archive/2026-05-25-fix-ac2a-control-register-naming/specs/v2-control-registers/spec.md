@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: V2 control register constants added to AC2A
 
@@ -72,64 +72,8 @@ The system SHALL add module-level constants and control struct field definitions
 - **WHEN** the protocol documentation lists grid max, charge max, feed max, and inv_voltage fields
 - **THEN** each field is annotated with a note that `InvAdvancedParamsConfig` flags for AC2A are `false`, meaning the official Bluetti app hides these controls in Expert Mode
 
-### Requirement: V2 control registers shared with AC60
+## REMOVED Requirements
 
-The AC60 device class SHALL include the subset of new V2 control registers that are applicable to the AC60 model, based on the APK's `DeviceFunction.flags` for that model.
-
-#### Scenario: AC60 inherits applicable controls
-- **WHEN** building the control struct for AC60
-- **THEN** registers that overlap with the existing AC60 control struct AND appear in the new V2 register documentation are included
-- **THEN** AC60-specific unsupported registers are excluded
-
-### Requirement: MQTT client exposes new V2 fields
-
-The `NORMAL_DEVICE_FIELDS` mapping in `mqtt_client.py` SHALL include new V2 control fields that are meaningful for Home Assistant MQTT auto-discovery (e.g., grid control, feed-in control, charge limits).
-
-#### Scenario: Grid control published over MQTT
-- **WHEN** a device state update occurs and `CTRL_GRID` has a value
-- **THEN** `CTRL_GRID` is published to MQTT as a writable switch entity via Home Assistant discovery
-## ADDED Requirements
-
-### Requirement: WORKING_MODE register writable on V2 devices
-
-The system SHALL add `WORKING_MODE = 2005` constant to `v2_base.py` and support it as a writable `EnumField` via the `WorkingMode` enum defined in `commands.py`. The field SHALL be included in INV_BASE_SETTINGS parsing at data index 11.
-
-#### Scenario: WORKING_MODE constant defined in v2_base
-- **WHEN** inspecting `v2_base.py` constants
-- **THEN** `WORKING_MODE = 2005` is defined
-
-#### Scenario: WORKING_MODE writable on AC2A
-- **WHEN** user writes `working_mode = "Standard UPS"` to an AC2A
-- **THEN** the system sends WriteSingleRegister to address 2005 with value 3
-
-### Requirement: Child Lock registers available on V2 devices
-
-The system SHALL add `CTRL_CHILD_LOCK = 2072` and `CHILD_LOCK_LEVEL = 2076` constants to `v2_base.py`. Devices whose APK `DeviceFunction.childLockCtrl = true` SHALL expose these as writable BoolField and IntField respectively.
-
-#### Scenario: Child lock constants defined in v2_base
-- **WHEN** inspecting `v2_base.py` constants
-- **THEN** `CTRL_CHILD_LOCK = 2072` and `CHILD_LOCK_LEVEL = 2076` are defined
-
-#### Scenario: Child lock writable on AC180
-- **WHEN** user writes `child_lock = on` to an AC180
-- **THEN** the system sends WriteSingleRegister to address 2072 with value 0x20
-
-### Requirement: Sleep configuration registers on V2 devices
-
-The system SHALL add sleep configuration register constants to `v2_base.py`: `AUTO_SLEEP_DAYS = 2073`, `REMOTE_STARTUP_SOC = 2074`, `SLEEP_POWER_THRESHOLD = 2079`. These SHALL be exposed as writable fields on device classes whose APK feature flags enable remote power control or sleep mode (e.g., EL400).
-
-#### Scenario: Sleep register constants defined
-- **WHEN** inspecting `v2_base.py` constants
-- **THEN** `AUTO_SLEEP_DAYS = 2073`, `REMOTE_STARTUP_SOC = 2074`, `SLEEP_POWER_THRESHOLD = 2079` are defined
-
-#### Scenario: Sleep fields writable on EL400
-- **WHEN** user writes `remote_startup_soc = 50` to an EL400
-- **THEN** the system sends WriteSingleRegister to address 2074 with value 50
-
-### Requirement: SYSTEM_POWER_OFF multi-value encoding documented
-
-The protocol documentation SHALL document that SYSTEM_POWER_OFF (V2: 2013, V1: 3060) accepts values 1-4 with the following semantics: 1=shutdown, 2=power down (V1 protocol), 3=power down (V2 protocol with powerOffFuncV2), 4=sleep mode.
-
-#### Scenario: SYSTEM_POWER_OFF value documentation
-- **WHEN** reading `modbus-registers.md`
-- **THEN** SYSTEM_POWER_OFF entry lists values 1-4 with descriptions
+### Requirement: RV mode is writable on AC2A
+**Reason**: Register 2276 (`RV_ENABLE_SET`) was added speculatively but does not exist in the APK v3.0.9 protocol parser for base info, base settings, or advanced settings blocks. No evidence the AC2A supports this register.
+**Migration**: Remove the `rv_enable_set` field from AC2A's control struct and `WRITABLE_FIELD_NAMES` if present.

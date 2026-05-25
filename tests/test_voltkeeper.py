@@ -412,10 +412,10 @@ class TestParseControlData:
         result = ac2a_device.parse(2000, ac2a_control_bytes)
         assert result["charging_mode"] == ChargingMode.TURBO
 
-    def test_battery_range(self, ac2a_device, ac2a_control_bytes):
+    def test_sys_power_thresholds(self, ac2a_device, ac2a_control_bytes):
         result = ac2a_device.parse(2000, ac2a_control_bytes)
-        assert result["battery_range_start"] == 20
-        assert result["battery_range_end"] == 80
+        assert result["sys_low_power"] == 20
+        assert result["sys_high_power"] == 80
 
     def test_build_setter_ac_output_on(self, ac2a_device):
         cmd = ac2a_device.build_setter_command("ac_output", True)
@@ -440,6 +440,37 @@ class TestParseControlData:
     def test_has_field_setter_read_only(self, ac2a_device):
         assert ac2a_device.has_field_setter("packTotalSoc") is False
         assert ac2a_device.has_field_setter("totalACPower") is False
+
+    def test_working_mode_parse_raw(self, ac2a_device, ac2a_control_bytes):
+        result = ac2a_device.parse(2000, ac2a_control_bytes)
+        assert result["working_mode"] == 0
+
+    def test_working_mode_build_setter_enum(self, ac2a_device):
+        from voltkeeper.core.commands import WorkingMode
+
+        cmd = ac2a_device.build_setter_command("working_mode", WorkingMode.STANDARD_UPS)
+        assert cmd.address == 2005
+        assert cmd.value == 3
+
+    def test_working_mode_build_setter_string(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("working_mode", "PV_PRIORITY_UPS")
+        assert cmd.address == 2005
+        assert cmd.value == 2
+
+    def test_working_mode_build_setter_lowercase(self, ac2a_device):
+        cmd = ac2a_device.build_setter_command("working_mode", "customized_ups")
+        assert cmd.address == 2005
+        assert cmd.value == 1
+
+    def test_working_mode_enum_values(self):
+        from voltkeeper.core.commands import WorkingMode
+
+        assert WorkingMode.CUSTOMIZED_UPS.value == 1
+        assert WorkingMode.PV_PRIORITY_UPS.value == 2
+        assert WorkingMode.STANDARD_UPS.value == 3
+        assert WorkingMode.TIME_CTRL_UPS.value == 4
+        assert WorkingMode.V2_TIME_CTRL_UPS.value == 5
+        assert WorkingMode.SELF_CONSUMPTION_EXPORT.value == 11
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -667,6 +698,268 @@ class TestEl100V2:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  New device model tests — AC180, EL10V2, EL30V2, EL400
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestAC180:
+    @pytest.fixture
+    def ac180_device(self):
+        from voltkeeper.core.devices.ac180 import AC180
+
+        return AC180("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_registry_construction(self):
+        from voltkeeper.bluetooth import build_device
+
+        d = build_device("AA:BB:CC:DD:EE:FF", "AC1802305000")
+        assert d.type == "AC180"
+        assert d.sn == "2305000"
+
+    def test_writable_fields_known(self, ac180_device):
+        for field in (
+            "ac_output",
+            "dc_output",
+            "charging_mode",
+            "power_lifting",
+            "working_mode",
+            "child_lock",
+            "child_lock_level",
+            "inv_freq",
+        ):
+            assert ac180_device.has_field_setter(field), f"{field} should be writable"
+
+    def test_child_lock_not_writable_as_readonly(self, ac180_device):
+        assert not ac180_device.has_field_setter("packTotalSoc")
+
+    def test_child_lock_build_setter_on(self, ac180_device):
+        cmd = ac180_device.build_setter_command("child_lock", True)
+        assert cmd.address == 2072
+        assert cmd.value == 0x20
+
+    def test_child_lock_build_setter_off(self, ac180_device):
+        cmd = ac180_device.build_setter_command("child_lock", False)
+        assert cmd.address == 2072
+        assert cmd.value == 0x10
+
+    def test_child_lock_build_setter_string_on(self, ac180_device):
+        cmd = ac180_device.build_setter_command("child_lock", "on")
+        assert cmd.address == 2072
+        assert cmd.value == 0x20
+
+    def test_child_lock_build_setter_string_off(self, ac180_device):
+        cmd = ac180_device.build_setter_command("child_lock", "off")
+        assert cmd.address == 2072
+        assert cmd.value == 0x10
+
+    def test_child_lock_level_setter(self, ac180_device):
+        cmd = ac180_device.build_setter_command("child_lock_level", 1)
+        assert cmd.address == 2076
+        assert cmd.value == 1
+
+        cmd = ac180_device.build_setter_command("child_lock_level", 2)
+        assert cmd.address == 2076
+        assert cmd.value == 2
+
+    def test_working_mode_setter(self, ac180_device):
+        from voltkeeper.core.commands import WorkingMode
+
+        cmd = ac180_device.build_setter_command("working_mode", "STANDARD_UPS")
+        assert cmd.address == 2005
+        assert cmd.value == 3
+
+        cmd = ac180_device.build_setter_command("working_mode", WorkingMode.PV_PRIORITY_UPS)
+        assert cmd.address == 2005
+        assert cmd.value == 2
+
+    def test_charging_mode_setter(self, ac180_device):
+        cmd = ac180_device.build_setter_command("charging_mode", "TURBO")
+        assert cmd.address == 2020
+        assert cmd.value == 1
+
+    def test_unknown_field_rejected(self, ac180_device):
+        with pytest.raises(ValueError, match="Unknown writable field"):
+            ac180_device.build_setter_command("nonexistent", 1)
+
+    def test_pack_voltage_scale_default(self):
+        from voltkeeper.core.devices.ac180 import AC180
+
+        assert AC180.DEFAULT_PACK_VOLTAGE_SCALE == 1
+
+
+class TestEL10V2:
+    @pytest.fixture
+    def el10v2_device(self):
+        from voltkeeper.core.devices.el10v2 import EL10V2
+
+        return EL10V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_registry_construction(self):
+        from voltkeeper.bluetooth import build_device
+
+        d = build_device("AA:BB:CC:DD:EE:FF", "EL10V22305000")
+        assert d.type == "EL10V2"
+        assert d.sn == "2305000"
+
+    def test_pack_voltage_scale_25v(self):
+        from voltkeeper.core.devices.el10v2 import EL10V2
+
+        assert EL10V2.DEFAULT_PACK_VOLTAGE_SCALE == 2
+
+    def test_writable_fields_known(self, el10v2_device):
+        for field in (
+            "ac_output",
+            "dc_output",
+            "charging_mode",
+            "power_lifting",
+            "working_mode",
+            "child_lock",
+            "child_lock_level",
+            "soc_holding_low",
+            "led_color",
+            "soc_holding_high",
+        ):
+            assert el10v2_device.has_field_setter(field), f"{field} should be writable"
+
+    def test_child_lock_inherited(self, el10v2_device):
+        cmd = el10v2_device.build_setter_command("child_lock", True)
+        assert cmd.address == 2072
+        assert cmd.value == 0x20
+
+    def test_child_lock_level_inherited(self, el10v2_device):
+        cmd = el10v2_device.build_setter_command("child_lock_level", 2)
+        assert cmd.address == 2076
+        assert cmd.value == 2
+
+    def test_el10v2_specific_fields(self, el10v2_device):
+        assert el10v2_device.has_field_setter("led_color")
+        assert el10v2_device.has_field_setter("soc_holding_low")
+        assert el10v2_device.has_field_setter("soc_holding_high")
+
+    def test_no_grid_ctrl(self, el10v2_device):
+        assert not el10v2_device.has_field_setter("ctrl_grid")
+        assert not el10v2_device.has_field_setter("ctrl_feed")
+        assert not el10v2_device.has_field_setter("grid_max_current")
+
+    def test_unknown_field_rejected(self, el10v2_device):
+        with pytest.raises(ValueError, match="Unknown writable field"):
+            el10v2_device.build_setter_command("nonexistent", 1)
+
+
+class TestEL30V2:
+    @pytest.fixture
+    def el30v2_device(self):
+        from voltkeeper.core.devices.el30v2 import EL30V2
+
+        return EL30V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_registry_construction(self):
+        from voltkeeper.bluetooth import build_device
+
+        d = build_device("AA:BB:CC:DD:EE:FF", "EL30V22305000")
+        assert d.type == "EL30V2"
+        assert d.sn == "2305000"
+
+    def test_pack_voltage_scale_25v(self):
+        from voltkeeper.core.devices.el30v2 import EL30V2
+
+        assert EL30V2.DEFAULT_PACK_VOLTAGE_SCALE == 2
+
+    def test_writable_fields_known(self, el30v2_device):
+        for field in (
+            "ac_output",
+            "dc_output",
+            "charging_mode",
+            "power_lifting",
+            "working_mode",
+            "ctrl_grid",
+            "ctrl_feed",
+            "inv_voltage",
+            "inv_freq",
+            "grid_max_power",
+            "grid_max_current",
+            "feed_max_power",
+            "feed_max_current",
+        ):
+            assert el30v2_device.has_field_setter(field), f"{field} should be writable"
+
+    def test_no_child_lock(self, el30v2_device):
+        assert not el30v2_device.has_field_setter("child_lock")
+
+    def test_grid_control_setters(self, el30v2_device):
+        cmd = el30v2_device.build_setter_command("ctrl_grid", True)
+        assert cmd.address == 2207
+        assert cmd.value == 1
+
+        cmd = el30v2_device.build_setter_command("grid_max_current", 15)
+        assert cmd.address == 2214
+
+    def test_unknown_field_rejected(self, el30v2_device):
+        with pytest.raises(ValueError, match="Unknown writable field"):
+            el30v2_device.build_setter_command("nonexistent", 1)
+
+
+class TestEL400:
+    @pytest.fixture
+    def el400_device(self):
+        from voltkeeper.core.devices.el400 import EL400
+
+        return EL400("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_registry_construction(self):
+        from voltkeeper.bluetooth import build_device
+
+        d = build_device("AA:BB:CC:DD:EE:FF", "EL4002305000")
+        assert d.type == "EL400"
+        assert d.sn == "2305000"
+
+    def test_pack_voltage_scale_56v(self):
+        from voltkeeper.core.devices.el400 import EL400
+
+        assert EL400.DEFAULT_PACK_VOLTAGE_SCALE == 1
+
+    def test_writable_fields_known(self, el400_device):
+        for field in (
+            "ac_output",
+            "dc_output",
+            "charging_mode",
+            "power_lifting",
+            "working_mode",
+            "sleep_mode",
+            "remote_startup_soc",
+            "sleep_power_threshold",
+        ):
+            assert el400_device.has_field_setter(field), f"{field} should be writable"
+
+    def test_sleep_mode_setter_on(self, el400_device):
+        cmd = el400_device.build_setter_command("sleep_mode", True)
+        assert cmd.address == 2013
+        assert cmd.value == 4
+
+    def test_sleep_mode_setter_off(self, el400_device):
+        cmd = el400_device.build_setter_command("sleep_mode", False)
+        assert cmd.address == 2013
+        assert cmd.value == 1
+
+    def test_remote_startup_soc_setter(self, el400_device):
+        cmd = el400_device.build_setter_command("remote_startup_soc", 50)
+        assert cmd.address == 2074
+        assert cmd.value == 50
+
+    def test_sleep_power_threshold_setter(self, el400_device):
+        cmd = el400_device.build_setter_command("sleep_power_threshold", 100)
+        assert cmd.address == 2079
+        assert cmd.value == 100
+
+    def test_no_child_lock(self, el400_device):
+        assert not el400_device.has_field_setter("child_lock")
+
+    def test_unknown_field_rejected(self, el400_device):
+        with pytest.raises(ValueError, match="Unknown writable field"):
+            el400_device.build_setter_command("nonexistent", 1)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  CTRL_EVENT bit decoder
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -738,7 +1031,7 @@ class TestAC2AWritableFields:
         assert cmd.value == ChargingMode.SILENT.value
 
     def test_uint_value(self, ac2a_device):
-        cmd = ac2a_device.build_setter_command("battery_range_start", 50)
+        cmd = ac2a_device.build_setter_command("sys_low_power", 50)
         assert cmd.address == 2022
         assert cmd.value == 50
 

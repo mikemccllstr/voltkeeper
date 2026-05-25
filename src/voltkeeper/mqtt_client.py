@@ -336,49 +336,49 @@ NORMAL_DEVICE_FIELDS = {
             "icon": "mdi:arm-flex",
         },
     ),
-    "battery_range_start": MqttFieldConfig(
+    "sys_low_power": MqttFieldConfig(
         type=MqttFieldType.NUMERIC,
         setter=True,
         advanced=True,
-        topic_name="battery_range_start",
+        topic_name="sys_low_power",
         home_assistant_extra={
-            "name": "Battery Range Start",
+            "name": "System Low Power",
             "min": 0,
             "max": 100,
             "unit_of_measurement": "%",
         },
     ),
-    "battery_range_end": MqttFieldConfig(
+    "sys_high_power": MqttFieldConfig(
         type=MqttFieldType.NUMERIC,
         setter=True,
         advanced=True,
-        topic_name="battery_range_end",
+        topic_name="sys_high_power",
         home_assistant_extra={
-            "name": "Battery Range End",
+            "name": "System High Power",
             "min": 0,
             "max": 100,
             "unit_of_measurement": "%",
         },
     ),
-    "soc_low": MqttFieldConfig(
+    "soc_holding_low": MqttFieldConfig(
         type=MqttFieldType.NUMERIC,
         setter=True,
         advanced=True,
-        topic_name="soc_low",
+        topic_name="soc_holding_low",
         home_assistant_extra={
-            "name": "SOC Low Threshold",
+            "name": "SOC Holding Low",
             "min": 0,
             "max": 100,
             "unit_of_measurement": "%",
         },
     ),
-    "soc_high": MqttFieldConfig(
+    "soc_holding_high": MqttFieldConfig(
         type=MqttFieldType.NUMERIC,
         setter=True,
         advanced=True,
-        topic_name="soc_high",
+        topic_name="soc_holding_high",
         home_assistant_extra={
-            "name": "SOC High Threshold",
+            "name": "SOC Holding High",
             "min": 0,
             "max": 100,
             "unit_of_measurement": "%",

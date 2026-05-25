@@ -92,7 +92,7 @@ def ac2a_inv_inv_bytes():
 
 # Control registers (INV_BASE_SETTINGS = 2000, 24 regs = 48 bytes).
 # Encoded state: ac_output=ON, dc_output=OFF, ac_eco_mode=ON,
-# charging_mode=TURBO, battery_range_start=20, battery_range_end=80.
+# charging_mode=TURBO, sys_low_power=20, sys_high_power=80.
 _CONTROL_HEX = (
     "00000000000000000000"  # 2000-2004
     "0000"  # 2005 working_mode=0
@@ -105,8 +105,8 @@ _CONTROL_HEX = (
     "00000000"  # 2018-2019
     "0001"  # 2020 charging_mode=TURBO=1
     "0000"  # 2021 power_lifting=False
-    "0014"  # 2022 battery_range_start=20
-    "0050"  # 2023 battery_range_end=80
+    "0014"  # 2022 sys_low_power=20
+    "0050"  # 2023 sys_high_power=80
 )
 
 

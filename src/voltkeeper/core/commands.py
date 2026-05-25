@@ -1,8 +1,20 @@
 # ABOUTME: Modbus RTU command classes — read/write holding registers with CRC16, TLV-bundled reads.
 
 import struct
+from enum import Enum, unique
 
 from .utils import crc16_modbus
+
+
+@unique
+class WorkingMode(Enum):
+    CUSTOMIZED_UPS = 1
+    PV_PRIORITY_UPS = 2
+    STANDARD_UPS = 3
+    TIME_CTRL_UPS = 4
+    V2_TIME_CTRL_UPS = 5
+    SELF_CONSUMPTION_EXPORT = 11
+
 
 # ── TLV read request encoding ────────────────────────────────────────
 

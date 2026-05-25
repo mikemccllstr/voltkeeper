@@ -6,7 +6,7 @@
 from enum import Enum, unique
 from typing import List
 
-from ..commands import ReadHoldingRegisters
+from ..commands import ReadHoldingRegisters, WorkingMode
 from ._v1_alarm_tables import LOW_POWER_FAULT_NAMES, LOW_POWER_WARN_NAMES
 from .v1_base import (
     AC_ECO_POWER,
@@ -38,6 +38,7 @@ from .v1_base import (
     SYS_SWITCH_RECOVERY,
     SYSTEM_POWER_OFF,
     SYSTEM_TIME,
+    WORKING_MODE,
     WORKING_TIME,
     V1Base,
 )
@@ -73,6 +74,7 @@ class AC200L(V1Base):
         "grid_charging",
         "grid_plus_mode",
         "charging_mode",
+        "working_mode",
         "power_lifting",
         "dc_eco_mode",
         "ac_eco_mode",
@@ -111,6 +113,7 @@ class AC200L(V1Base):
         s.add_bool_field("grid_charging", GRID_CHARGING_SWITCH)
         s.add_bool_field("grid_plus_mode", GRID_PLUS_MODE)
         s.add_enum_field("charging_mode", CHARGING_MODE, ChargingMode)
+        s.add_enum_field("working_mode", WORKING_MODE, WorkingMode)
         s.add_bool_field("power_lifting", POWER_LIFTING_MODE)
         s.add_bool_field("dc_eco_mode", ECO_CONTROL)
         s.add_bool_field("ac_eco_mode", CTRL_AC_ECO_MODE)

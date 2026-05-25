@@ -1,13 +1,16 @@
-# ABOUTME: EL100V2 (Elite 100 V2) device definition — V2 protocol per APK v3.0.9 template chain
-# ABOUTME:   ELITE200_V2 → AC200PL → AC240. 56V portable power station, model ID 31.
+# ABOUTME: EL400 (Elite 400) device definition — V2 protocol, APK v3.0.9 ELITE200_V2 family.
+# ABOUTME: 56V portable power station, model #29. Adds remote power control and sleep mode.
+# ABOUTME: TODO(hardware): verify against physical device.
 
 from enum import Enum, unique
-from typing import List
+from typing import Any, List
 
-from ..commands import ReadHoldingRegisters, WorkingMode
+from ..commands import ReadHoldingRegisters, WorkingMode, WriteSingleRegister
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
+    REMOTE_STARTUP_SOC,
+    SLEEP_POWER_THRESHOLD,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
     WORKING_MODE,
@@ -22,11 +25,11 @@ class ChargingMode(Enum):
     SILENT = 2
 
 
-class El100V2(V2Base):
-    """EL100V2 portable power station. V2 protocol, 56V system."""
+class EL400(V2Base):
+    """EL400 portable power station. V2 protocol, 56V system."""
 
     def __init__(self, address: str, sn: str):
-        super().__init__(address, "EL100V2", sn)
+        super().__init__(address, "EL400", sn)
         self._build_control_struct()
 
     def _build_control_struct(self):
@@ -38,6 +41,7 @@ class El100V2(V2Base):
         s.add_bool_field("ac_output", 2011)
         s.add_bool_field("dc_output", 2012)
         s.add_bool_field("power_off", 2013)
+        s.add_bool_field("sleep_mode", 2013)
         s.add_bool_field("dc_eco_mode", 2014)
         s.add_uint_field("dc_eco_auto_off_time", 2015)
         s.add_uint_field("dc_eco_power", 2016)
@@ -45,12 +49,15 @@ class El100V2(V2Base):
         s.add_uint_field("ac_eco_auto_off_time", 2018)
         s.add_uint_field("ac_eco_power", 2019)
         s.add_enum_field("charging_mode", 2020, ChargingMode)
+        s.add_bool_field("power_lifting", 2021)
         s.add_uint_field("sys_low_power", 2022, range=(0, 100))
         s.add_uint_field("sys_high_power", 2023, range=(0, 100))
         s.add_bool_field("alarm_sound", 2066)
         s.add_uint_field("lcd_timeout", 2067)
+        s.add_uint_field("remote_startup_soc", REMOTE_STARTUP_SOC, range=(0, 100))
         s.add_uint_field("soc_holding_low", 2075, range=(0, 100))
         s.add_uint_field("led_color", 2078)
+        s.add_uint_field("sleep_power_threshold", SLEEP_POWER_THRESHOLD)
         s.add_uint_field("soc_holding_high", 2083, range=(0, 100))
         s.add_bool_field("factory_reset", 2206)
         s.add_bool_field("ctrl_grid", 2207)
@@ -68,6 +75,7 @@ class El100V2(V2Base):
         "ac_output",
         "dc_output",
         "power_off",
+        "sleep_mode",
         "dc_eco_mode",
         "dc_eco_auto_off_time",
         "dc_eco_power",
@@ -75,12 +83,15 @@ class El100V2(V2Base):
         "ac_eco_auto_off_time",
         "ac_eco_power",
         "charging_mode",
+        "power_lifting",
         "sys_low_power",
         "sys_high_power",
         "alarm_sound",
         "lcd_timeout",
+        "remote_startup_soc",
         "soc_holding_low",
         "led_color",
+        "sleep_power_threshold",
         "soc_holding_high",
         "factory_reset",
         "ctrl_grid",
@@ -98,6 +109,13 @@ class El100V2(V2Base):
         "system_timezone",
         "ctrl_led",
     ]
+
+    def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
+        if field == "sleep_mode":
+            if isinstance(value, str):
+                value = value.lower() in ("on", "1", "true", "yes")
+            return WriteSingleRegister(2013, 4 if value else 1)
+        return super().build_setter_command(field, value)
 
     @property
     def ctrl_event_bits(self) -> list[tuple[str, str]]:

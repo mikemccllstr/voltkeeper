@@ -3,7 +3,7 @@
 from enum import Enum, unique
 from typing import List
 
-from ..commands import ReadHoldingRegisters
+from ..commands import ReadHoldingRegisters, WorkingMode
 from ..utils import _format_version, _s16, _u16
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
@@ -15,6 +15,7 @@ from .v2_base import (
     INV_PV_INFO,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
+    WORKING_MODE,
     V2Base,
 )
 
@@ -41,9 +42,11 @@ class AC2A(V2Base):
     def _build_control_struct(self):
         s = self.control_struct
         s.add_uint32_field("system_time", SYSTEM_TIME)
-        s.add_uint_field("system_timezone", SYSTEM_TIME_ZONE)
+        s.add_uint_field(
+            "system_timezone", SYSTEM_TIME_ZONE
+        )  # APK does not parse this register in parseInvBaseSettings
         s.add_uint_field("ctrl_event", 2006)
-        s.add_uint_field("working_mode", 2005)
+        s.add_enum_field("working_mode", WORKING_MODE, WorkingMode)
         s.add_bool_field("ctrl_led", 2007)
         s.add_bool_field("ac_output", 2011)
         s.add_bool_field("dc_output", 2012)
@@ -56,15 +59,15 @@ class AC2A(V2Base):
         s.add_uint_field("ac_eco_power", 2019)
         s.add_enum_field("charging_mode", 2020, ChargingMode)
         s.add_bool_field("power_lifting", 2021)
-        s.add_uint_field("battery_range_start", 2022, range=(0, 100))
-        s.add_uint_field("battery_range_end", 2023, range=(0, 100))
+        s.add_uint_field("sys_low_power", 2022, range=(0, 100))
+        s.add_uint_field("sys_high_power", 2023, range=(0, 100))
         s.add_uint_field("pv_type_set", 2060)
         s.add_uint_field("pv2_type_set", 2061)
         s.add_bool_field("alarm_sound", 2066)
         s.add_uint_field("lcd_timeout", 2067)
-        s.add_uint_field("soc_low", 2075, range=(0, 100))
+        s.add_uint_field("soc_holding_low", 2075, range=(0, 100))
         s.add_uint_field("led_color", 2078)
-        s.add_uint_field("soc_high", 2083, range=(0, 100))
+        s.add_uint_field("soc_holding_high", 2083, range=(0, 100))
         s.add_uint_field("pv_adv_set", 2084)
         s.add_bool_field("ja12_enable", 2086)
         s.add_bool_field("factory_reset", 2206)
@@ -92,13 +95,13 @@ class AC2A(V2Base):
         "ac_eco_power",
         "charging_mode",
         "power_lifting",
-        "battery_range_start",
-        "battery_range_end",
+        "sys_low_power",
+        "sys_high_power",
         "alarm_sound",
         "lcd_timeout",
         "led_color",
-        "soc_low",
-        "soc_high",
+        "soc_holding_low",
+        "soc_holding_high",
         "factory_reset",
         "inv_voltage",
         "inv_freq",

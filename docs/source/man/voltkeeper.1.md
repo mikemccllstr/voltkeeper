@@ -50,7 +50,7 @@ Write a setting to the device.
 |---|---|
 | **ac_output**, **dc_output**, **power_off**, **dc_eco_mode**, **ac_eco_mode**, **power_lifting**, **alarm_sound** | **on**, **off** |
 | **charging_mode** | **standard**, **turbo**, **silent** |
-| **battery_range_start**, **battery_range_end**, **lcd_timeout**, **led_color**, **soc_low**, **soc_high**, **inv_voltage**, **inv_freq**, **working_mode** | (numeric) |
+| **sys_low_power**, **sys_high_power**, **lcd_timeout**, **led_color**, **soc_holding_low**, **soc_holding_high**, **inv_voltage**, **inv_freq**, **working_mode** | (numeric) |
 
 ### mqtt-publish
 

@@ -49,7 +49,10 @@ class EnumField(DeviceField):
 
     def parse(self, data: bytes) -> Any:
         val = struct.unpack("!H", data)[0]
-        return self.enum(val)
+        try:
+            return self.enum(val)
+        except ValueError:
+            return val
 
 
 class DecimalField(DeviceField):

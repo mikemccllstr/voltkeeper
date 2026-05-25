@@ -57,7 +57,7 @@ For register writes containing ASCII strings (e.g., WiFi password, BLE password)
 | 1080 | `OTA_START` | W | Start OTA upgrade |
 | 2000 | `FAULT_HISTORY_START` | R | Fault history |
 | 3000 | `SETTABLE_DATA` / `MAIN_SWITCH` | R/W | Main power switch |
-| 3001 | `WORKING_MODE` | R/W | Working mode |
+| 3001 | `WORKING_MODE` | R/W | Working mode (1=Customized, 2=PV Priority, 3=Standard UPS, 4=Time Control, 5=V2 Time Control, 11=Self-Consumption Export) |
 | 3002 | `GRID_PLUS_MODE` | R/W | Grid+ mode |
 | 3003 | `INVERTER_FREQUENCY` | R/W | Output frequency (50/60Hz) |
 | 3004 | `MACHINE_MODE` | R/W | Machine mode |
@@ -74,11 +74,11 @@ For register writes containing ASCII strings (e.g., WiFi password, BLE password)
 | 3019 | `MAX_CHARGING_CURRENT_OF_GRID` | R/W | Max grid charge current |
 | 3031 | `SYSTEM_TIME` | R/W | System time |
 | 3034 | `LED_CONTROL` | R/W | LED control |
-| 3035 | `UPS_MODE` | R/W | UPS mode |
+| 3035 | `UPS_MODE` | R/W | UPS sub-mode — Online (1) vs Standby (0) selection within Standard UPS mode |
 | 3039 | `WORKING_TIME` | R/W | Working time config |
 | 3057 | `MAX_CHARGING_POWER` | R/W | Max charge power |
 | 3058 | `MAX_DISCHARGE_POWER` | R/W | Max discharge power |
-| 3060 | `SYSTEM_POWER_OFF` | W | System power off |
+| 3060 | `SYSTEM_POWER_OFF` | W | System power off (1=shutdown, 2=power down V1, 3=power down V2, 4=sleep mode) |
 | 3061 | `LCD_SCREEN_TIME` | R/W | LCD timeout |
 | 3062 | `SET_SYSTEM_FACTORY_RESET` | W | Factory reset |
 | 3063 | `ECO_CONTROL` | R/W | DC ECO mode |
@@ -189,15 +189,15 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 |---------|----------|-----|-------------|
 | 2000 | `INV_BASE_SETTINGS` | R/W | Base settings |
 | 2001 | `SYSTEM_TIME` | R/W | System clock |
-| 2004 | `SYSTEM_TIME_ZONE` | R/W | System timezone |
-| 2005 | `WORKING_MODE` | R/W | Working mode |
+| 2004 | `SYSTEM_TIME_ZONE` | R | System timezone (unverified: APK does not parse this register) |
+| 2005 | `WORKING_MODE` | R/W | Working mode (1=Customized, 2=PV Priority, 3=Standard UPS, 4=Time Control, 5=V2 Time Control, 11=Self-Consumption Export) |
 | 2006 | `CTRL_EVENT` | W | Control events |
 | 2007 | `CTRL_LED` | R/W | LED control |
 | 2008 | `CTRL_METER` | R/W | Meter control |
 | 2010 | `CTRL_INVERTER` | R/W | Inverter power control |
 | 2011 | `AC_SWITCH` | R/W | AC output switch |
 | 2012 | `DC_SWITCH` | R/W | DC output switch |
-| 2013 | `SYSTEM_POWER_OFF` | W | System power off |
+| 2013 | `SYSTEM_POWER_OFF` | W | System power off (1=shutdown, 2=power down V1, 3=power down V2, 4=sleep mode) |
 | 2014 | `CTRL_DC_ECO_MODE` | R/W | DC ECO mode |
 | 2015 | `DC_ECO_AUTO_OFF_TIME` | R/W | DC ECO auto-off time |
 | 2016 | `DC_ECO_POWER` | R/W | DC ECO power threshold |
@@ -206,8 +206,8 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 | 2019 | `AC_ECO_POWER` | R/W | AC ECO power threshold |
 | 2020 | `CHARGING_MODE` | R/W | Charging mode (Standard/Turbo/Silent) |
 | 2021 | `CTRL_SUPER_POWER_MODE` | R/W | Power lifting mode |
-| 2022 | `SYS_SOC_LOW_CAPACITY` | R/W | Low SOC threshold |
-| 2023 | `SYS_SOC_HIGH_CAPACITY` | R/W | High SOC threshold |
+| 2022 | `SYS_LOW_POWER` | R/W | System low power threshold |
+| 2023 | `SYS_HIGH_POWER` | R/W | System high power threshold |
 | 2026 | `SET_HISTORY_ENERGY_TYPE` | W | History energy type selector |
 | 2027 | `SET_CURR_ENERGY_TYPE` | W | Current energy type selector |
 | 2028 | `SET_LOG_HISTORY_PAGE` | W | Log history page selector |
@@ -217,11 +217,16 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 | 2061 | `PV2_TYPE_SET` | R/W | PV2 type setting |
 | 2066 | `CTRL_ALARM_SOUND` | R/W | Alarm sound toggle |
 | 2067 | `LCD_SCREEN_TIME` | R/W | LCD screen timeout |
-| 2075 | `SOC_SET_LOW` | R/W | SOC low setpoint |
+| 2075 | `SOC_HOLDING_LOW` | R/W | SOC holding low threshold |
+| 2072 | `CTRL_CHILD_LOCK` | R/W | Child lock on/off — bit 4=OFF (0x10), bit 5=ON (0x20) |
+| 2073 | `AUTO_SLEEP_DAYS` | R/W | Auto-sleep day count |
+| 2074 | `REMOTE_STARTUP_SOC` | R/W | Remote startup SOC threshold (0-100%) |
+| 2076 | `CHILD_LOCK_LEVEL` | R/W | Child lock level — 1=block output ON, 2=block all output switches |
 | 2078 | `LED_COLOR_SET` | R/W | LED color selection |
+| 2079 | `SLEEP_POWER_THRESHOLD` | R/W | Sleep power threshold (watts) |
 | 2080 | `PACK_NUM_SET_SHOW` | R/W | Pack number display setting |
 | 2081 | `INV_NUM_SET` | R/W | Inverter count setting |
-| 2083 | `SOC_SET_HIGH` | R/W | SOC high setpoint |
+| 2083 | `SOC_HOLDING_HIGH` | R/W | SOC holding high threshold |
 | 2084 | `PV_ADV_SET` | R/W | PV advanced settings |
 | 2086 | `JA12_ENABLE` | R/W | 12V output enable |
 | 2200 | `INV_ADVANCE_SETTINGS` | R/W | Advanced settings (login password required) |
@@ -262,6 +267,22 @@ The complete register map from `ProtocolAddrV2` in APK v3.0.9 (214 constants), o
 | 2280 | `HEAT_PUMP_ENABLE` | R/W | Heat pump enable |
 | 2304 | `MULTI_PEAK_ENABLE` | R/W | Multi-peak shaving enable |
 | 30901 | `TEST_SETTINGS` | R/W | Factory test settings |
+
+**APK Visibility Notes (AC2A / PR20C / AC2P model):**
+The official Bluetti Android app's `InvAdvancedParamsConfig` feature flags hide the
+following controls from Expert Mode for the AC2A model family. The registers remain
+valid protocol registers and are read by the app; they are simply not exposed in the
+app's UI. voltkeeper exposes them as writable for advanced use.
+
+| Address | Field | `InvAdvancedParamsConfig` flag | APK Expert Mode |
+|---------|-------|-------------------------------|-----------------|
+| 2209 | `INV_VOLTAGE` | `invOutputVoltage` | Hidden |
+| 2211 | `CHG_MAX_VOLTAGE` | `maxChargeVoltage` | Hidden |
+| 2212 | `CHG_MAX_CURRENT` | `maxGridChgCurrent` | Hidden |
+| 2213 | `GRID_MAX_POWER` | `maxGridChgPower` | Hidden |
+| 2214 | `GRID_MAX_CURRENT` | `maxGridInputCurrent` | Hidden |
+| 2215 | `FEED_MAX_POWER` | `maxGridDsgPower` | Hidden |
+| 2216 | `FEED_MAX_CURRENT` | `maxGridDsgCurrent` | Hidden |
 
 **Grid Certification Settings:**
 

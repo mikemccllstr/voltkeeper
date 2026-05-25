@@ -114,6 +114,7 @@ async def pick_address_after_scan() -> ScanResult:
 def _device_registry() -> dict[str, type]:
     from ..core.devices.ac2a import AC2A
     from ..core.devices.ac60 import AC60
+    from ..core.devices.ac180 import AC180
     from ..core.devices.ac200l import AC200L
     from ..core.devices.ac200m import AC200M
     from ..core.devices.ac200pl import AC200PL
@@ -122,13 +123,17 @@ def _device_registry() -> dict[str, type]:
     from ..core.devices.aora_mini import Aora30Mini, Aora100Mini, Aora200Mini
     from ..core.devices.battery_packs import BH500E, HB500S
     from ..core.devices.eb3a import EB3A
+    from ..core.devices.el10v2 import EL10V2
+    from ..core.devices.el30v2 import EL30V2
     from ..core.devices.el100v2 import El100V2
+    from ..core.devices.el400 import EL400
     from ..core.devices.ep500 import EP500
     from ..core.devices.ep600 import EP600
 
     return {
         "AC2A": AC2A,
         "AC60": AC60,
+        "AC180": AC180,
         "AC200L": AC200L,
         "AC200M": AC200M,
         "AC200PL": AC200PL,
@@ -140,6 +145,9 @@ def _device_registry() -> dict[str, type]:
         "BH500E": BH500E,
         "EB3A": EB3A,
         "EL100V2": El100V2,
+        "EL10V2": EL10V2,
+        "EL30V2": EL30V2,
+        "EL400": EL400,
         "EP500": EP500,
         "EP600": EP600,
         "HB500S": HB500S,

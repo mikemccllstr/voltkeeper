@@ -6,7 +6,7 @@
 
 from typing import List
 
-from ..commands import ReadHoldingRegisters
+from ..commands import ReadHoldingRegisters, WorkingMode
 from .v1_base import (
     AC_SWITCH,
     DC_SWITCH,
@@ -16,6 +16,7 @@ from .v1_base import (
     SETTABLE_DATA,
     SYSTEM_POWER_OFF,
     UPS_MODE,
+    WORKING_MODE,
     V1Base,
 )
 
@@ -32,6 +33,7 @@ class AC200M(V1Base):
         "dc_output",
         "led_control",
         "ups_mode",
+        "working_mode",
         "dc_eco_mode",
         "system_power_off",
         "factory_reset",
@@ -47,6 +49,7 @@ class AC200M(V1Base):
         s.add_bool_field("dc_output", DC_SWITCH)
         s.add_bool_field("led_control", LED_CONTROL)
         s.add_bool_field("ups_mode", UPS_MODE)
+        s.add_enum_field("working_mode", WORKING_MODE, WorkingMode)
         s.add_bool_field("dc_eco_mode", ECO_CONTROL)
         s.add_bool_field("system_power_off", SYSTEM_POWER_OFF)
         s.add_bool_field("factory_reset", SET_SYSTEM_FACTORY_RESET)

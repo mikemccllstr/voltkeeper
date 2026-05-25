@@ -1,5 +1,6 @@
-# ABOUTME: EL100V2 (Elite 100 V2) device definition — V2 protocol per APK v3.0.9 template chain
-# ABOUTME:   ELITE200_V2 → AC200PL → AC240. 56V portable power station, model ID 31.
+# ABOUTME: EL30V2 (Elite 30 V2) device definition — V2 protocol, APK v3.0.9 ELITE200_V2 family.
+# ABOUTME: 25V portable power station, model #32. Same APK code block as EL100V2.
+# ABOUTME: TODO(hardware): verify against physical device.
 
 from enum import Enum, unique
 from typing import List
@@ -22,11 +23,13 @@ class ChargingMode(Enum):
     SILENT = 2
 
 
-class El100V2(V2Base):
-    """EL100V2 portable power station. V2 protocol, 56V system."""
+class EL30V2(V2Base):
+    """EL30V2 portable power station. V2 protocol, 25V system."""
+
+    DEFAULT_PACK_VOLTAGE_SCALE = 2
 
     def __init__(self, address: str, sn: str):
-        super().__init__(address, "EL100V2", sn)
+        super().__init__(address, "EL30V2", sn)
         self._build_control_struct()
 
     def _build_control_struct(self):
@@ -45,6 +48,7 @@ class El100V2(V2Base):
         s.add_uint_field("ac_eco_auto_off_time", 2018)
         s.add_uint_field("ac_eco_power", 2019)
         s.add_enum_field("charging_mode", 2020, ChargingMode)
+        s.add_bool_field("power_lifting", 2021)
         s.add_uint_field("sys_low_power", 2022, range=(0, 100))
         s.add_uint_field("sys_high_power", 2023, range=(0, 100))
         s.add_bool_field("alarm_sound", 2066)
@@ -75,6 +79,7 @@ class El100V2(V2Base):
         "ac_eco_auto_off_time",
         "ac_eco_power",
         "charging_mode",
+        "power_lifting",
         "sys_low_power",
         "sys_high_power",
         "alarm_sound",

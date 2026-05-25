@@ -6,12 +6,13 @@
 from enum import Enum, unique
 from typing import List
 
-from ..commands import ReadHoldingRegisters
+from ..commands import ReadHoldingRegisters, WorkingMode
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
+    WORKING_MODE,
     V2Base,
 )
 
@@ -46,6 +47,7 @@ class AC60(V2Base):
         "inv_freq",
         "system_time",
         "system_timezone",
+        "working_mode",
         "ctrl_led",
     ]
 
@@ -57,6 +59,7 @@ class AC60(V2Base):
         s = self.control_struct
         s.add_uint32_field("system_time", SYSTEM_TIME)
         s.add_uint_field("system_timezone", SYSTEM_TIME_ZONE)
+        s.add_enum_field("working_mode", WORKING_MODE, WorkingMode)
         s.add_bool_field("ctrl_led", 2007)
         s.add_bool_field("ac_output", 2011)
         s.add_bool_field("dc_output", 2012)

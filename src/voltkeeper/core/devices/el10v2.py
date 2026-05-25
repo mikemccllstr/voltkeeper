@@ -1,11 +1,14 @@
-# ABOUTME: EL100V2 (Elite 100 V2) device definition — V2 protocol per APK v3.0.9 template chain
-# ABOUTME:   ELITE200_V2 → AC200PL → AC240. 56V portable power station, model ID 31.
+# ABOUTME: EL10V2 (Elite 10 V2) device definition — V2 protocol, APK v3.0.9 PLP022→EL10V2 chain.
+# ABOUTME: 25V portable power station, model #62. Inherits V2Base with AC180-family writable fields.
+# ABOUTME: TODO(hardware): verify against physical device.
 
 from enum import Enum, unique
-from typing import List
+from typing import Any, List
 
-from ..commands import ReadHoldingRegisters, WorkingMode
+from ..commands import ReadHoldingRegisters, WorkingMode, WriteSingleRegister
 from .v2_base import (
+    CHILD_LOCK_LEVEL,
+    CTRL_CHILD_LOCK,
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
     SYSTEM_TIME,
@@ -22,11 +25,13 @@ class ChargingMode(Enum):
     SILENT = 2
 
 
-class El100V2(V2Base):
-    """EL100V2 portable power station. V2 protocol, 56V system."""
+class EL10V2(V2Base):
+    """EL10V2 portable power station. V2 protocol, 25V system."""
+
+    DEFAULT_PACK_VOLTAGE_SCALE = 2
 
     def __init__(self, address: str, sn: str):
-        super().__init__(address, "EL100V2", sn)
+        super().__init__(address, "EL10V2", sn)
         self._build_control_struct()
 
     def _build_control_struct(self):
@@ -45,24 +50,18 @@ class El100V2(V2Base):
         s.add_uint_field("ac_eco_auto_off_time", 2018)
         s.add_uint_field("ac_eco_power", 2019)
         s.add_enum_field("charging_mode", 2020, ChargingMode)
+        s.add_bool_field("power_lifting", 2021)
         s.add_uint_field("sys_low_power", 2022, range=(0, 100))
         s.add_uint_field("sys_high_power", 2023, range=(0, 100))
         s.add_bool_field("alarm_sound", 2066)
         s.add_uint_field("lcd_timeout", 2067)
+        s.add_bool_field("child_lock", CTRL_CHILD_LOCK)
+        s.add_uint_field("child_lock_level", CHILD_LOCK_LEVEL, range=(1, 2))
         s.add_uint_field("soc_holding_low", 2075, range=(0, 100))
         s.add_uint_field("led_color", 2078)
         s.add_uint_field("soc_holding_high", 2083, range=(0, 100))
         s.add_bool_field("factory_reset", 2206)
-        s.add_bool_field("ctrl_grid", 2207)
-        s.add_bool_field("ctrl_feed", 2208)
-        s.add_uint_field("inv_voltage", 2209)
         s.add_uint_field("inv_freq", 2210)
-        s.add_decimal_field("chg_max_voltage", 2211, 1)
-        s.add_decimal_field("chg_max_current", 2212, 1)
-        s.add_uint_field("grid_max_power", 2213)
-        s.add_decimal_field("grid_max_current", 2214, 1)
-        s.add_uint_field("feed_max_power", 2215)
-        s.add_decimal_field("feed_max_current", 2216, 1)
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",
@@ -75,29 +74,30 @@ class El100V2(V2Base):
         "ac_eco_auto_off_time",
         "ac_eco_power",
         "charging_mode",
+        "power_lifting",
         "sys_low_power",
         "sys_high_power",
         "alarm_sound",
         "lcd_timeout",
+        "child_lock",
+        "child_lock_level",
         "soc_holding_low",
         "led_color",
         "soc_holding_high",
         "factory_reset",
-        "ctrl_grid",
-        "ctrl_feed",
-        "inv_voltage",
         "inv_freq",
-        "chg_max_voltage",
-        "chg_max_current",
-        "grid_max_power",
-        "grid_max_current",
-        "feed_max_power",
-        "feed_max_current",
         "working_mode",
         "system_time",
         "system_timezone",
         "ctrl_led",
     ]
+
+    def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
+        if field == "child_lock":
+            if isinstance(value, str):
+                value = value.lower() in ("on", "1", "true", "yes")
+            return WriteSingleRegister(CTRL_CHILD_LOCK, 0x20 if value else 0x10)
+        return super().build_setter_command(field, value)
 
     @property
     def ctrl_event_bits(self) -> list[tuple[str, str]]:
@@ -115,5 +115,5 @@ class El100V2(V2Base):
         return [
             ReadHoldingRegisters(INV_BASE_SETTINGS, 24),
             ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
-            ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 18),
+            ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 12),
         ]
