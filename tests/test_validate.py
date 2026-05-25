@@ -1,5 +1,4 @@
 # ABOUTME: Tests for validate module — FieldVerdict, assess_field, validate_profile.
-# ABOUTME: Unit 12 per IMPLEMENTATION_UNITS.md.
 
 
 from voltkeeper.validate import FieldVerdict, assess_field, validate_profile

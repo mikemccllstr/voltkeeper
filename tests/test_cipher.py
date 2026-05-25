@@ -1,5 +1,4 @@
 # ABOUTME: Unit tests for bluetooth cipher — AES-128-CBC with chained IV, zero-padding, no PKCS.
-# ABOUTME: Unit 5 per IMPLEMENTATION_UNITS.md.
 
 import hashlib
 

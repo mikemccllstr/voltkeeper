@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
-#MISE depends=["download-apk"]
-#MISE description="Decompile APK with apktool"
+#MISE description="Disassemble all downloaded APKs with apktool"
 set -euo pipefail
 
-if [ -d bluetti-files/apktool_out ]; then
-  echo "apktool output already exists, skipping"
-else
-  apktool d -o bluetti-files/apktool_out -f bluetti-files/bluetti.apk
+shopt -s nullglob
+apks=(bluetti-files/*/bluetti.apk)
+
+if [[ ${#apks[@]} -eq 0 ]]; then
+  echo "No downloaded APKs found. Run 'mise run download-apk' first."
+  exit 0
 fi
+
+for apk in "${apks[@]}"; do
+  version="$(basename "$(dirname "$apk")")"
+  out_dir="$(dirname "$apk")/apktool_out"
+  if [[ -d "$out_dir" ]]; then
+    echo "[$version] apktool output already exists, skipping"
+  else
+    echo "[$version] disassembling with apktool..."
+    apktool d -o "$out_dir" -f "$apk"
+  fi
+done

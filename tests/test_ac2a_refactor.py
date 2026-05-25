@@ -1,5 +1,4 @@
 # ABOUTME: Baseline capture and comparison test for AC2A → V2Base refactor.
-# ABOUTME: Unit 8 per IMPLEMENTATION_UNITS.md.
 
 import json
 from decimal import Decimal

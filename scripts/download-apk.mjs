@@ -1,12 +1,19 @@
 // ABOUTME: Downloads the latest bluetti APK by extracting the URL from the download page's JavaScript, mimicking browser behavior.
-// ABOUTME: Idempotent — skips download if APK exists; warns if a newer version is available on the server.
+// ABOUTME: Stores each version in its own subdirectory under bluetti-files/. Idempotent — skips if that version is already downloaded.
 
-import { mkdir, writeFile, readFile, access, open } from "node:fs/promises";
+import { mkdir, readdir, access, open } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 
 const BASE_URL = "https://download.bluetti.app";
-const APK_PATH = "bluetti-files/bluetti.apk";
-const VERSION_PATH = "bluetti-files/.apk-version";
+const FILES_DIR = "bluetti-files";
+
+function versionDir(filename) {
+  return `${FILES_DIR}/${filename}`;
+}
+
+function apkPath(filename) {
+  return `${versionDir(filename)}/bluetti.apk`;
+}
 
 async function main() {
   // 1. Fetch env.js to get serverGatewayGlobal
@@ -38,33 +45,26 @@ async function main() {
   const filenameMatch = disposition.match(/filename="?([^";\s]+)"?/);
   const serverFilename = filenameMatch ? filenameMatch[1] : "unknown";
 
-  // 4. Check if we already have the APK
-  const apkExists = await access(APK_PATH)
+  // 4. Check if this version is already downloaded
+  const dest = apkPath(serverFilename);
+  const alreadyDownloaded = await access(dest)
     .then(() => true)
     .catch(() => false);
 
-  if (apkExists) {
-    let savedVersion = "";
-    try {
-      savedVersion = (await readFile(VERSION_PATH, "utf-8")).trim();
-    } catch {
-      // no version file — assume old
-    }
+  if (alreadyDownloaded) {
+    console.log(`Already downloaded: ${serverFilename}`);
 
-    if (savedVersion === serverFilename) {
-      console.log(`APK is up to date (${serverFilename})`);
-      return;
+    const existing = await listVersions();
+    const others = existing.filter((v) => v !== serverFilename);
+    if (others.length > 0) {
+      console.log(`Other downloaded versions: ${others.join(", ")}`);
     }
-    console.log(
-      `WARNING: A newer APK is available on the server (${serverFilename}).`,
-    );
-    console.log(`You have: ${savedVersion || "unknown version"}`);
-    console.log("Run 'mise run cleanup' then 'mise run download-apk' to update.");
     return;
   }
 
-  // 5. Download the APK
-  await mkdir("bluetti-files", { recursive: true });
+  // 5. Download the APK into its versioned directory
+  const dir = versionDir(serverFilename);
+  await mkdir(dir, { recursive: true });
 
   console.log(`Downloading ${serverFilename} from ${downloadUrl}...`);
   const resp = await fetch(downloadUrl);
@@ -73,7 +73,7 @@ async function main() {
   const total = parseInt(resp.headers.get("content-length") || "0", 10);
   let downloaded = 0;
 
-  const fh = await open(APK_PATH, "w");
+  const fh = await open(dest, "w");
   const writeStream = fh.createWriteStream();
 
   const progressStream = new Writable({
@@ -95,9 +95,21 @@ async function main() {
     nodeReadable.pipe(progressStream).on("finish", resolve).on("error", reject);
   });
 
-  await writeFile(VERSION_PATH, serverFilename + "\n");
-
+  const allVersions = await listVersions();
   console.log("\nDone.");
+  console.log(`Downloaded versions: ${allVersions.join(", ")}`);
+}
+
+async function listVersions() {
+  try {
+    const entries = await readdir(FILES_DIR, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
 }
 
 main().catch((err) => {

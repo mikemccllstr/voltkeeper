@@ -1,5 +1,4 @@
 # ABOUTME: Tests for probe module — YAML round-trip, protocol detection, registry shortcut.
-# ABOUTME: Unit 11 per IMPLEMENTATION_UNITS.md.
 
 from unittest.mock import AsyncMock, patch
 
@@ -89,7 +88,16 @@ async def test_detect_protocol_registry_shortcut_eb3a():
     client = AsyncMock()
     info = await _detect_protocol(client, "EB3A1234567")
     assert info.kind == "v1"
-    assert info.version == 0
+    assert info.version == 1019
+    client.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_protocol_registry_shortcut_ac200l():
+    client = AsyncMock()
+    info = await _detect_protocol(client, "AC200L2305000")
+    assert info.kind == "v1"
+    assert info.version == 1022
     client.execute.assert_not_awaited()
 
 

@@ -2,8 +2,6 @@
 
 This page documents the complete cryptographic material found in the Bluetti APK, including all hardcoded keys, AES-128-CBC cipher parameters, IV chaining behavior, and key derivation formulas.
 
-<!-- Extracted from FINDINGS.md §15.8 -->
-
 ## 15.8 Complete Crypto Material
 
 All keys are hardcoded in the APK and identical across all installations.

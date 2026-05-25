@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-#MISE depends=["decompile-jadx","decompile-apktool"]
-#MISE description="Run all decompilation tasks"
+#MISE depends=["download-apk","decompile-jadx","decompile-apktool"]
+#MISE description="Download latest APK and decompile all versions"
 set -euo pipefail
 
 echo "All done"

@@ -1,10 +1,10 @@
 # ABOUTME: Generic V2-protocol base device class — register blocks, structs, parse dispatch.
-# ABOUTME: Unit 8 per IMPLEMENTATION_UNITS.md.
 
 from typing import Any, List
 
 from ..commands import ReadHoldingRegisters, WriteSingleRegister
 from ..struct import BoolField, DeviceStruct, EnumField
+from ..tlv import TlvParser
 from .bluetti_device import BluettiDevice
 
 APP_HOME_DATA = 100
@@ -15,9 +15,17 @@ INV_LOAD_INFO = 1400
 INV_INV_INFO = 1500
 INV_BASE_SETTINGS = 2000
 INV_ADVANCE_SETTINGS = 2200
+SYSTEM_TIME = 2001
+SYSTEM_TIME_ZONE = 2004
+NODE_INFO = 21000
+PACK_MAIN_INFO = 6000
+PACK_ITEM_INFO = 6100
+PACK_BMU_INFO = 7200
 
 
 class V2Base(BluettiDevice):
+    protocol_version: int = 2000
+
     # Default pack-voltage scale for V2 devices. EP500/EP600 and other
     # high-voltage packs use ÷10 (raw register value × 0.1 = volts). The AC2A
     # is the known exception: its 8S LiFePO4 architecture (~25.6 V nominal)
@@ -55,8 +63,13 @@ class V2Base(BluettiDevice):
         # without controls (read-only telemetry only) just work.
         self.control_struct = DeviceStruct()
 
+        self.pack_main_struct = DeviceStruct()
+        self._build_pack_main_struct()
+
+        self.pack_item_struct = DeviceStruct()
+        self._build_pack_item_struct()
+
         super().__init__(address, type, sn)
-        self.protocol_version = 2000
 
     # ── Field definitions per register block ────────────────────────────
 
@@ -156,6 +169,20 @@ class V2Base(BluettiDevice):
         s.add_decimal32_field("totalEnergy", 1501, 1)
         s.add_uint8_field("sysPhaseNumber", 1508, 1, range=(0, 4))
 
+    def _build_pack_main_struct(self):
+        s = self.pack_main_struct
+        s.add_decimal_field("packVoltage", 6000, 2)
+        s.add_decimal_field("packCurrent", 6001, 2)
+        s.add_uint_field("packSoc", 6002)
+        s.add_temperature_field("packTemperature", 6003, 0)
+        s.add_bcd_sn_field("packSerial", 6004, 4)
+        s.add_uint_field("cycleCount", 6008)
+
+    def _build_pack_item_struct(self):
+        s = self.pack_item_struct
+        for i in range(16):
+            s.add_uint_field(f"cellVoltage{i + 1}", 6100 + i)
+
     # ── Parse dispatch ─────────────────────────────────────────────────
 
     def parse(self, address: int, data: bytes) -> dict:
@@ -173,7 +200,33 @@ class V2Base(BluettiDevice):
             return self.inv_inv_struct.parse(address, data)
         elif INV_BASE_SETTINGS <= address < 2300:
             return self.control_struct.parse(address, data)
+        elif address == NODE_INFO:
+            return self._parse_node_info(data)
+        elif PACK_MAIN_INFO <= address < PACK_ITEM_INFO:
+            return self.pack_main_struct.parse(address, data) if hasattr(self, "pack_main_struct") else {}
+        elif PACK_ITEM_INFO <= address < PACK_BMU_INFO:
+            return self.pack_item_struct.parse(address, data) if hasattr(self, "pack_item_struct") else {}
         return {}
+
+    def _parse_node_info(self, data: bytes) -> dict:
+        result: dict = {}
+        items = TlvParser.parse(data)
+        for item in items:
+            prefix = f"sub[{item.slave_addr}]"
+            try:
+                if PACK_MAIN_INFO <= item.reg_addr < PACK_ITEM_INFO:
+                    if hasattr(self, "pack_main_struct"):
+                        parsed = self.pack_main_struct.parse(item.reg_addr, item.value)
+                        for k, v in parsed.items():
+                            result[f"{prefix}.{k}"] = v
+                elif PACK_ITEM_INFO <= item.reg_addr < PACK_BMU_INFO:
+                    if hasattr(self, "pack_item_struct"):
+                        parsed = self.pack_item_struct.parse(item.reg_addr, item.value)
+                        for k, v in parsed.items():
+                            result[f"{prefix}.{k}"] = v
+            except Exception:
+                pass
+        return result
 
     # ── Writable-field plumbing ────────────────────────────────────────
 
@@ -186,6 +239,8 @@ class V2Base(BluettiDevice):
             self.inv_load_struct,
             self.inv_inv_struct,
             self.control_struct,
+            self.pack_main_struct,
+            self.pack_item_struct,
         )
 
     def has_field(self, field: str) -> bool:
@@ -219,7 +274,7 @@ class V2Base(BluettiDevice):
 
     @property
     def polling_commands(self) -> List[ReadHoldingRegisters]:
-        return [
+        cmds = [
             ReadHoldingRegisters(APP_HOME_DATA, self.HOME_DATA_REGS),
             ReadHoldingRegisters(INV_BASE_INFO, 51),
             ReadHoldingRegisters(INV_PV_INFO, 70),
@@ -227,6 +282,11 @@ class V2Base(BluettiDevice):
             ReadHoldingRegisters(INV_LOAD_INFO, 48),
             ReadHoldingRegisters(INV_INV_INFO, 30),
         ]
+        if self.has_sub_devices:
+            cmds.append(ReadHoldingRegisters(NODE_INFO, 32))
+        if self.has_battery_packs:
+            cmds.append(ReadHoldingRegisters(PACK_MAIN_INFO, 32))
+        return cmds
 
     @property
     def logging_commands(self) -> List[ReadHoldingRegisters]:

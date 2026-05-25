@@ -1,5 +1,4 @@
 # ABOUTME: Synthetic fixture tests for V1Base register parsing per FINDINGS §15.6.
-# ABOUTME: Unit 9 per IMPLEMENTATION_UNITS.md.
 
 from voltkeeper.core.devices.v1_base import BASE_REAL_DATA, V1Base
 
@@ -126,3 +125,33 @@ def test_v1_polling_commands():
     assert len(cmds) >= 1
     assert cmds[0].starting_address == BASE_REAL_DATA
     assert cmds[0].quantity == 110
+
+
+def test_v1_new_settable_constants():
+    from voltkeeper.core.devices.v1_base import (
+        ECO_AUTO_OFF,
+        HIGH_POWER_SETTINGS,
+        LOW_POWER_SETTINGS,
+        MACHINE_ADDRESS,
+        MACHINE_MODE,
+        MAX_CHARGING_CURRENT_OF_GRID,
+        MAX_CHARGING_POWER,
+        MAX_DISCHARGE_POWER,
+        MAX_DISCHARGING_CURRENT,
+        MAX_PV_CHARGE_CURRENT,
+        SYSTEM_TIME,
+        WORKING_TIME,
+    )
+
+    assert MACHINE_MODE == 3004
+    assert MACHINE_ADDRESS == 3005
+    assert MAX_PV_CHARGE_CURRENT == 3014
+    assert LOW_POWER_SETTINGS == 3015
+    assert HIGH_POWER_SETTINGS == 3016
+    assert MAX_DISCHARGING_CURRENT == 3018
+    assert MAX_CHARGING_CURRENT_OF_GRID == 3019
+    assert SYSTEM_TIME == 3031
+    assert WORKING_TIME == 3039
+    assert MAX_CHARGING_POWER == 3057
+    assert MAX_DISCHARGE_POWER == 3058
+    assert ECO_AUTO_OFF == 3064

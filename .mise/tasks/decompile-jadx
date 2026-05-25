@@ -1,10 +1,27 @@
 #!/usr/bin/env bash
-#MISE depends=["download-apk"]
-#MISE description="Decompile APK with jadx"
+#MISE description="Decompile all downloaded APKs with jadx"
 set -euo pipefail
 
-if [ -d bluetti-files/jadx_out ]; then
-  echo "jadx output already exists, skipping"
-else
-  jadx -d bluetti-files/jadx_out bluetti-files/bluetti.apk || true
+JADX_BIN="$(command -v jadx 2>/dev/null || true)"
+if [[ -n "$JADX_BIN" && -f "$JADX_BIN" && ! -x "$JADX_BIN" ]]; then
+  chmod +x "$(dirname "$JADX_BIN")"/jadx "$(dirname "$JADX_BIN")"/jadx-gui
 fi
+
+shopt -s nullglob
+apks=(bluetti-files/*/bluetti.apk)
+
+if [[ ${#apks[@]} -eq 0 ]]; then
+  echo "No downloaded APKs found. Run 'mise run download-apk' first."
+  exit 0
+fi
+
+for apk in "${apks[@]}"; do
+  version="$(basename "$(dirname "$apk")")"
+  out_dir="$(dirname "$apk")/jadx_out"
+  if [[ -d "$out_dir" ]]; then
+    echo "[$version] jadx output already exists, skipping"
+  else
+    echo "[$version] decompiling with jadx..."
+    jadx -d "$out_dir" "$apk" || true
+  fi
+done

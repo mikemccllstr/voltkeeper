@@ -1,5 +1,4 @@
 # ABOUTME: BLE encryption handshake — legacy + ECDH paths per FINDINGS §15.2 step 3 and §15.8.
-# ABOUTME: Unit 6 (pure helpers) and Unit 7b (state machine) per IMPLEMENTATION_UNITS.md.
 
 import asyncio
 import hashlib

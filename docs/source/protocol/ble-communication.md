@@ -1,8 +1,6 @@
 # BLE Communication
 
 This page covers the Bluetti device Bluetooth Low Energy (BLE) GATT service details, characteristic UUIDs, scan data patterns, and BLE advertising structure.
-<!-- Extracted from FINDINGS.md §5 and §15.1 -->
-
 ## 5. Bluetooth (BLE) Communication
 
 - BLE is used for local device pairing, provisioning, and control (when not on Wi-Fi)

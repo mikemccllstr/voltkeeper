@@ -1,5 +1,4 @@
 # ABOUTME: Profile validation — parse probe YAML, assess field sanity, report verdicts.
-# ABOUTME: Unit 12 per IMPLEMENTATION_UNITS.md.
 
 from __future__ import annotations
 
@@ -8,7 +7,7 @@ from typing import Literal
 
 import yaml
 
-from .bluetooth import _DEVICE_NAME_SN_RE, _device_registry
+from .bluetooth import _device_registry
 
 # ── Field verdiction ───────────────────────────────────────────────────
 
@@ -58,13 +57,14 @@ def validate_profile(yaml_path: str) -> list[FieldVerdict]:
 
     # ── Determine device class ──
     device = None
-    m = _DEVICE_NAME_SN_RE.match((name or "").strip())
-    if m:
-        prefix = m[1]
-        registry = _device_registry()
-        if prefix in registry:
-            sn = m[2]
-            device = registry[prefix]("", sn)
+    clean = (name or "").strip()
+    registry = _device_registry()
+    for prefix, cls in registry.items():
+        if clean.startswith(prefix):
+            suffix = clean[len(prefix) :]
+            if suffix.isdigit():
+                device = cls("", suffix)
+                break
 
     if device is None:
         return []  # unknown model — no field-level parsing possible

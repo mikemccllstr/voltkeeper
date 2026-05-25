@@ -19,6 +19,8 @@ from .v1_base import (
 class EB3A(V1Base):
     """EB3A small portable station. V1 protocol."""
 
+    protocol_version = 1019
+
     # Uses V1Base default ALARM_NAMES/FAULT_NAMES (ConnectConstants).
 
     WRITABLE_FIELD_NAMES = [

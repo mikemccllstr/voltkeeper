@@ -15,10 +15,20 @@ from .v1_base import (
     CTRL_AC_ECO_MODE,
     DC_ECO_POWER,
     DC_SWITCH,
+    ECO_AUTO_OFF,
     ECO_CONTROL,
     FEED_SWITCH,
     GRID_CHARGING_SWITCH,
     GRID_PLUS_MODE,
+    HIGH_POWER_SETTINGS,
+    LOW_POWER_SETTINGS,
+    MACHINE_ADDRESS,
+    MACHINE_MODE,
+    MAX_CHARGING_CURRENT_OF_GRID,
+    MAX_CHARGING_POWER,
+    MAX_DISCHARGE_POWER,
+    MAX_DISCHARGING_CURRENT,
+    MAX_PV_CHARGE_CURRENT,
     OUTPUT_VOLTAGE,
     POWER_LIFTING_MODE,
     PV_CONTROL,
@@ -26,6 +36,8 @@ from .v1_base import (
     SETTABLE_DATA,
     SYS_SWITCH_RECOVERY,
     SYSTEM_POWER_OFF,
+    SYSTEM_TIME,
+    WORKING_TIME,
     V1Base,
 )
 
@@ -54,12 +66,24 @@ class AC300(V1Base):
         "dc_eco_mode",
         "ac_eco_mode",
         "eco_off_time",
+        "eco_auto_off",
         "dc_eco_power",
         "ac_eco_power",
         "system_power_off",
         "factory_reset",
         "output_voltage",
         "sys_switch_recovery",
+        "machine_mode",
+        "machine_address",
+        "max_pv_charge_current",
+        "low_power_settings",
+        "high_power_settings",
+        "max_discharging_current",
+        "max_charging_current_of_grid",
+        "system_time",
+        "working_time",
+        "max_charging_power",
+        "max_discharge_power",
     ]
 
     def __init__(self, address: str, sn: str):
@@ -79,12 +103,24 @@ class AC300(V1Base):
         s.add_bool_field("dc_eco_mode", ECO_CONTROL)
         s.add_bool_field("ac_eco_mode", CTRL_AC_ECO_MODE)
         s.add_uint_field("eco_off_time", ECO_CONTROL + 1)
+        s.add_uint_field("eco_auto_off", ECO_AUTO_OFF)
         s.add_uint_field("dc_eco_power", DC_ECO_POWER)
         s.add_uint_field("ac_eco_power", AC_ECO_POWER)
         s.add_bool_field("system_power_off", SYSTEM_POWER_OFF)
         s.add_bool_field("factory_reset", SET_SYSTEM_FACTORY_RESET)
         s.add_uint_field("output_voltage", OUTPUT_VOLTAGE)
         s.add_bool_field("sys_switch_recovery", SYS_SWITCH_RECOVERY)
+        s.add_uint_field("machine_mode", MACHINE_MODE)
+        s.add_uint_field("machine_address", MACHINE_ADDRESS)
+        s.add_uint_field("max_pv_charge_current", MAX_PV_CHARGE_CURRENT)
+        s.add_uint_field("low_power_settings", LOW_POWER_SETTINGS)
+        s.add_uint_field("high_power_settings", HIGH_POWER_SETTINGS)
+        s.add_uint_field("max_discharging_current", MAX_DISCHARGING_CURRENT)
+        s.add_uint_field("max_charging_current_of_grid", MAX_CHARGING_CURRENT_OF_GRID)
+        s.add_uint32_field("system_time", SYSTEM_TIME)
+        s.add_uint_field("working_time", WORKING_TIME)
+        s.add_uint_field("max_charging_power", MAX_CHARGING_POWER)
+        s.add_uint_field("max_discharge_power", MAX_DISCHARGE_POWER)
 
     @property
     def control_commands(self) -> List[ReadHoldingRegisters]:

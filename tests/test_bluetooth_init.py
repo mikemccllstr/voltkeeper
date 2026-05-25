@@ -1,11 +1,11 @@
 # ABOUTME: Unit tests for voltkeeper.bluetooth module — registry dispatch, build_device, scan classification.
-# ABOUTME: Units 1, 3, and 7 per IMPLEMENTATION_UNITS.md.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from voltkeeper.bluetooth import (
+    _DEVICE_NAME_SN_RE,
     PREFIX_ENCRYPTED,
     PREFIX_PLAINTEXT,
     ScanResult,
@@ -116,3 +116,40 @@ class TestLookupScanResult:
             assert sr.address == addr
             assert sr.name == addr
             assert sr.encrypted is None
+
+
+class TestDeviceNameRegex:
+    def test_extracts_trailing_digits(self):
+        assert _DEVICE_NAME_SN_RE.search("AC2A2305000")[0] == "2305000"
+        assert _DEVICE_NAME_SN_RE.search("EB3A1234567")[0] == "1234567"
+        assert _DEVICE_NAME_SN_RE.search("AC200L2305000")[0] == "2305000"
+        assert _DEVICE_NAME_SN_RE.search("AC602305000")[0] == "602305000"
+
+    def test_short_serial_matches(self):
+        m = _DEVICE_NAME_SN_RE.search("EB3A1")
+        assert m is not None
+        assert m[0] == "1"
+
+        m = _DEVICE_NAME_SN_RE.search("AC2A12")
+        assert m is not None
+        assert m[0] == "12"
+
+    def test_new_model_sn_extraction(self):
+        assert _DEVICE_NAME_SN_RE.search("HB500S1234567890123")[0] == "1234567890123"
+        assert _DEVICE_NAME_SN_RE.search("BH500E1234567890123")[0] == "1234567890123"
+        assert _DEVICE_NAME_SN_RE.search("AORA100_MINI20250101001")[0] == "20250101001"
+        assert _DEVICE_NAME_SN_RE.search("AORA30_MINI123456789")[0] == "123456789"
+
+    def test_non_matching_strings(self):
+        assert _DEVICE_NAME_SN_RE.search("AA:BB:CC:DD:EE:FF") is None
+        assert _DEVICE_NAME_SN_RE.search("AC2A") is None  # no digits
+        assert _DEVICE_NAME_SN_RE.search("") is None
+
+    def test_new_models_build_device(self):
+        d = build_device("AA:BB:CC:DD:EE:FF", "AORA100_MINI20250101001")
+        assert d.type == "AORA100_MINI"
+        assert d.sn == "20250101001"
+
+        d = build_device("AA:BB:CC:DD:EE:FF", "HB500S1234567890123")
+        assert d.type == "HB500S"
+        assert d.sn == "1234567890123"

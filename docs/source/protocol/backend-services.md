@@ -2,8 +2,6 @@
 
 This page documents the Bluetti cloud backend infrastructure: environment switching, production and dev/test service URLs, the complete Retrofit API endpoint catalog across all microservices, and the MQTT broker details.
 
-<!-- Extracted from FINDINGS.md §2, §3, and §4 -->
-
 ## 2. Backend Infrastructure
 
 ### 2.1 Environment Switching
@@ -150,7 +148,7 @@ POST /api/blusmartprod/device/group/v1/parallel/create
 POST /api/blusmartprod/device/group/v1/parallel/sendParallelCmd
 POST /api/blusmartprod/device/group/v1/parallel/unbind
 GET  /api/blusmartprod/device/firmware/v1/latest/firmwareVerList/batch (v1/v2/v3)
-POST /api/blusmartprod/device/firmware/v1/appSentDeviceRemoteUpgrade
+POST /api/blusmartprod/device/firmware/v2/appSentDeviceRemoteUpgrade
 POST /api/blusmartprod/device/firmware/v1/aeccSentDeviceRemoteUpgrade
 GET  /api/blusmartprod/device/model/v1/detail (v1/v2)
 GET  /api/blusmartprod/device/model/v1/category
@@ -163,6 +161,8 @@ POST /api/blusmartprod/device/scene/v2/createScene
 POST /api/blusmartprod/device/scene/v1/sceneAddDevice
 POST /api/blusmartprod/device/scene/v1/sceneUnbindDevice
 POST /api/blusmartprod/device/upgrade/record/v1/save
+POST /api/blusmartprod/device/accessories/v1/deviceAddAccessories
+POST /api/blusmartprod/device/accessories/v1/removeDeviceAccessories
 POST /api/blusmartprod/user/space/v1/createSpace
 GET  /api/blusmartprod/user/space/v1/getSpaceDeviceList
 POST /api/blusmartprod/user/space/v1/spaceAddDevice
@@ -188,6 +188,7 @@ GET  /api/bluiotdata/aecc/v1/getDevicePvDetailData
 GET  /api/bluiotdata/aecc/v1/getDeviceLoadDetailData
 GET  /api/bluiotdata/aecc/v1/getDeviceGridDetailData
 GET  /api/bluiotdata/aecc/v1/getDeviceAlarmList
+POST /api/bluiotdata/aecc/v1/getDeviceAlarmFlag
 GET  /api/bluiotdata/dashboard/v2/getDeviceEnergyStatistics
 GET  /api/bluiotdata/dashboard/v2/getDevicePowerStatistics
 GET  /api/bluiotdata/dashboard/v1/getElectricCostSaveStatistics
@@ -323,6 +324,7 @@ GET  /api/blufic/fic/app/distributor/v1/accountStats
 ```
 POST /api/bluinstp/app/order/v2/add
 GET  /api/bluinstp/app/order/v2/page
+DELETE /api/bluinstp/app/order/v1/delete
 GET  /api/bluinstp/app/device/v1/overview
 ```
 

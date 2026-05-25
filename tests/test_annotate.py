@@ -1,5 +1,4 @@
 # ABOUTME: Tests for annotate module — _diff, _load_or_init, _save.
-# ABOUTME: Unit 13 per IMPLEMENTATION_UNITS.md.
 
 import yaml
 

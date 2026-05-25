@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import copy
-import re
+
+from .bluetooth import _device_registry
 
 # These bytes round-trip through BcdSerialField.parse to "1234567890123",
 # which is the canonical synthetic SN used in tests/fixtures/ac2a_probe_real.yml.
@@ -23,19 +24,20 @@ SN_LOCATIONS: dict[str, tuple[int, int]] = {
     "INV_BASE_INFO": (14, 8),  # V2: register 1107, 4 regs (block addr 1100)
 }
 
-_NAME_SN_RE = re.compile(r"^([A-Z][A-Z0-9]+?)(\d{6,})$")
-
 
 def scrub_name(name: str) -> str:
     """Replace the numeric SN suffix of a BLE device name with the synthetic SN.
 
-    Falls through unchanged if *name* doesn't match the
-    ``<MODEL_PREFIX><digits>`` pattern.
+    Falls through unchanged if *name* doesn't match any registered
+    device prefix or has no trailing digits.
     """
-    m = _NAME_SN_RE.match(name)
-    if m is None:
-        return name
-    return m[1] + SYNTHETIC_SN_STR
+    clean = name.strip()
+    for prefix in _device_registry():
+        if clean.startswith(prefix):
+            suffix = clean[len(prefix) :]
+            if suffix.isdigit():
+                return prefix + SYNTHETIC_SN_STR
+    return name
 
 
 def scrub_raw_hex(block_name: str, raw_hex: str) -> str:
@@ -81,7 +83,10 @@ def split_model_sn(name: str) -> tuple[str, str] | None:
 
     Useful for displaying the real SN to the user before scrubbing for write.
     """
-    m = _NAME_SN_RE.match(name)
-    if m is None:
-        return None
-    return m[1], m[2]
+    clean = name.strip()
+    for prefix in _device_registry():
+        if clean.startswith(prefix):
+            suffix = clean[len(prefix) :]
+            if suffix.isdigit():
+                return prefix, suffix
+    return None

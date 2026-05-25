@@ -10,6 +10,8 @@ from ..commands import ReadHoldingRegisters
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
+    SYSTEM_TIME,
+    SYSTEM_TIME_ZONE,
     V2Base,
 )
 
@@ -29,6 +31,8 @@ class AC60(V2Base):
         "dc_output",
         "power_off",
         "dc_eco_mode",
+        "dc_eco_auto_off_time",
+        "dc_eco_power",
         "charging_mode",
         "power_lifting",
         "battery_range_start",
@@ -40,6 +44,9 @@ class AC60(V2Base):
         "factory_reset",
         "inv_voltage",
         "inv_freq",
+        "system_time",
+        "system_timezone",
+        "ctrl_led",
     ]
 
     def __init__(self, address: str, sn: str):
@@ -48,10 +55,15 @@ class AC60(V2Base):
 
     def _build_control_struct(self):
         s = self.control_struct
+        s.add_uint32_field("system_time", SYSTEM_TIME)
+        s.add_uint_field("system_timezone", SYSTEM_TIME_ZONE)
+        s.add_bool_field("ctrl_led", 2007)
         s.add_bool_field("ac_output", 2011)
         s.add_bool_field("dc_output", 2012)
         s.add_bool_field("power_off", 2013)
         s.add_bool_field("dc_eco_mode", 2014)
+        s.add_uint_field("dc_eco_auto_off_time", 2015)
+        s.add_uint_field("dc_eco_power", 2016)
         s.add_enum_field("charging_mode", 2020, ChargingMode)
         s.add_bool_field("power_lifting", 2021)
         s.add_uint_field("battery_range_start", 2022, range=(0, 100))

@@ -1,5 +1,4 @@
 # ABOUTME: Interactive annotate REPL — live polling, register-change detection, field-name prompts.
-# ABOUTME: Unit 13 per IMPLEMENTATION_UNITS.md.
 
 from __future__ import annotations
 

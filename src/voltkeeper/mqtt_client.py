@@ -384,6 +384,74 @@ NORMAL_DEVICE_FIELDS = {
             "unit_of_measurement": "%",
         },
     ),
+    "packVoltage": MqttFieldConfig(
+        type=MqttFieldType.NUMERIC,
+        setter=False,
+        advanced=True,
+        topic_name="pack_voltage",
+        home_assistant_extra={
+            "name": "Pack Voltage",
+            "unit_of_measurement": "V",
+            "device_class": "voltage",
+            "state_class": "measurement",
+        },
+    ),
+    "packCurrent": MqttFieldConfig(
+        type=MqttFieldType.NUMERIC,
+        setter=False,
+        advanced=True,
+        topic_name="pack_current",
+        home_assistant_extra={
+            "name": "Pack Current",
+            "unit_of_measurement": "A",
+            "device_class": "current",
+            "state_class": "measurement",
+        },
+    ),
+    "packSoc": MqttFieldConfig(
+        type=MqttFieldType.NUMERIC,
+        setter=False,
+        advanced=True,
+        topic_name="pack_soc",
+        home_assistant_extra={
+            "name": "Pack SOC",
+            "unit_of_measurement": "%",
+            "device_class": "battery",
+            "state_class": "measurement",
+        },
+    ),
+    "packTemperature": MqttFieldConfig(
+        type=MqttFieldType.NUMERIC,
+        setter=False,
+        advanced=True,
+        topic_name="pack_temperature",
+        home_assistant_extra={
+            "name": "Pack Temperature",
+            "unit_of_measurement": "\u00b0C",
+            "device_class": "temperature",
+            "state_class": "measurement",
+        },
+    ),
+    "ctrl_grid": MqttFieldConfig(
+        type=MqttFieldType.BOOL,
+        setter=True,
+        advanced=True,
+        topic_name="grid_on",
+        home_assistant_extra={
+            "name": "Grid Input",
+            "icon": "mdi:transmission-tower",
+        },
+    ),
+    "ctrl_feed": MqttFieldConfig(
+        type=MqttFieldType.BOOL,
+        setter=True,
+        advanced=True,
+        topic_name="feed_in_on",
+        home_assistant_extra={
+            "name": "Grid Feed-In",
+            "icon": "mdi:transmission-tower-export",
+        },
+    ),
 }
 
 CHARGING_STATUS_MAP = {0: "IDLE", 1: "CHARGING", 2: "DISCHARGING", 3: "FLOATING"}

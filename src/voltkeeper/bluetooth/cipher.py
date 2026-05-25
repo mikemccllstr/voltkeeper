@@ -1,6 +1,4 @@
 # ABOUTME: AES-128-CBC cipher with chained IV and zero-padding (no PKCS) for Bluetti BLE encryption.
-# ABOUTME: Unit 5 per IMPLEMENTATION_UNITS.md.
-#
 # Framing note: encrypt() zero-pads to a 16-byte boundary. decrypt() returns
 # the full block-aligned plaintext including any padding bytes — it does NOT
 # strip trailing zeros, because the Bluetti protocol carries plaintext bytes

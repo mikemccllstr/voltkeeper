@@ -1,5 +1,4 @@
-# ABOUTME: Registry and construction smoke tests for All models added in Unit 10.
-# ABOUTME: Unit 10 per IMPLEMENTATION_UNITS.md.
+# ABOUTME: Registry and construction smoke tests for all models.
 
 import pytest
 
@@ -15,7 +14,18 @@ ALL_PREFIXES = [
     "AC200L",
     "AC200PL",
     "AC200M",
+    "AORA100_MINI",
+    "AORA30_MINI",
+    "AORA200_MINI",
+    "HB500S",
+    "BH500E",
 ]
+
+_CLASS_NAME_TO_PREFIX = {
+    "Aora100Mini": "AORA100_MINI",
+    "Aora30Mini": "AORA30_MINI",
+    "Aora200Mini": "AORA200_MINI",
+}
 
 ALL_MODELS = [f"{pfx}2305000" for pfx in ALL_PREFIXES]
 
@@ -33,7 +43,8 @@ def test_registry_has_all_expected_prefixes():
     for prefix in ALL_PREFIXES:
         assert prefix in registry, f"Missing: {prefix}"
         cls = registry[prefix]
-        assert cls.__name__ == prefix, f"{prefix!r} maps to {cls.__name__}, not itself"
+        expected_name = _CLASS_NAME_TO_PREFIX.get(cls.__name__, cls.__name__)
+        assert expected_name == prefix, f"{prefix!r} maps to {cls.__name__}, not itself"
 
 
 def test_v2_models_protocol_version():
@@ -46,7 +57,7 @@ def test_v2_models_protocol_version():
         assert d.protocol_version == 2000, f"{cls.__name__} should be V2"
 
 
-def test_v1_models_are_v1():
+def test_v1_models_protocol_version():
     from voltkeeper.core.devices.ac200l import AC200L
     from voltkeeper.core.devices.ac200m import AC200M
     from voltkeeper.core.devices.ac200pl import AC200PL
@@ -54,9 +65,17 @@ def test_v1_models_are_v1():
     from voltkeeper.core.devices.ac500 import AC500
     from voltkeeper.core.devices.eb3a import EB3A
 
-    for cls in (AC200L, AC200M, AC200PL, AC300, AC500, EB3A):
+    expected = {
+        AC200L: 1022,
+        AC200M: 1016,
+        AC200PL: 1022,
+        AC300: 0,
+        AC500: 0,
+        EB3A: 1019,
+    }
+    for cls, ver in expected.items():
         d = cls("AA:BB:CC:DD:EE:FF", "1234567")
-        assert d.protocol_version == 0, f"{cls.__name__} should be V1"
+        assert d.protocol_version == ver, f"{cls.__name__} should be V1 (ver={ver})"
 
 
 def test_v1_model_has_writable_control_struct():
@@ -209,3 +228,86 @@ def test_build_setter_command_v2():
     cmd = d.build_setter_command("charging_mode", "SILENT")
     assert cmd.address == 2020
     assert cmd.value == 2
+
+
+def test_ac200l_control_struct_has_new_fields():
+    from voltkeeper.core.devices.ac200l import AC200L
+
+    d = AC200L("AA:BB:CC:DD:EE:FF", "1234567")
+    fields = {f.name: f for f in d.control_struct.fields}
+
+    assert "system_time" in fields
+    assert fields["system_time"].address == 3031
+
+    assert "max_charging_power" in fields
+    assert fields["max_charging_power"].address == 3057
+
+    assert "max_discharge_power" in fields
+    assert fields["max_discharge_power"].address == 3058
+
+    assert "eco_auto_off" in fields
+    assert fields["eco_auto_off"].address == 3064
+
+    assert d.has_field_setter("system_time")
+    assert d.has_field_setter("max_charging_power")
+    assert d.has_field_setter("max_discharge_power")
+
+
+def test_ac2a_control_struct_has_new_fields():
+    from voltkeeper.core.devices.ac2a import AC2A
+
+    d = AC2A("AA:BB:CC:DD:EE:FF", "1234567")
+    fields = {f.name: f for f in d.control_struct.fields}
+
+    assert "ctrl_grid" in fields
+    assert fields["ctrl_grid"].address == 2207
+
+    assert "ctrl_feed" in fields
+    assert fields["ctrl_feed"].address == 2208
+
+    assert "system_time" in fields
+    assert fields["system_time"].address == 2001
+
+    assert d.has_field_setter("ctrl_grid")
+    assert d.has_field_setter("ctrl_feed")
+
+
+def test_ac2a_writable_ranges():
+    from voltkeeper.core.devices.ac2a import AC2A
+
+    d = AC2A("AA:BB:CC:DD:EE:FF", "1234567")
+    ranges = d.writable_ranges
+
+    assert any(2001 in r for r in ranges), "2001 not in writable ranges"
+    assert any(2026 in r for r in ranges), "2026 not in writable ranges"
+    assert any(2207 in r for r in ranges), "2207 not in writable ranges"
+    assert any(2216 in r for r in ranges), "2216 not in writable ranges"
+
+
+def test_build_device_aora_mini():
+    d = build_device("AA:BB:CC:DD:EE:FF", "AORA100_MINI12345")
+    assert d.type == "AORA100_MINI"
+    assert d.sn == "12345"
+
+
+def test_build_device_hb500s():
+    d = build_device("AA:BB:CC:DD:EE:FF", "HB500S1234567890123")
+    assert d.type == "HB500S"
+    assert d.sn == "1234567890123"
+
+
+def test_build_device_bh500e():
+    d = build_device("AA:BB:CC:DD:EE:FF", "BH500E1234567890123")
+    assert d.type == "BH500E"
+    assert d.sn == "1234567890123"
+
+
+def test_battery_pack_base_no_inverter_blocks():
+    from voltkeeper.core.devices.battery_packs import BatteryPackBase
+
+    d = BatteryPackBase("AA:BB:CC:DD:EE:FF", "TEST", "0")
+    assert not hasattr(d, "inv_base_struct")
+    assert not hasattr(d, "inv_pv_struct")
+    assert not hasattr(d, "inv_grid_struct")
+    assert not hasattr(d, "inv_load_struct")
+    assert not hasattr(d, "inv_inv_struct")
