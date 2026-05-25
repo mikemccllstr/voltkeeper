@@ -2,8 +2,6 @@
 
 This page covers the protocol version thresholds that define device model generations, the device model catalog (120 models as of APK v3.0.9), and AC2A-specific details as the reference implementation model.
 
-<!-- Extracted from FINDINGS.md §15.4 and §15.10 -->
-
 ## 15.4 Protocol Version Thresholds
 
 | Version | Changes |

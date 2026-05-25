@@ -1,5 +1,4 @@
 # ABOUTME: Test parse_btsnoop.py against synthetic btsnoop_hci.log captures.
-# ABOUTME: Unit 14 per IMPLEMENTATION_UNITS.md.
 
 import struct
 import subprocess

@@ -1,6 +1,4 @@
 # ABOUTME: Generic V1-protocol base device class — register blocks, structs, parse dispatch.
-# ABOUTME: Unit 9 per IMPLEMENTATION_UNITS.md.
-#
 # V1 devices are always plaintext (no BLE encryption). Per FINDINGS §15.4 as of
 # APK 3.0.8, isBLEEncrypted / isESP32Encrypted are false for all V1 models
 # (protocolVer < 2000). Subclasses added in Unit 10 rely on this.
@@ -52,7 +50,7 @@ OUTPUT_VOLTAGE = 3079
 SYS_SWITCH_RECOVERY = 3090
 
 # ── V1Base default alarm/fault tables are ConnectConstants (V1 high-power)
-# ── per IMPLEMENTATION_UNITS.md Unit 10b. Subclasses with isLowPower=true
+# ── Subclasses with isLowPower=true
 # ── override to _v1_alarm_tables.LOW_POWER_* in their class body.
 
 

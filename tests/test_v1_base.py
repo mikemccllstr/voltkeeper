@@ -1,5 +1,4 @@
 # ABOUTME: Synthetic fixture tests for V1Base register parsing per FINDINGS §15.6.
-# ABOUTME: Unit 9 per IMPLEMENTATION_UNITS.md.
 
 from voltkeeper.core.devices.v1_base import BASE_REAL_DATA, V1Base
 

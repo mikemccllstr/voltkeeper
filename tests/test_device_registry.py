@@ -1,5 +1,4 @@
-# ABOUTME: Registry and construction smoke tests for All models added in Unit 10.
-# ABOUTME: Unit 10 per IMPLEMENTATION_UNITS.md.
+# ABOUTME: Registry and construction smoke tests for all models.
 
 import pytest
 

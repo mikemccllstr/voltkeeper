@@ -1,5 +1,4 @@
 # ABOUTME: Generic V2-protocol base device class — register blocks, structs, parse dispatch.
-# ABOUTME: Unit 8 per IMPLEMENTATION_UNITS.md.
 
 from typing import Any, List
 

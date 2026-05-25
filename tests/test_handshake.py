@@ -1,5 +1,4 @@
 # ABOUTME: Unit tests for BLE encryption handshake — legacy and ECDH paths per FINDINGS §15.2/§15.8.
-# ABOUTME: Unit 6 per IMPLEMENTATION_UNITS.md.
 
 import pytest
 from cryptography.exceptions import InvalidSignature

@@ -1,5 +1,4 @@
 # ABOUTME: Unit tests for voltkeeper.bluetooth module — registry dispatch, build_device, scan classification.
-# ABOUTME: Units 1, 3, and 7 per IMPLEMENTATION_UNITS.md.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

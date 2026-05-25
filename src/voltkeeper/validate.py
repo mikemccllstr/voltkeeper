@@ -1,5 +1,4 @@
 # ABOUTME: Profile validation — parse probe YAML, assess field sanity, report verdicts.
-# ABOUTME: Unit 12 per IMPLEMENTATION_UNITS.md.
 
 from __future__ import annotations
 

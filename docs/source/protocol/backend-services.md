@@ -2,8 +2,6 @@
 
 This page documents the Bluetti cloud backend infrastructure: environment switching, production and dev/test service URLs, the complete Retrofit API endpoint catalog across all microservices, and the MQTT broker details.
 
-<!-- Extracted from FINDINGS.md §2, §3, and §4 -->
-
 ## 2. Backend Infrastructure
 
 ### 2.1 Environment Switching

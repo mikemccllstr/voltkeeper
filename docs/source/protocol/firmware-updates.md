@@ -2,8 +2,6 @@
 
 This page documents the complete firmware update flow for Bluetti devices: version checking, download (encrypted and unencrypted), BLE local OTA transfer, cloud/remote MQTT-triggered upgrades, broadcast upgrades to multiple sub-devices, upgrade ordering strategies, and server-side upgrade record reporting.
 
-<!-- Extracted from FINDINGS.md §11 -->
-
 ## 11. Firmware Update Flow — Complete Reference
 
 Source files: `DeviceUpgradeBaseActivity.java`, `DeviceVersionModel.java`, `DeviceVersionRepository.java`, `FirmwareDownloadViewModel.java`, `FirmwareDownloadRepository.java`, `FirmwareUpgradeConfig.java`, `FirmwareUpgradeOrder.java`, `FmUpgradeStrategy.java`, `DeviceFmVer.java`, `DeviceSoftwareVerResp.java`, `FirmwareVerReq.java`, `FirmwareVerItemBean.java`, `DeviceFirmware.java`, `ProtocolParse.java`, `ConnectManager.java`, `OTAGroup.java`, `UpgradeStatus.java`, `SmartProductService.java`, `DeviceConnUtilKt.java`, `OtaUtil.java` (both `lib_ble` and app copy), `DeviceUpgradeBroadcastBean.java`, `BootUpgradeSupport.java`, `DeviceNodeOTAStatusItem.java`, `FirmwareDetection.java`.

@@ -2,8 +2,6 @@
 
 This page covers the Bluetti BLE encryption protocols: the legacy challenge-response handshake, ECDH+ECDSA mutual authentication (protocol v2), the Bluetooth password PIN mechanism, and the complete cryptographic material.
 
-<!-- Extracted from FINDINGS.md §12, §15.2, and §15.8 -->
-
 ## Section 12 — BLE Encryption Key Retrieval
 
 ### 12.1 Overview

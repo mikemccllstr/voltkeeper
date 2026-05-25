@@ -1,5 +1,4 @@
 # ABOUTME: Tests for probe module — YAML round-trip, protocol detection, registry shortcut.
-# ABOUTME: Unit 11 per IMPLEMENTATION_UNITS.md.
 
 from unittest.mock import AsyncMock, patch
 

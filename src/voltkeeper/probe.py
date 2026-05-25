@@ -1,5 +1,4 @@
 # ABOUTME: Active register sweep for Bluetti devices — protocol detection, YAML profile emission.
-# ABOUTME: Unit 11 per IMPLEMENTATION_UNITS.md.
 
 from __future__ import annotations
 

@@ -2,8 +2,6 @@
 
 This page documents the complete Modbus register maps for both V1 and V2 protocols, including register addresses, field layout tables, real-time data parsing indices, base config parsing, and the TLV protocol format introduced in APK v3.0.9.
 
-<!-- Extracted from FINDINGS.md §15.3, §15.5, §15.6, §15.7, and §15.9; V2 register map from ProtocolAddrV2 in APK v3.0.9 -->
-
 ## 15.3 Modbus Frame Construction
 
 All Modbus frames use **slave address 1** (`01`).

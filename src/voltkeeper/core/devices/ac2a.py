@@ -1,5 +1,4 @@
 # ABOUTME: AC2A device definition — V2 register map, inherits from V2Base with custom array helpers.
-# ABOUTME: Unit 8 per IMPLEMENTATION_UNITS.md.
 
 from enum import Enum, unique
 from typing import List

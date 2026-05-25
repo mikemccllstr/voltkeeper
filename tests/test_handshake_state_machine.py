@@ -1,5 +1,4 @@
 # ABOUTME: Unit tests for BLE encryption handshake state machine — mock-driven BLE I/O.
-# ABOUTME: Unit 7b per IMPLEMENTATION_UNITS.md.
 
 import asyncio
 from unittest.mock import patch

@@ -1,5 +1,4 @@
 # ABOUTME: Test that BluetoothClient.connect runs handshake when encrypted=True.
-# ABOUTME: Unit 7b per IMPLEMENTATION_UNITS.md.
 
 from unittest.mock import AsyncMock, patch
 
