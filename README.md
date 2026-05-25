@@ -7,6 +7,8 @@
 
 PC-based tooling for Bluetti power stations that replaces the official mobile app: scan, connect, and control your equipment locally. No cloud account required.
 
+> **Not affiliated with or endorsed by Bluetti.** Built by reverse-engineering the official Android app for interoperability research purposes.
+
 ## Why voltkeeper?
 
 - **Local-first, offline control** — talk directly to your power station(s) over Bluetooth. No internet connection, no cloud account, no vendor API.

@@ -67,7 +67,3 @@ decisions, reviewed every change, and verified behavior against real hardware.
 - The firmware update flow supports BLE local transfer, cloud-triggered MQTT
   over-the-air, and broadcast upgrades to multiple sub-devices simultaneously.
 
-## License
-
-MIT — not affiliated with or endorsed by Bluetti. The APK decompilation was
-performed for interoperability research purposes.
