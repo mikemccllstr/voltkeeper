@@ -1,7 +1,3 @@
-# voltkeeper
-
-CLI tool for Bluetti power stations — scan, connect, and control over local BLE. No cloud account required.
-
 ```{toctree}
 :maxdepth: 1
 :caption: User Guide
@@ -42,10 +38,13 @@ about/index
 api/index
 ```
 
-See the [project README](https://github.com/mikemccllstr/voltkeeper) for installation and requirements. For command reference, see the [User Guide](user-guide/index.md).
-
 ```{toctree}
+:maxdepth: 1
+:caption: Manual Pages
 :hidden:
 
 man/voltkeeper.1
+```
+
+```{include} ../../README.md
 ```
