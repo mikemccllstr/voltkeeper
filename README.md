@@ -20,13 +20,11 @@ PC-based tooling for Bluetti power stations that replaces the official mobile ap
 
 ## Why **NOT** voltkeeper?
 
-:::{danger}
-This application is currently **pre-ALPHA** quality.
+> ⚠️⚠️ **WARNING** This application is currently **pre-ALPHA** quality.
 
 - Most of the code was written by a [clanker](https://en.wikipedia.org/wiki/Clanker) (AI-based coding agents).
 - We figured out how to control Bluetti devices by reverse-engineering the official mobile app, but there is no official documentation to work from.
 - This tool has only been tested by a single user, on a single AC2A device. I bought the AC2A for less than $150, and the test load is a $15 box fan.
-  :::
 
 Your use of this app is at your own risk. If you doubt me, see the [LICENSE](https://github.com/mikemccllstr/voltkeeper/blob/main/LICENSE) file, which reads in part:
 
@@ -40,13 +38,13 @@ Your use of this app is at your own risk. If you doubt me, see the [LICENSE](htt
 
 If you have an expensive Bluetti device, connected to expensive battery packs, supplying critical loads, that keep people alive (or maybe just happy), maybe you should avoid being first in line to test this new thing I told a clanker to create.
 
-## Still reading?
+## How this got built
 
 My name is Mike McCallister. I'm a US-based IT guy who likes Python, Linux, and Home Assistant. I have several decades of experience with everything from microcontrollers to global enterprise technology. I am interested in solar, EVs, batteries, and electrical power, but I have a very modest understanding of these topics.
 
-I currently own a Bluetti AC2A, and I "needed" (wanted) a way to control it from a PC instead of a mobile phone. My initial needs were simple: I wanted to be able to cleanly shut down a Linux PC when tbe Bluetti device that was powering it began to run low on juice.
+I currently own a Bluetti AC2A, and I "needed" (wanted) a way to control it from a PC instead of a mobile phone. My initial needs were simple: I wanted to be able to cleanly shut down a Linux PC when the Bluetti device that was powering it began to run low on juice.
 
-I looked around on the internet and didn't find anything that quite fit my needs. Since 2026 is the first calendar year after the inflection point where AI coding agents (clankers) began to make software creation both easy and difficult in new ways, I thought this would be a good way to experiment and see whether the could solve my Bluetti-control problem in a way I found useful.
+I looked around on the internet and didn't find anything that quite fit my needs. Since 2026 is the first calendar year after the inflection point where AI coding agents (clankers) began to make software creation both easy and difficult in new ways, I thought this would be a good way to experiment and see whether they could solve my Bluetti-control problem in a way I found useful.
 
 Since the early experiment was successful, I began to get more excited about the possibilities. Using clankers like Claude Code (expensive) and DeepSeek via OpenCode (really cheap) helps me create seemingly well-engineered software quickly, without all the typing. I can ask the robot to do research while I sleep that would take me hours. I can "code" from my phone using a SSH session into a remote machine, answering questions to keep the clanker chugging while I do other things. I can make mistakes or poor choices and tell the robot to fix them just as easily.
 
@@ -62,7 +60,7 @@ voltkeeper status                        # auto-detects device, shows battery SO
 voltkeeper write AA:BB:CC:DD:EE:FF ac_output on   # toggle AC output
 ```
 
-If this works, you know its fundamentally working. If you run into an error with the steps above, let's troubleshoot before you move on to experimenting wtih daemon mode or integrations.
+If this works, you know it's fundamentally working. If you run into an error with the steps above, let's troubleshoot before you move on to experimenting with daemon mode or integrations.
 
 ## Capabilities
 
@@ -94,7 +92,7 @@ On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or `s
 
 - **Bluetti AC2A:** seemingly works successfully for the author, one user.
 
-Devices not listed tested above have not been tested. If you are feeling adventurous, please consider testinsg your device and letting us know how it goes.
+Devices not listed above have not been tested. If you are feeling adventurous, please consider testing your device and letting us know how it goes.
 
 ## Install
 
