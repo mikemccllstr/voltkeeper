@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voltkeeper Dashboard</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117; --card-bg: #1a1d27; --accent: #4ade80;
+  --accent-dim: #22c55e; --warn: #fbbf24; --danger: #ef4444;
+  --text: #e2e8f0; --text-dim: #94a3b8; --border: #2d3140;
+  --online: #4ade80; --missing: #f97316; --new: #38bdf8;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+header h1 { font-size: 1.5rem; font-weight: 600; }
+header .status-bar { font-size: 0.85rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.5rem; }
+header .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--missing); }
+header .status-dot.connected { background: var(--online); }
+main { padding: 1.5rem 2rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; cursor: pointer; transition: border-color 0.2s, transform 0.1s; }
+.card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+.card-name { font-weight: 600; font-size: 1.1rem; }
+.card-type { font-size: 0.8rem; color: var(--text-dim); }
+.card-status { font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.card-status.online { background: var(--online); color: #000; }
+.card-status.missing { background: var(--missing); color: #000; }
+.card-status.new { background: var(--new); color: #000; }
+.card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.card-stat { text-align: center; }
+.card-stat-value { font-size: 1.5rem; font-weight: 700; }
+.card-stat-value.soc { color: var(--accent); }
+.card-stat-label { font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.card-footer { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem; }
+.empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-dim); }
+.empty-state h2 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+/* Detail Panel */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; display: flex; align-items: center; justify-content: center; }
+.overlay.hidden { display: none; }
+.detail { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; padding: 1.5rem; }
+.detail h2 { margin-bottom: 1rem; }
+.detail .close { float: right; background: none; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer; }
+.detail .close:hover { color: var(--text); }
+.detail-group { margin-bottom: 1.25rem; }
+.detail-group h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+.detail-row { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.9rem; }
+.detail-row .label { color: var(--text-dim); }
+.control-row { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; }
+.toggle { position: relative; width: 48px; height: 26px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 26px; transition: 0.2s; }
+.toggle .slider::before { content: ''; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px; background: var(--text); border-radius: 50%; transition: 0.2s; }
+.toggle input:checked + .slider { background: var(--accent); }
+.toggle input:checked + .slider::before { transform: translateX(22px); background: #000; }
+select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.75rem; font-size: 0.85rem; cursor: pointer; }
+button { background: var(--accent); color: #000; border: none; border-radius: 6px; padding: 0.4rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+button:hover { background: var(--accent-dim); }
+.btn-sm { padding: 0.25rem 0.75rem; font-size: 0.75rem; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+/* Auth prompt */
+.auth-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.auth-overlay.hidden { display: none; }
+.auth-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; text-align: center; max-width: 400px; width: 90%; }
+.auth-box h2 { margin-bottom: 0.5rem; }
+.auth-box p { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1rem; }
+.auth-box input { width: 100%; padding: 0.6rem 0.75rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; margin-bottom: 1rem; }
+/* Responsive */
+@media (max-width: 640px) {
+  header { padding: 1rem; }
+  main { padding: 1rem; }
+  .grid { grid-template-columns: 1fr; }
+  .card-body { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="auth" class="auth-overlay">
+  <div class="auth-box">
+    <h2>Voltkeeper Dashboard</h2>
+    <p>Enter the API key from your voltkeeperd config file.</p>
+    <input type="password" id="api-key-input" placeholder="API Key" autofocus>
+    <br>
+    <button onclick="saveApiKey()">Connect</button>
+  </div>
+</div>
+
+<header>
+  <h1>Voltkeeper</h1>
+  <div class="status-bar">
+    <span class="status-dot" id="ws-dot"></span>
+    <span id="ws-status">Disconnected</span>
+    &middot;
+    <span id="device-count">0 devices</span>
+  </div>
+</header>
+
+<main>
+  <div class="grid" id="device-grid"></div>
+  <div class="empty-state" id="empty-state">
+    <h2>No devices found</h2>
+    <p>Add devices to your voltkeeperd config file and restart the daemon.</p>
+  </div>
+</main>
+
+<div id="detail-overlay" class="overlay hidden">
+  <div class="detail" id="detail-content"></div>
+</div>
+
+<script>
+let apiKey = '';
+let ws = null;
+let devices = {};
+
+// -- Auth --
+function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) return;
+  apiKey = key;
+  localStorage.setItem('vk_api_key', key);
+  document.getElementById('auth').classList.add('hidden');
+  connect();
+}
+
+function loadApiKey() {
+  const stored = localStorage.getItem('vk_api_key');
+  if (stored) {
+    apiKey = stored;
+    document.getElementById('auth').classList.add('hidden');
+    connect();
+  }
+}
+
+// -- HTTP helpers --
+async function apiGet(path) {
+  const resp = await fetch(path, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+async function apiPost(path, body) {
+  const resp = await fetch(path, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+// -- WebSocket --
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => {
+    document.getElementById('ws-dot').classList.add('connected');
+    document.getElementById('ws-status').textContent = 'Connected';
+    fetchDevices();
+  };
+
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === 'state_update') {
+      updateDeviceState(msg.device, msg.state);
+    } else if (msg.type === 'device_status') {
+      updateDeviceStatus(msg.device, msg.status);
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('ws-dot').classList.remove('connected');
+    document.getElementById('ws-status').textContent = 'Disconnected';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => { ws.close(); };
+}
+
+// -- Data --
+async function fetchDevices() {
+  try {
+    const list = await apiGet('/api/devices');
+    devices = {};
+    list.forEach(d => {
+      devices[d.address] = {
+        address: d.address,
+        name: d.name || d.address,
+        type: d.type || 'Unknown',
+        status: d.status,
+        encrypted: d.encrypted,
+        sn: d.sn,
+        summary: d.summary || {},
+        lastHeard: d.last_heard || null,
+      };
+    });
+    render();
+  } catch (e) {
+    console.error('Failed to fetch devices:', e);
+  }
+}
+
+function updateDeviceState(address, state) {
+  if (!devices[address]) return;
+  devices[address].summary = state;
+  renderCard(address);
+}
+
+function updateDeviceStatus(address, status) {
+  if (devices[address]) {
+    devices[address].status = status;
+  } else {
+    devices[address] = {
+      address, name: address, type: 'Unknown',
+      status, encrypted: false, summary: {},
+    };
+  }
+  renderCard(address);
+}
+
+// -- Rendering --
+function render() {
+  const grid = document.getElementById('device-grid');
+  const empty = document.getElementById('empty-state');
+  const addrs = Object.keys(devices);
+
+  document.getElementById('device-count').textContent = `${addrs.length} device${addrs.length !== 1 ? 's' : ''}`;
+
+  if (addrs.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  addrs.forEach(addr => renderCard(addr));
+}
+
+function renderCard(address) {
+  const d = devices[address];
+  if (!d) return;
+  const s = d.summary;
+
+  let card = document.getElementById(`card-${address.replace(/:/g, '')}`);
+  if (!card) {
+    card = document.createElement('div');
+    card.className = 'card';
+    card.id = `card-${address.replace(/:/g, '')}`;
+    card.onclick = () => showDetail(address);
+    document.getElementById('device-grid').appendChild(card);
+  }
+
+  const soc = s.soc != null ? Math.round(s.soc) : '--';
+  const voltage = s.voltage != null ? s.voltage.toFixed(1) : '--';
+  const acPower = s.ac_output_power != null ? Math.round(s.ac_output_power) : '--';
+  const dcPower = s.dc_output_power != null ? Math.round(s.dc_output_power) : '--';
+  const ago = d.lastHeard ? formatTimeAgo(d.lastHeard) : null;
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div>
+        <div class="card-name">${escapeHtml(d.name)}</div>
+        <div class="card-type">${escapeHtml(d.type)}${d.sn ? ' &middot; ' + escapeHtml(d.sn) : ''}</div>
+      </div>
+      <span class="card-status ${d.status}">${d.status.toUpperCase()}</span>
+    </div>
+    <div class="card-body">
+      <div class="card-stat">
+        <div class="card-stat-value soc">${soc}%</div>
+        <div class="card-stat-label">Battery</div>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat-value">${voltage}V</div>
+        <div class="card-stat-label">Voltage</div>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat-value">${acPower}W</div>
+        <div class="card-stat-label">AC Output</div>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat-value">${dcPower}W</div>
+        <div class="card-stat-label">DC Output</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      ${ago ? '<span style="color:var(--text-dim);font-size:0.72rem" title="' + d.lastHeard + '">' + ago + '</span>' : ''}
+      ${d.status === 'new' ? '<button class="btn-sm" onclick="event.stopPropagation(); addToConfig(\'' + escapeAttr(address) + '\')">Add to config</button>' : ''}
+      ${d.status === 'missing' ? '<span style="color:var(--text-dim);font-size:0.8rem">Not in range</span>' : ''}
+    </div>
+  `;
+}
+
+// -- Detail view --
+async function showDetail(address) {
+  const overlay = document.getElementById('detail-overlay');
+  const content = document.getElementById('detail-content');
+
+  try {
+    const data = await apiGet(`/api/device/${address}`);
+    renderDetail(address, data);
+  } catch (e) {
+    const local = devices[address];
+    if (local) renderDetail(address, { ...local.summary, _status: local.status, address, name: local.name, type: local.type });
+  }
+
+  overlay.classList.remove('hidden');
+}
+
+function renderDetail(address, data) {
+  const content = document.getElementById('detail-content');
+  const status = data._status || 'unknown';
+  const controls = buildControls(address, data);
+
+  let html = `
+    <button class="close" onclick="closeDetail()">&times;</button>
+    <h2>${escapeHtml(data.name || address)}</h2>
+    <div style="color:var(--text-dim);margin-bottom:1rem;font-size:0.85rem">${escapeHtml(data.type || 'Unknown')} &middot; <span class="card-status ${status}">${status.toUpperCase()}</span></div>
+  `;
+
+  const groups = {
+    'Battery': ['packTotalSoc', 'packTotalVoltage', 'packTotalCurrent', 'packChargingStatus'],
+    'AC Output': ['acOutputPower', 'acOutputVoltage', 'acOutputFrequency'],
+    'DC Output': ['dcOutputPower', 'dcOutputVoltage'],
+    'PV Input': ['pvChargingPower'],
+    'Grid': ['gridInputPower', 'gridFrequency'],
+  };
+
+  for (const [group, fields] of Object.entries(groups)) {
+    let hasData = false;
+    let rows = '';
+    fields.forEach(f => {
+      if (data[f] != null) {
+        hasData = true;
+        rows += `<div class="detail-row"><span class="label">${formatFieldName(f)}</span><span>${formatValue(f, data[f])}</span></div>`;
+      }
+    });
+    if (hasData) html += `<div class="detail-group"><h3>${group}</h3>${rows}</div>`;
+  }
+
+  if (controls) html += controls;
+
+  content.innerHTML = html;
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').classList.add('hidden');
+}
+
+// -- Controls --
+function buildControls(address, data) {
+  const writableFields = ['ac_output', 'dc_output', 'dc_eco_mode', 'ac_eco_mode', 'power_lifting', 'charging_mode'];
+  let html = '<div class="detail-group"><h3>Controls</h3>';
+
+  let hasAny = false;
+
+  writableFields.forEach(field => {
+    const val = data[field];
+    if (val === undefined || val === null) return;
+
+    if (field === 'charging_mode') {
+      hasAny = true;
+      const modes = { 0: 'Standard', 1: 'Turbo', 2: 'Silent' };
+      html += `<div class="control-row"><span>${formatFieldName(field)}</span>
+        <select onchange="sendCommand('${escapeAttr(address)}', '${field}', this.value)">
+          ${Object.entries(modes).map(([k, v]) => `<option value="${k}" ${String(val) === k ? 'selected' : ''}>${v}</option>`).join('')}
+        </select></div>`;
+    } else if (typeof val === 'boolean' || val === 0 || val === 1) {
+      hasAny = true;
+      const checked = val === true || val === 1;
+      html += `<div class="control-row"><span>${formatFieldName(field)}</span>
+        <label class="toggle" onclick="event.stopPropagation()">
+          <input type="checkbox" ${checked ? 'checked' : ''} onchange="sendCommand('${escapeAttr(address)}', '${field}', this.checked)">
+          <span class="slider"></span>
+        </label></div>`;
+    }
+  });
+
+  html += '</div>';
+  return hasAny ? html : '';
+}
+
+async function sendCommand(address, field, value) {
+  try {
+    await apiPost(`/api/device/${address}/command`, { field, value });
+  } catch (e) {
+    alert(`Command failed: ${e.message}`);
+  }
+}
+
+// -- Helpers --
+function formatFieldName(f) {
+  return f.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+}
+
+function formatTimeAgo(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 5) return 'just now';
+  if (diff < 60) return `${Math.round(diff)}s ago`;
+  if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
+  return `${Math.round(diff / 86400)}d ago`;
+}
+
+function formatValue(field, val) {
+  if (field === 'packTotalSoc') return `${Math.round(val)} %`;
+  if (field.includes('Voltage')) return `${Number(val).toFixed(1)} V`;
+  if (field.includes('Current')) return `${Number(val).toFixed(1)} A`;
+  if (field.includes('Power')) return `${Math.round(val)} W`;
+  if (field.includes('Frequency')) return `${Number(val).toFixed(1)} Hz`;
+  if (field.includes('Energy')) return `${Number(val).toFixed(2)} kWh`;
+  if (typeof val === 'boolean') return val ? 'ON' : 'OFF';
+  if (field === 'charging_mode') return { 0: 'Standard', 1: 'Turbo', 2: 'Silent' }[val] || val;
+  return val;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function addToConfig(address) {
+  alert(`Add this device to your voltkeeperd config.yaml:\n\ndevices:\n  - address: "${address}"`);
+}
+
+// -- Init --
+document.getElementById('detail-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeDetail();
+});
+loadApiKey();
+</script>
+</body>
+</html>

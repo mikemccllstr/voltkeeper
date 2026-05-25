@@ -2,6 +2,7 @@
 
 import asyncio
 import getpass
+import json
 import shutil
 import sys
 
@@ -19,6 +20,7 @@ from .bluetooth import (
 )
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
+from .config import load_config
 from .core.commands import ReadHoldingRegisters
 from .probe import emit_yaml, probe_device
 from .validate import validate_profile
@@ -129,12 +131,23 @@ def scan(timeout):
     help="Display all available device information (power meters, energy totals, "
     "PV strings, grid, loads, temperatures, software versions, etc.).",
 )
-def status(address, timeout, verbose):
+@click.option(
+    "--daemon",
+    type=str,
+    default=None,
+    help="Query the voltkeeperd daemon at this URL instead of connecting directly via BLE "
+    "(e.g. http://localhost:8080 or just 'localhost').",
+)
+def status(address, timeout, verbose, daemon):
     """Read battery SOC and pack data from a Bluetti device.
 
     If ADDRESS is not provided, scans for nearby Bluetti devices and
     lets you pick one interactively.
     """
+    if daemon:
+        _status_via_daemon(daemon, address, verbose)
+        return
+
     if not address:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -496,7 +509,13 @@ def _print_verbose(
 @click.argument("address")
 @click.argument("field")
 @click.argument("value")
-def write(address, field, value):
+@click.option(
+    "--daemon",
+    type=str,
+    default=None,
+    help="Send command through voltkeeperd daemon at this URL instead of BLE directly.",
+)
+def write(address, field, value, daemon):
     """Write a register on a Bluetti device.
 
     \b
@@ -507,6 +526,10 @@ def write(address, field, value):
 
       voltkeeper write AA:BB:CC:DD:EE:FF charging_mode turbo
     """
+    if daemon:
+        _write_via_daemon(daemon, address, field, value)
+        return
+
     address = address.upper()
 
     loop = asyncio.new_event_loop()
@@ -1242,6 +1265,259 @@ def validate_profile_cmd(yaml_path: str) -> None:
             click.secho(line, fg="yellow")
         else:
             click.secho(line, fg="red", bold=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Daemon management
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@cli.group()
+def daemon():
+    """Manage the voltkeeperd daemon process."""
+
+
+@daemon.command("start")
+def daemon_start():
+    """Start the voltkeeperd daemon.
+
+    Run voltkeeperd in the foreground. For production use, set up
+    a systemd service unit.
+    """
+    from .daemon import main as daemon_main
+
+    click.echo("Starting voltkeeperd...")
+    daemon_main()
+
+
+@daemon.command("status")
+@click.option(
+    "--daemon-url",
+    type=str,
+    default=None,
+    help="URL of the running daemon (default: http://localhost:8080).",
+)
+def daemon_status(daemon_url):
+    """Show status of the voltkeeperd daemon and connected devices."""
+    url = _resolve_daemon_url(daemon_url or "localhost")
+
+    from urllib.error import URLError
+    from urllib.request import Request, urlopen
+
+    api_key = _discover_api_key()
+
+    req = Request(f"{url}/api/devices")
+    if api_key:
+        req.add_header("Authorization", f"Bearer {api_key}")
+
+    try:
+        with urlopen(req, timeout=5) as resp:
+            if resp.status == 401:
+                click.secho("Error: Unauthorized. Check API key in voltkeeperd config.", fg="red")
+                return
+            data = json.loads(resp.read().decode())
+    except URLError as e:
+        click.secho(f"Error: Could not connect to daemon at {url}: {e}", fg="red")
+        return
+    except Exception as e:
+        click.secho(f"Error: {e}", fg="red")
+        return
+
+    if not data:
+        click.echo("Daemon is running but no devices are configured or in range.")
+        return
+
+    label = click.style(str(len(data)), fg="cyan", bold=True)
+    click.echo(f"\n{label} device(s):\n")
+    for d in data:
+        soc = d.get("summary", {}).get("soc", "--")
+        status_color = {"online": "green", "missing": "yellow", "new": "blue"}.get(d["status"], "white")
+        line = f"  [{click.style(d['status'].upper(), fg=status_color)}] {d['address']}"
+        if d.get("name"):
+            line += f"  {d['name']}"
+        if d.get("type"):
+            line += f"  ({d['type']})"
+        if soc != "--":
+            line += f"  SOC: {round(soc)}%"
+        click.echo(line)
+    click.echo()
+
+
+@daemon.command("stop")
+@click.option(
+    "--daemon-url",
+    type=str,
+    default=None,
+    help="URL of the running daemon (default: http://localhost:8080).",
+)
+def daemon_stop(daemon_url):
+    """Stop the running voltkeeperd daemon."""
+
+    url = _resolve_daemon_url(daemon_url or "localhost")
+    click.echo(f"Attempting to stop daemon at {url}...")
+    click.echo("(Stop the daemon directly with Ctrl+C if running in foreground, or via systemd)")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Daemon-mode helpers
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _resolve_daemon_url(raw: str) -> str:
+    raw = raw.strip()
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw.rstrip("/")
+    return f"http://{raw.rstrip('/')}:8080"
+
+
+def _discover_api_key() -> str | None:
+    try:
+        config = load_config()
+        return config.server.api_key
+    except SystemExit:
+        return None
+
+
+def _status_via_daemon(raw_url: str, address: str | None, verbose: bool) -> None:
+    url = _resolve_daemon_url(raw_url)
+    api_key = _discover_api_key()
+
+    import json as _json
+    from urllib.error import URLError
+    from urllib.request import Request, urlopen
+
+    if address:
+        req = Request(f"{url}/api/device/{address.upper()}")
+        if api_key:
+            req.add_header("Authorization", f"Bearer {api_key}")
+        try:
+            with urlopen(req, timeout=10) as resp:
+                if resp.status == 404:
+                    click.secho(f"Device {address.upper()} not found on daemon.", fg="red")
+                    return
+                if resp.status == 401:
+                    click.secho("Unauthorized. Check API key in voltkeeperd config.", fg="red")
+                    return
+                data = _json.loads(resp.read().decode())
+        except URLError as e:
+            click.secho(f"Error connecting to daemon at {url}: {e}", fg="red")
+            return
+    else:
+        req = Request(f"{url}/api/devices")
+        if api_key:
+            req.add_header("Authorization", f"Bearer {api_key}")
+        try:
+            with urlopen(req, timeout=10) as resp:
+                devices = _json.loads(resp.read().decode())
+        except URLError as e:
+            click.secho(f"Error connecting to daemon at {url}: {e}", fg="red")
+            return
+
+        if not devices:
+            click.echo("No devices configured on daemon.")
+            return
+
+        if len(devices) == 1:
+            address = devices[0]["address"]
+        else:
+            click.echo(f"{len(devices)} devices found on daemon:\n")
+            for i, d in enumerate(devices, 1):
+                click.echo(f"  [{i}] {d['address']}  {d.get('name', '')}  ({d.get('type', '?')})  [{d['status']}]")
+            click.echo()
+            try:
+                choice = input("Select device number: ").strip()
+                idx = int(choice) - 1
+                if 0 <= idx < len(devices):
+                    address = devices[idx]["address"]
+                else:
+                    click.secho("Invalid selection.", fg="red")
+                    return
+            except (ValueError, EOFError, KeyboardInterrupt):
+                return
+
+        req = Request(f"{url}/api/device/{address}")
+        if api_key:
+            req.add_header("Authorization", f"Bearer {api_key}")
+        try:
+            with urlopen(req, timeout=10) as resp:
+                data = _json.loads(resp.read().decode())
+        except URLError as e:
+            click.secho(f"Error connecting to daemon: {e}", fg="red")
+            return
+
+    status = data.pop("_status", "unknown")
+    device_type = data.pop("type", "?")
+    name = data.pop("name", address)
+    del data["address"]
+
+    click.echo()
+    click.secho(f"{name} ({device_type})", bold=True)
+    click.echo("  Status: ", nl=False)
+    status_color = {"online": "green", "missing": "yellow", "new": "blue"}.get(status, "white")
+    click.secho(status.upper(), fg=status_color)
+
+    if not data:
+        click.echo("  (no state data available)")
+        return
+
+    soc = data.pop("packTotalSoc", None)
+    if soc is not None:
+        click.echo(f"  Battery: {round(soc)}%")
+
+    for key, value in data.items():
+        if isinstance(value, float):
+            click.echo(f"  {key}: {value:.1f}")
+        elif value is not None:
+            click.echo(f"  {key}: {value}")
+
+
+def _write_via_daemon(raw_url: str, address: str, field: str, value: str) -> None:
+    url = _resolve_daemon_url(raw_url)
+    api_key = _discover_api_key()
+
+    import json as _json
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
+
+    parsed_value = _parse_field_value(field, value)
+
+    body = _json.dumps({"field": field, "value": parsed_value}).encode()
+    req = Request(f"{url}/api/device/{address.upper()}/command", data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    if api_key:
+        req.add_header("Authorization", f"Bearer {api_key}")
+
+    try:
+        with urlopen(req, timeout=10) as resp:
+            data = _json.loads(resp.read().decode())
+            if data.get("accepted"):
+                click.echo(f"Command sent: {field} = {parsed_value}")
+            else:
+                click.secho(f"Command rejected: {data}", fg="yellow")
+    except HTTPError as e:
+        body_data = e.read().decode() if e.fp else str(e)
+        click.secho(f"Error: {e.code} - {body_data}", fg="red")
+    except URLError as e:
+        click.secho(f"Error connecting to daemon at {url}: {e}", fg="red")
+
+
+def _parse_field_value(field: str, value: str):
+    lower = value.lower()
+    if lower == "on" or lower == "true":
+        return True
+    if lower == "off" or lower == "false":
+        return False
+    if lower == "toggle":
+        return "toggle"
+    if lower in ("standard", "turbo", "silent"):
+        return {"standard": 0, "turbo": 1, "silent": 2}[lower]
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value
 
 
 if __name__ == "__main__":

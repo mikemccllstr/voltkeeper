@@ -39,6 +39,7 @@ voltkeeper write AA:BB:CC:DD:EE:FF ac_output on   # toggle AC output
 | `annotate` | Live-poll and interactively label register fields |
 | `mqtt-publish-service` | Generate systemd unit file for MQTT publishing |
 | `mqtt-listen-service` | Generate systemd unit file for MQTT listen watchdog |
+| `daemon` | Start/manage a persistent background service with HTTP API and Web UI |
 
 See the [User Guide](https://mikemccllstr.github.io/voltkeeper/user-guide/) for full command reference, or run `voltkeeper <command> --help`.
 
@@ -69,6 +70,71 @@ uv run voltkeeper --help
 - Bluetooth adapter with scan capability
 
 On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or `sudo`). Encrypted Bluetti devices (AES-CBC over BLE) are supported — the handshake is handled automatically.
+
+## Daemon (long-running service)
+
+For monitoring multiple devices simultaneously, a persistent Web UI, or avoiding repeated BLE scans, run `voltkeeperd` as a background service.
+
+**Config file** — create `~/.config/voltkeeper/config.yaml`:
+
+```yaml
+server:
+  api_key: "your-secret-key"
+
+devices:
+  - address: "AA:BB:CC:DD:EE:FF"
+    name: "Living Room AC2A"
+
+scan:
+  interval: 60       # seconds between reconciliation scans
+  timeout: 10.0      # BLE scan timeout
+```
+
+Config is searched in order: `./voltkeeper.yaml`, `~/.config/voltkeeper/config.yaml`, `/etc/voltkeeper/config.yaml`.
+
+**Start the daemon:**
+
+```bash
+voltkeeper daemon start          # runs in foreground
+```
+
+**Query the daemon from the CLI:**
+
+```bash
+voltkeeper status --daemon localhost           # show all devices
+voltkeeper status AA:BB:CC:DD:EE:FF --daemon localhost   # single device detail
+voltkeeper write AA:BB:CC:DD:EE:FF ac_output on --daemon localhost
+```
+
+**Web UI** — open `http://localhost:8080` in a browser. Enter your API key when prompted.
+
+**Systemd unit** (for production use):
+
+```ini
+[Unit]
+Description=voltkeeperd
+After=bluetooth.target network.target
+
+[Service]
+ExecStart=/usr/bin/voltkeeperd
+Restart=always
+RestartSec=30
+User=your-user
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Save as `/etc/systemd/system/voltkeeperd.service`, then `systemctl enable --now voltkeeperd`.
+
+The daemon can also be secured with network ACLs by adding to `server.allowed_networks`:
+
+```yaml
+server:
+  api_key: "your-secret-key"
+  allowed_networks: ["192.168.1.0/24", "127.0.0.0/8"]
+```
 
 ## Links
 

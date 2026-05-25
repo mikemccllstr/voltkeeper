@@ -40,6 +40,7 @@ dependencies = [
     "aiomqtt>=2.0",
     "pyyaml>=6.0",
     "watchdog>=6.0",
+    "aiohttp>=3.13",
 ]
 
 [project.urls]
@@ -48,9 +49,11 @@ Issues = "https://github.com/mikemccllstr/voltkeeper/issues"
 
 [project.scripts]
 voltkeeper = "voltkeeper.cli:cli"
+voltkeeperd = "voltkeeper.daemon:main"
 
 [project.entry-points."pipx.run"]
 voltkeeper = "voltkeeper.cli:cli"
+voltkeeperd = "voltkeeper.daemon:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
