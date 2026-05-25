@@ -90,10 +90,17 @@ async def _rate_limit_middleware(request: web.Request, handler) -> web.StreamRes
             store[remote] = (count + 1, window_start)
         else:
             store[remote] = (1, now)
+            _evict_stale(store, now)
     else:
         store[remote] = (1, now)
 
     return await handler(request)
+
+
+def _evict_stale(store: dict, now: float) -> None:
+    stale = [ip for ip, (_, ws) in store.items() if now - ws >= _RATE_LIMIT_WINDOW]
+    for ip in stale:
+        del store[ip]
 
 
 @web.middleware
@@ -225,21 +232,24 @@ async def _handle_websocket(request: web.Request) -> web.WebSocketResponse:
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
-    for ds in device_manager.get_statuses():
-        state = store.get(ds.address)
-        await ws.send_json(
-            _to_serializable(
-                {
-                    "type": "device_status",
-                    "device": ds.address,
-                    "status": ds.status,
-                    "name": ds.name,
-                    "device_type": ds.device_type,
-                }
+    try:
+        for ds in device_manager.get_statuses():
+            state = store.get(ds.address)
+            await ws.send_json(
+                _to_serializable(
+                    {
+                        "type": "device_status",
+                        "device": ds.address,
+                        "status": ds.status,
+                        "name": ds.name,
+                        "device_type": ds.device_type,
+                    }
+                )
             )
-        )
-        if state:
-            await ws.send_json(_to_serializable({"type": "state_update", "device": ds.address, "state": state}))
+            if state:
+                await ws.send_json(_to_serializable({"type": "state_update", "device": ds.address, "state": state}))
+    except Exception:
+        return ws
 
     async def on_parser_message(msg):
         if ws.closed:

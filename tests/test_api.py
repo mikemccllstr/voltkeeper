@@ -6,7 +6,7 @@ import aiohttp
 import pytest
 from aiohttp import web
 
-from voltkeeper.api import create_app
+from voltkeeper.api import _RATE_LIMIT_WINDOW, _RATE_STORE_KEY, create_app
 from voltkeeper.bus import EventBus
 from voltkeeper.config import Config, DeviceEntry, ServerConfig
 from voltkeeper.core.devices.ac2a import AC2A
@@ -398,8 +398,53 @@ class TestWebSocket:
 
         asyncio.run(_run())
 
+    def test_websocket_listener_removed_on_close(self, app, config, bus):
+        async def _run():
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/ws?token={config.server.api_key}"
+                initial_listener_count = len(bus.parser_listeners)
+                async with aiohttp.ClientSession() as session:
+                    async with session.ws_connect(url) as _ws:
+                        assert len(bus.parser_listeners) == initial_listener_count + 1
+                # After close the listener must be removed
+                assert len(bus.parser_listeners) == initial_listener_count
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
 
 class TestRateLimit:
+    def test_stale_entries_evicted_on_window_reset(self, bus, store, unused_tcp_port):
+        import time
+
+        config = Config(server=ServerConfig(api_key="key", port=unused_tcp_port), devices=[])
+
+        async def _run():
+            dm = DeviceManager(config, bus)
+            app = create_app(config, bus, store, dm)
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                rate_store = app[_RATE_STORE_KEY]
+                stale_ts = time.monotonic() - _RATE_LIMIT_WINDOW - 1
+
+                # Inject a stale entry and an expired entry for the real client IP
+                rate_store["10.0.0.99"] = (5, stale_ts)
+                rate_store["127.0.0.1"] = (1, stale_ts)
+
+                url = f"http://127.0.0.1:{unused_tcp_port}/api/devices"
+                async with aiohttp.ClientSession() as session:
+                    # Request resets 127.0.0.1 window → should evict 10.0.0.99
+                    async with session.get(url, headers={"Authorization": "Bearer key"}) as resp:
+                        assert resp.status == 200
+
+                assert "10.0.0.99" not in rate_store
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
     def test_exceeding_rate_limit_returns_429(self, bus, store, unused_tcp_port):
         from voltkeeper.api import _RATE_LIMIT_MAX
 

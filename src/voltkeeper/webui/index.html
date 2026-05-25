@@ -175,7 +175,9 @@ function connect() {
   ws.onclose = () => {
     document.getElementById('ws-dot').classList.remove('connected');
     document.getElementById('ws-status').textContent = 'Disconnected';
-    setTimeout(connect, 3000);
+    if (apiKey) {
+      setTimeout(connect, 3000);
+    }
   };
 
   ws.onerror = () => { ws.close(); };
