@@ -42,11 +42,13 @@ description = "Run tests and open HTML coverage report"
 run = "uv run pytest && open htmlcov/index.html"
 
 [tasks.check]
-description = "Run all quality checks (lint + typecheck + test)"
+description = "Run all quality checks (lint + typecheck + test + docs)"
 run = [
     "uv run ruff check src/ tests/",
     "uv run mypy src/voltkeeper",
     "uv run pytest",
+    "uv run sphinx-lint docs/ README.md",
+    "uv run mdformat docs/ README.md --wrap=keep --check",
 ]
 
 [tasks.test-all]

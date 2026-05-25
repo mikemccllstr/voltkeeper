@@ -6,8 +6,6 @@ Findings from reverse-engineering the Bluetti Android APK (v3.0.9).
 **Version:** 3.0.9 (versionCode 1415)
 **Decompiled with:** apktool 2.7.0, jadx 1.5.5
 
-## Sections
-
 ```{toctree}
 ---
 hidden:

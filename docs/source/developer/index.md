@@ -24,9 +24,9 @@ uv sync --group dev
 mise run setup
 ```
 
-Installs dependencies, then sets up pre-commit hooks (lint, format, typecheck) that
-run automatically on every commit. The CI will catch it if you skip this step, but
-you'll save yourself a round-trip.
+Installs dependencies, then sets up pre-commit hooks (lint, format, typecheck, docs
+lint, docs format) that run automatically on every commit. The CI will catch it if
+you skip this step, but you'll save yourself a round-trip.
 
 ## Architecture
 
@@ -52,25 +52,22 @@ All work follows test-driven development. The full quality gate is:
 mise run check
 ```
 
-This runs lint, typecheck, and tests. Individual checks:
+This runs lint, typecheck, tests, and doc checks. Individual tasks:
 
-| Task                    | What it runs                                      |
-| ----------------------- | ------------------------------------------------- |
-| `mise run lint`         | Ruff linter                                       |
-| `mise run typecheck`    | Mypy type checker                                 |
-| `mise run test`         | Pytest with branch coverage                       |
-| `mise run test-fast`    | Pytest without coverage overhead                  |
-| `mise run format`       | Ruff formatter (applies changes)                  |
-| `mise run setup`        | Install pre-commit hooks (run once after cloning) |
-| `mise run format-check` | Ruff formatter (check only)                       |
-
-## Building documentation
-
-```bash
-mise run docs
-```
-
-Builds both HTML and man page output from the Sphinx source tree.
+| Task                         | What it runs                                      |
+| ---------------------------- | ------------------------------------------------- |
+| `mise run lint`              | Ruff linter                                       |
+| `mise run typecheck`         | Mypy type checker                                 |
+| `mise run test`              | Pytest with branch coverage                       |
+| `mise run test-fast`         | Pytest without coverage overhead                  |
+| `mise run format`            | Ruff formatter (applies changes)                  |
+| `mise run format-check`      | Ruff formatter (check only)                       |
+| `mise run setup`             | Install pre-commit hooks (run once after cloning) |
+| `mise run docs`              | Build HTML and man page output                    |
+| `mise run docs-lint`         | sphinx-lint check                                 |
+| `mise run docs-format`       | mdformat (applies changes)                        |
+| `mise run docs-format-check` | mdformat (check only)                             |
+| `mise run docs-serve`        | Build and serve docs at http://127.0.0.1:3000     |
 
 ## Commit style
 
