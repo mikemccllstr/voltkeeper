@@ -1,12 +1,11 @@
 # Bluetti Android APK — Reverse Engineering Findings
 
-**APK file:** `bluetti-files/bluetti.apk` (retrieved and decompiled automatically — see below)
 **Package:** `net.poweroak.bluetticloud`
-**Version:** 3.0.8 (versionCode 1371)
+**Latest version analyzed:** 3.0.9 (versionCode 1415)
 **Min SDK:** 26 (Android 8.0 Oreo)
 **Target SDK:** 35 (Android 15)
 **Compiled SDK:** 35
-**Decompiled with:** apktool 2.7.0, jadx 1.5.5 (44 of 22,913 classes failed to decompile)
+**Decompiled with:** apktool 2.7.0, jadx 1.5.5 (44 of 23,012 classes failed to decompile)
 
 ### Automated Setup (mise tasks)
 
@@ -16,17 +15,27 @@ The APK download and decompilation is fully automated via [mise](https://mise.en
 mise install          # installs java + jadx (also runs `mise install` for existing python/ruff/uv)
 ```
 
-Then use any of these tasks (all run under `bash`):
+Each APK version is stored in its own subdirectory under `bluetti-files/`:
+
+```
+bluetti-files/
+  BLUETTI-v3.0.9.apk/
+    bluetti.apk       # the downloaded APK
+    jadx_out/          # jadx-decompiled Java sources
+    apktool_out/       # apktool-disassembled Smali + resources
+```
+
+Available tasks (all run under `bash`):
 
 | Task | Command | Description |
 |------|---------|-------------|
-| `download-apk` | `mise run download-apk` | Fetches the APK URL from the download page's JavaScript (mimicking browser behavior) and downloads the latest APK. Idempotent — skips if already current; warns if a newer version is available. |
-| `decompile-jadx` | `mise run decompile-jadx` | Decompiles the APK to Java sources with jadx. Output: `bluetti-files/jadx_out/`. Skips if output already exists. |
-| `decompile-apktool` | `mise run decompile-apktool` | Disassembles the APK with apktool (Smali, resources, manifest). Output: `bluetti-files/apktool_out/`. Skips if output already exists. |
-| `prepare-all` | `mise run prepare-all` | Runs both decompile tasks (in parallel). |
+| `download-apk` | `mise run download-apk` | Fetches the APK URL from the download page's JavaScript (mimicking browser behavior) and downloads the latest APK to a versioned subdirectory. Idempotent — skips if that version is already downloaded. |
+| `decompile-jadx` | `mise run decompile-jadx` | Decompiles all downloaded APK versions that haven't been decompiled yet with jadx. Self-heals jadx binary permissions if needed. |
+| `decompile-apktool` | `mise run decompile-apktool` | Disassembles all downloaded APK versions that haven't been disassembled yet with apktool (Smali, resources, manifest). |
+| `prepare-all` | `mise run prepare-all` | Downloads the latest APK, then runs both decompile tasks on all versions. |
 | `cleanup` | `mise run cleanup` | Removes the entire `bluetti-files/` directory. |
 
-Typical workflow: `mise run prepare-all` to download and decompile everything, then `mise run cleanup` when you want a fresh start.
+Typical workflow: `mise run prepare-all` to download and decompile everything, then `mise run cleanup` when you want a fresh start. Multiple versions are kept and decompiled side-by-side for comparison.
 
 The download script (`scripts/download-apk.mjs`) dynamically extracts the APK URL from the page's JavaScript, so it adapts if Bluetti changes their server URLs or credentials.
 
@@ -34,7 +43,7 @@ The download script (`scripts/download-apk.mjs`) dynamically extracts the APK UR
 
 ## 1. Permissions
 
-The app declares 34 permissions. Notable ones:
+The app declares 32 permissions (v3.0.9; was 34 in v3.0.8). Notable ones:
 
 | Permission | Purpose / Risk |
 |---|---|
@@ -45,7 +54,7 @@ The app declares 34 permissions. Notable ones:
 | `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_STATE` | Cloud connectivity |
 | `FOREGROUND_SERVICE` | Background Bluetooth/MQTT service |
 | `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `SCHEDULE_EXACT_ALARM` | Keep IoT connection alive |
-| `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` | Media access for community posts |
+| `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` | Media access for community posts **(removed in v3.0.9)** |
 | `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE` | File access (legacy) |
 | `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `VIBRATE` | Push notifications |
 | `READ_LOGS` | **Sensitive** — reads system log buffer |
@@ -55,7 +64,7 @@ The app declares 34 permissions. Notable ones:
 | `com.google.android.gms.permission.AD_ID` | Google advertising ID |
 | `ACCESS_ADSERVICES_AD_ID`, `ACCESS_ADSERVICES_ATTRIBUTION` | Android Privacy Sandbox ad attribution |
 
-**Component counts:** 382 Activities, 17 Services, 13 Broadcast Receivers, 5 Content Providers.
+**Component counts:** 387 Activities, 17 Services, 13 Broadcast Receivers, 5 Content Providers.
 
 ---
 
