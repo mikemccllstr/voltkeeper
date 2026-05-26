@@ -45,9 +45,9 @@
 
 ## 7. mDNS Advertising
 
-- [ ] 7.1 Add `MdnsAdvertiser` class (or module-level functions) in a new `src/voltkeeper/mdns.py` using `python-zeroconf`; advertises `voltkeeper-{hostname}._http._tcp.local.` on the configured port
-- [ ] 7.2 Integrate mDNS startup into `Daemon._run()`: start `MdnsAdvertiser` when `config.server.mdns` is true and host is non-loopback; shut it down cleanly in `_shutdown()`
-- [ ] 7.3 Write unit tests for `MdnsAdvertiser` — verify service name format, verify not started when host is loopback
+- [x] 7.1 Add `MdnsAdvertiser` class (or module-level functions) in a new `src/voltkeeper/mdns.py` using `python-zeroconf`; advertises `voltkeeper-{hostname}._http._tcp.local.` on the configured port
+- [x] 7.2 Integrate mDNS startup into `Daemon._run()`: start `MdnsAdvertiser` when `config.server.mdns` is true and host is non-loopback; shut it down cleanly in `_shutdown()`
+- [x] 7.3 Write unit tests for `MdnsAdvertiser` — verify service name format, verify not started when host is loopback
 
 ## 8. Docs Update
 

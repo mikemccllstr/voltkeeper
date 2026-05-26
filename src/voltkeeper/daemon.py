@@ -16,6 +16,7 @@ from .api import create_app
 from .bus import EventBus
 from .config import Config, load_config
 from .device_manager import DeviceManager
+from .mdns import MdnsAdvertiser
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,10 @@ class Daemon:
         )
         self._runner: web.AppRunner | None = None
         self._tasks: list[asyncio.Task] = []
+        self._mdns: MdnsAdvertiser | None = None
+        if self._config.server.mdns and not _is_loopback(self._config.server.host):
+            self._mdns = MdnsAdvertiser(host=self._config.server.host, port=self._config.server.port)
+            self._mdns.start()
 
     def run(self) -> None:
         asyncio.run(self._run())
@@ -81,6 +86,9 @@ class Daemon:
     async def _shutdown(self) -> None:
         logger.info("voltkeeperd shutting down...")
 
+        if self._mdns:
+            self._mdns.stop()
+
         await self._device_manager.shutdown()
 
         for task in self._tasks:
@@ -92,6 +100,15 @@ class Daemon:
             await self._runner.cleanup()
 
         logger.info("voltkeeperd stopped")
+
+
+def _is_loopback(host: str) -> bool:
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _get_interface_ip(interface: str) -> str:
