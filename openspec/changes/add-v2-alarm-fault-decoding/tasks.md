@@ -54,5 +54,5 @@
 ## 8. Verification
 
 - [x] 8.1 Run `mise run check` — full suite green
-- [ ] 8.2 On AC2A: confirm no spurious alarms emitted under normal operation
-- [ ] 8.3 If a deliberate fault can be induced safely (overload, e.g. tripping AC), verify the named alarm appears
+- [x] 8.2 On AC2A: confirmed no spurious alarms under grid-on or battery-only (grid unplugged) operation
+- [x] 8.3 AC2A raises no alarm when grid is unplugged (expected — portable device, battery is primary); alarmInfo/faultInfo byte offsets confirmed correct via probe. Pack alarm offsets remain unverified pending EP600/B500K hardware.

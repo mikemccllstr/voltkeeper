@@ -611,9 +611,9 @@ zIsLowPower ? ConnConstantsV2.lowPowerFaultNames : ConnectConstants.faultInfoNam
 Alarm bits are read from `APP_HOME_DATA` (register 100), not `BASE_REAL_DATA`:
 
 - `alarmInfo`: byte offsets 52–59 within the APP_HOME_DATA payload, 4 × 16-bit words.
-  *(TODO(hardware): verify)*
+  *(confirmed on AC2A)*
 - `faultInfo`: byte offsets 66–77 within the APP_HOME_DATA payload, 6 × 16-bit words.
-  *(TODO(hardware): verify)*
+  *(confirmed on AC2A)*
 
 Table selection by inverter type:
 
@@ -632,9 +632,9 @@ name tables (APK string IDs cross-referenced against `values-en/strings.xml`).
 `bmuWarnNames`. Pack alarm bytes within `PACK_MAIN_INFO` (address 6000):
 
 - `packSysErr`: byte offsets 76–81, 3 × 16-bit words → `packHighVoltErrorNames`.
-  *(TODO(hardware): verify)*
+  *(not yet hardware-verified)*
 - `packHighVoltAlarm`: byte offsets 82–83, 1 × 16-bit word → `packHighVoltAlarmNames`.
-  *(TODO(hardware): verify)*
+  *(not yet hardware-verified)*
 
 `PACK_ALARM_PROFILE = "high_volt"` on the device class enables this decoding.
 

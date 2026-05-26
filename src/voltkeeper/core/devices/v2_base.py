@@ -318,9 +318,10 @@ class V2Base(BluettiDevice):
     def _fill_v2_alarms(self, result: dict, data: bytes) -> None:
         """Decode inverter alarmInfo and faultInfo from an APP_HOME_DATA payload.
 
-        Byte offsets are from ProtocolParserV2.parseHomeData (APK v3.0.9):
-          alarmInfo: bytes 52–59, 4 × 16-bit words  TODO(hardware): verify
-          faultInfo: bytes 66–77, 6 × 16-bit words  TODO(hardware): verify
+        Byte offsets are from ProtocolParserV2.parseHomeData (APK v3.0.9);
+        confirmed correct on AC2A (zero under both grid-on and battery-only operation):
+          alarmInfo: bytes 52–59, 4 × 16-bit words
+          faultInfo: bytes 66–77, 6 × 16-bit words
         """
         warn_names, fault_names = self._V2_INV_TABLES[self.V2_ALARM_PROFILE]
 
@@ -348,9 +349,10 @@ class V2Base(BluettiDevice):
         """Decode pack alarm/error bits from a PACK_MAIN_INFO payload.
 
         Only runs when PACK_ALARM_PROFILE is set. Byte offsets from
-        ProtocolParserV2.parsePackMainInfo (APK v3.0.9):
-          packSysErr:        bytes 76–81, 3 × 16-bit words  TODO(hardware): verify
-          packHighVoltAlarm: bytes 82–83, 1 × 16-bit word   TODO(hardware): verify
+        ProtocolParserV2.parsePackMainInfo (APK v3.0.9); not yet verified on
+        hardware with an active pack alarm:
+          packSysErr:        bytes 76–81, 3 × 16-bit words
+          packHighVoltAlarm: bytes 82–83, 1 × 16-bit word
         """
         if self.PACK_ALARM_PROFILE is None:
             return

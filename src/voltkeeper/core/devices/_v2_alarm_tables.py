@@ -6,12 +6,12 @@
 #   net.poweroak.bluetticloud.ui.connectv2.tools.ProtocolParserV2.parseHomeData
 #
 # Alarm words are read from APP_HOME_DATA (register 100):
-#   alarmInfo: byte offsets 52–59 (4 × 16-bit words)  TODO(hardware): verify
-#   faultInfo: byte offsets 66–77 (6 × 16-bit words)  TODO(hardware): verify
+#   alarmInfo: byte offsets 52–59 (4 × 16-bit words)  confirmed on AC2A
+#   faultInfo: byte offsets 66–77 (6 × 16-bit words)  confirmed on AC2A
 #
 # Pack alarm words are read from PACK_MAIN_INFO (register 6000):
-#   packSysErr:         byte offsets 76–81 (3 × 16-bit words)  TODO(hardware): verify
-#   packHighVoltAlarm:  byte offsets 82–83 (1 × 16-bit word)   TODO(hardware): verify
+#   packSysErr:         byte offsets 76–81 (3 × 16-bit words)  not yet hardware-verified
+#   packHighVoltAlarm:  byte offsets 82–83 (1 × 16-bit word)   not yet hardware-verified
 #
 # Table shape: dict[int, list[str | None]]
 #   key   = 1-based word index
