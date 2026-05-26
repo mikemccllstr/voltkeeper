@@ -51,8 +51,8 @@
 
 ## 8. Docs Update
 
-- [ ] 8.1 Rewrite `docs/source/user-guide/daemon.md` around the install-first workflow: `daemon install`, `daemon install --lan`, how to reach the Web UI, `daemon stop`, how to uninstall
-- [ ] 8.2 Add a section to `daemon.md` explaining `voltkeeperd` vs `voltkeeper daemon` (binary for ExecStart vs CLI management group)
-- [ ] 8.3 Add a note to `daemon.md` on the BLE exclusivity conflict: stop the daemon before running direct BLE commands (`load-test`, direct `status`, etc.)
-- [ ] 8.4 Update `docs/source/user-guide/systemd.md`: remove the hand-written unit file example for the main daemon (replaced by `daemon install`); keep the `mqtt-publish-service` and `mqtt-listen-service` sections; add a note on system-level install as the advanced path
-- [ ] 8.5 Run `mise run docs-lint` and `mise run docs-format-check` and fix any issues
+- [x] 8.1 Rewrite `docs/source/user-guide/daemon.md` around the install-first workflow: `daemon install`, `daemon install --lan`, how to reach the Web UI, `daemon stop`, how to uninstall
+- [x] 8.2 Add a section to `daemon.md` explaining `voltkeeperd` vs `voltkeeper daemon` (binary for ExecStart vs CLI management group)
+- [x] 8.3 Add a note to `daemon.md` on the BLE exclusivity conflict: stop the daemon before running direct BLE commands (`load-test`, direct `status`, etc.)
+- [x] 8.4 Update `docs/source/user-guide/systemd.md`: remove the hand-written unit file example for the main daemon (replaced by `daemon install`); keep the `mqtt-publish-service` and `mqtt-listen-service` sections; add a note on system-level install as the advanced path
+- [x] 8.5 Run `mise run docs-lint` and `mise run docs-format-check` and fix any issues
