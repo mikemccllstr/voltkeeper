@@ -3,9 +3,9 @@
 # ABOUTME: TODO(hardware): verify against physical device.
 
 from enum import Enum, unique
-from typing import Any, List
+from typing import List
 
-from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, WorkingMode, WriteSingleRegister
+from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, SystemPowerOff, WorkingMode
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
@@ -13,6 +13,7 @@ from .v2_base import (
     SLEEP_POWER_THRESHOLD,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
+    V1_UPS_MODE,
     WORKING_MODE,
     V2Base,
 )
@@ -40,8 +41,10 @@ class EL400(V2Base):
         s.add_bool_field("ctrl_led", 2007)
         s.add_bool_field("ac_output", 2011)
         s.add_bool_field("dc_output", 2012)
-        s.add_bool_field("power_off", 2013)
-        s.add_bool_field("sleep_mode", 2013)
+        # TODO(hardware): system_power EnumField (replaces the old power_off/sleep_mode
+        # BoolField pair which both read register 2013 and collided on non-zero values).
+        # Verify against a real EL400 — semantic mapping comes from APK docs.
+        s.add_enum_field("system_power", 2013, SystemPowerOff)
         s.add_bool_field("dc_eco_mode", 2014)
         s.add_uint_field("dc_eco_auto_off_time", 2015, unit="h")
         s.add_uint_field("dc_eco_power", 2016, unit="W")
@@ -73,12 +76,13 @@ class EL400(V2Base):
         s.add_decimal_field("grid_max_current", 2214, 1)
         s.add_uint_field("feed_max_power", 2215)
         s.add_decimal_field("feed_max_current", 2216, 1)
+        # TODO(hardware): verify — V2 uses same V1 register per APK DeviceSettingsWorkingModeActivityV2
+        s.add_bool_field("ups_mode", V1_UPS_MODE)
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",
         "dc_output",
-        "power_off",
-        "sleep_mode",
+        "system_power",
         "dc_eco_mode",
         "dc_eco_auto_off_time",
         "dc_eco_power",
@@ -111,14 +115,8 @@ class EL400(V2Base):
         "system_time",
         "system_timezone",
         "ctrl_led",
+        "ups_mode",
     ]
-
-    def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
-        if field == "sleep_mode":
-            if isinstance(value, str):
-                value = value.lower() in ("on", "1", "true", "yes")
-            return WriteSingleRegister(2013, 4 if value else 1)
-        return super().build_setter_command(field, value)
 
     @property
     def ctrl_event_bits(self) -> list[tuple[str, str]]:
@@ -137,4 +135,5 @@ class EL400(V2Base):
             ReadHoldingRegisters(INV_BASE_SETTINGS, 24),
             ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
             ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 18),
+            ReadHoldingRegisters(V1_UPS_MODE, 1),
         ]

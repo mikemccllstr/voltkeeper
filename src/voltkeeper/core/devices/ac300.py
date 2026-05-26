@@ -37,6 +37,7 @@ from .v1_base import (
     SYS_SWITCH_RECOVERY,
     SYSTEM_POWER_OFF,
     SYSTEM_TIME,
+    UPS_MODE,
     WORKING_MODE,
     WORKING_TIME,
     V1Base,
@@ -86,6 +87,7 @@ class AC300(V1Base):
         "working_time",
         "max_charging_power",
         "max_discharge_power",
+        "ups_mode",
     ]
 
     def __init__(self, address: str, sn: str):
@@ -124,6 +126,7 @@ class AC300(V1Base):
         s.add_uint_field("working_time", WORKING_TIME)
         s.add_uint_field("max_charging_power", MAX_CHARGING_POWER)
         s.add_uint_field("max_discharge_power", MAX_DISCHARGE_POWER)
+        s.add_bool_field("ups_mode", UPS_MODE)
 
     @property
     def control_commands(self) -> List[ReadHoldingRegisters]:

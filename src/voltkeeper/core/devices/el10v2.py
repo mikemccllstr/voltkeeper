@@ -13,6 +13,7 @@ from .v2_base import (
     INV_BASE_SETTINGS,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
+    V1_UPS_MODE,
     WORKING_MODE,
     V2Base,
 )
@@ -62,6 +63,8 @@ class EL10V2(V2Base):
         s.add_uint_field("soc_holding_high", 2083, range=(0, 100))
         s.add_bool_field("factory_reset", 2206)
         s.add_enum_field("inv_freq", 2210, InvFrequency)
+        # TODO(hardware): verify — V2 uses same V1 register per APK DeviceSettingsWorkingModeActivityV2
+        s.add_bool_field("ups_mode", V1_UPS_MODE)
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",
@@ -90,6 +93,7 @@ class EL10V2(V2Base):
         "system_time",
         "system_timezone",
         "ctrl_led",
+        "ups_mode",
     ]
 
     def build_setter_command(self, field: str, value: Any) -> WriteSingleRegister:
@@ -116,4 +120,5 @@ class EL10V2(V2Base):
             ReadHoldingRegisters(INV_BASE_SETTINGS, 24),
             ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
             ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 12),
+            ReadHoldingRegisters(V1_UPS_MODE, 1),
         ]

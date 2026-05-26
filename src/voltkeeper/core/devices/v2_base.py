@@ -38,6 +38,9 @@ NODE_INFO = 21000
 PACK_MAIN_INFO = 6000
 PACK_ITEM_INFO = 6100
 PACK_BMU_INFO = 7200
+# V1 SETTABLE_DATA register used by V2 devices for UPS sub-mode (per APK ProtocolAddr.UPS_MODE).
+# V2 activities read and write this same register (DeviceSettingsWorkingModeActivityV2 line 667).
+V1_UPS_MODE = 3035
 
 # ── ctrl_event capability bits ──────────────────────────────────────
 
@@ -267,6 +270,8 @@ class V2Base(BluettiDevice):
         elif INV_INV_INFO <= address < INV_BASE_SETTINGS:
             return self.inv_inv_struct.parse(address, data)
         elif INV_BASE_SETTINGS <= address < 2300:
+            return self.control_struct.parse(address, data)
+        elif address == V1_UPS_MODE:
             return self.control_struct.parse(address, data)
         elif address == NODE_INFO:
             return self._parse_node_info(data)
@@ -552,4 +557,4 @@ class V2Base(BluettiDevice):
 
     @property
     def writable_ranges(self) -> List[range]:
-        return [range(2000, 2087), range(2200, 2272)]
+        return [range(2000, 2087), range(2200, 2272), range(V1_UPS_MODE, V1_UPS_MODE + 1)]
