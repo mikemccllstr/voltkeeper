@@ -27,12 +27,12 @@
 
 ## 5. voltkeeper config Command Group
 
-- [ ] 5.1 Add `config` group to `cli.py` with subcommands: `show`, `set`, `add-device`, `remove-device`
-- [ ] 5.2 Implement `config show`: find and print config with masked API key, print config file path
-- [ ] 5.3 Implement `config set <key> <value>`: validate key against allowlist, write via `write_config`, call `/api/reload` if daemon reachable, report hot-reload vs restart-required
-- [ ] 5.4 Implement `config add-device <address> [--name <name>]`: normalize address, check for duplicate, append, write, reload
-- [ ] 5.5 Implement `config remove-device <address>`: find and remove entry, write, reload; no-op if not found
-- [ ] 5.6 Write unit tests for each config subcommand (show masked key, set valid/invalid key, add duplicate, remove missing)
+- [x] 5.1 Add `config` group to `cli.py` with subcommands: `show`, `set`, `add-device`, `remove-device`
+- [x] 5.2 Implement `config show`: find and print config with masked API key, print config file path
+- [x] 5.3 Implement `config set <key> <value>`: validate key against allowlist, write via `write_config`, call `/api/reload` if daemon reachable, report hot-reload vs restart-required
+- [x] 5.4 Implement `config add-device <address> [--name <name>]`: normalize address, check for duplicate, append, write, reload
+- [x] 5.5 Implement `config remove-device <address>`: find and remove entry, write, reload; no-op if not found
+- [x] 5.6 Write unit tests for each config subcommand (show masked key, set valid/invalid key, add duplicate, remove missing)
 
 ## 6. daemon install / uninstall
 
