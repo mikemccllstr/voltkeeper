@@ -20,7 +20,7 @@ from .bluetooth import (
 )
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
-from .config import load_config
+from .config import load_config, write_config
 from .core.commands import ReadHoldingRegisters
 from .probe import emit_yaml, probe_device
 from .validate import validate_profile
@@ -1472,6 +1472,148 @@ def daemon_stop(daemon_url):
         click.secho(f"Could not reach daemon at {url}: {e}", fg="red")
         click.echo("If running in the foreground, press Ctrl+C to stop it.")
         sys.exit(1)
+
+
+@daemon.command("install")
+@click.option("--lan", is_flag=True, default=False, help="Bind on all interfaces and advertise via mDNS.")
+def daemon_install(lan):
+    """Install voltkeeperd as a user-level systemd service.
+
+    Generates a config file with a fresh API key and writes a hardened
+    systemd unit file, then enables and starts the service. Safe to run
+    again — if already installed, prints current status and exits.
+    """
+    import secrets
+    import subprocess
+    from pathlib import Path
+
+    from .config import Config, ServerConfig, find_writable_config_path
+
+    unit_file = Path.home() / ".config" / "systemd" / "user" / "voltkeeper.service"
+
+    if unit_file.exists():
+        click.echo("voltkeeper is already installed as a user systemd service.")
+        result = subprocess.run(
+            ["systemctl", "--user", "is-active", "voltkeeper"],
+            capture_output=True,
+            text=True,
+        )
+        status = result.stdout.strip() or "unknown"
+        click.echo(f"  Service status:  {status}")
+        config_path = find_writable_config_path()
+        click.echo(f"  Config:          {config_path}")
+        click.echo("  URL:             http://localhost:8080")
+        click.echo("  Logs:            journalctl --user -u voltkeeper -f")
+        return
+
+    voltkeeperd = shutil.which("voltkeeperd")
+    if not voltkeeperd:
+        click.secho("Error: voltkeeperd binary not found in PATH.", fg="red")
+        click.echo("Install voltkeeper first: pip install voltkeeper")
+        sys.exit(1)
+
+    try:
+        cfg = load_config()
+    except SystemExit:
+        api_key = secrets.token_urlsafe(32)
+        host = "0.0.0.0" if lan else "127.0.0.1"
+        cfg = Config(server=ServerConfig(api_key=api_key, host=host, port=8080, mdns=lan), devices=[])
+    else:
+        if lan:
+            cfg.server.host = "0.0.0.0"
+            cfg.server.mdns = True
+
+    config_path = find_writable_config_path()
+    write_config(cfg, config_path)
+    click.echo(f"  Wrote config:    {config_path}")
+
+    unit_file.parent.mkdir(parents=True, exist_ok=True)
+    unit_file.write_text(_make_unit_file(voltkeeperd))
+    click.echo(f"  Wrote unit file: {unit_file}")
+
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+    click.echo("  Ran: systemctl --user daemon-reload")
+    subprocess.run(["systemctl", "--user", "enable", "voltkeeper"], check=True)
+    click.echo("  Ran: systemctl --user enable voltkeeper")
+    subprocess.run(["systemctl", "--user", "start", "voltkeeper"], check=True)
+    click.echo("  Ran: systemctl --user start voltkeeper")
+
+    click.echo()
+    click.secho("voltkeeper installed and started.", fg="green")
+    click.echo(f"  Config: {config_path}")
+    click.echo("  URL:    http://localhost:8080")
+    click.echo("  Logs:   journalctl --user -u voltkeeper -f")
+
+    if lan:
+        click.echo()
+        click.secho("LAN mode — keep your API key secret:", fg="yellow")
+        click.echo(f"  API key: {cfg.server.api_key}")
+        click.echo("  Anyone on your LAN can use this key to control your devices.")
+
+
+@daemon.command("uninstall")
+def daemon_uninstall():
+    """Uninstall the voltkeeperd systemd user service.
+
+    Stops and disables the service, removes the unit file, and reloads
+    systemd. Does not remove the config file or data.
+    """
+    import subprocess
+    from pathlib import Path
+
+    unit_file = Path.home() / ".config" / "systemd" / "user" / "voltkeeper.service"
+
+    if not unit_file.exists():
+        click.echo("voltkeeper is not installed as a user systemd service.")
+        return
+
+    if not click.confirm("Uninstall voltkeeper systemd service?"):
+        click.echo("Aborted.")
+        return
+
+    subprocess.run(["systemctl", "--user", "stop", "voltkeeper"], capture_output=True)
+    click.echo("  Ran: systemctl --user stop voltkeeper")
+    subprocess.run(["systemctl", "--user", "disable", "voltkeeper"], capture_output=True)
+    click.echo("  Ran: systemctl --user disable voltkeeper")
+    unit_file.unlink()
+    click.echo(f"  Removed: {unit_file}")
+    subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+    click.echo("  Ran: systemctl --user daemon-reload")
+
+    click.echo()
+    click.secho("voltkeeper service uninstalled.", fg="green")
+    click.echo("Config and data files were not removed.")
+
+
+def _make_unit_file(exec_start: str) -> str:
+    return f"""\
+[Unit]
+Description=Voltkeeper daemon — Bluetti device manager
+After=bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+ExecStart={exec_start}
+Restart=on-failure
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/voltkeeper
+RestrictAddressFamilies=AF_INET AF_INET6 AF_BLUETOOTH AF_UNIX
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+MemoryMax=256M
+TasksMax=64
+
+[Install]
+WantedBy=default.target
+"""
 
 
 # ═══════════════════════════════════════════════════════════════════════

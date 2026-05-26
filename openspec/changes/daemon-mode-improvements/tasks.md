@@ -36,12 +36,12 @@
 
 ## 6. daemon install / uninstall
 
-- [ ] 6.1 Implement `daemon install` in `cli.py`: detect existing unit file (idempotent path), generate API key if absent, locate `voltkeeperd` binary, write config, write hardened unit file, run systemctl commands, print transparent summary
-- [ ] 6.2 Implement `--lan` flag for `daemon install`: set `server.host: "0.0.0.0"` and `server.mdns: true` in config; print API key with security note
-- [ ] 6.3 Implement idempotent path: if unit file exists, print service status (via `systemctl --user is-active`), config path, URL, log command, and exit 0
-- [ ] 6.4 Implement `daemon uninstall`: prompt for confirmation, run `systemctl --user stop/disable`, remove unit file, run `daemon-reload`, print summary; no-op if not installed
-- [ ] 6.5 Write unit tests for `daemon install` (first install, already installed, --lan flag sets correct config fields)
-- [ ] 6.6 Write unit tests for `daemon uninstall` (removes unit file, preserves config, no-op if not installed)
+- [x] 6.1 Implement `daemon install` in `cli.py`: detect existing unit file (idempotent path), generate API key if absent, locate `voltkeeperd` binary, write config, write hardened unit file, run systemctl commands, print transparent summary
+- [x] 6.2 Implement `--lan` flag for `daemon install`: set `server.host: "0.0.0.0"` and `server.mdns: true` in config; print API key with security note
+- [x] 6.3 Implement idempotent path: if unit file exists, print service status (via `systemctl --user is-active`), config path, URL, log command, and exit 0
+- [x] 6.4 Implement `daemon uninstall`: prompt for confirmation, run `systemctl --user stop/disable`, remove unit file, run `daemon-reload`, print summary; no-op if not installed
+- [x] 6.5 Write unit tests for `daemon install` (first install, already installed, --lan flag sets correct config fields)
+- [x] 6.6 Write unit tests for `daemon uninstall` (removes unit file, preserves config, no-op if not installed)
 
 ## 7. mDNS Advertising
 
