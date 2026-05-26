@@ -1431,10 +1431,47 @@ def daemon_status(daemon_url):
 )
 def daemon_stop(daemon_url):
     """Stop the running voltkeeperd daemon."""
+    import subprocess
+    from pathlib import Path
+    from urllib.error import URLError
+    from urllib.request import Request, urlopen
+
+    unit_file = Path.home() / ".config" / "systemd" / "user" / "voltkeeper.service"
+
+    if unit_file.exists():
+        click.echo("Stopping voltkeeper user service via systemctl...")
+        result = subprocess.run(
+            ["systemctl", "--user", "stop", "voltkeeper"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            click.secho("voltkeeper service stopped.", fg="green")
+        else:
+            click.secho(f"systemctl stop failed: {result.stderr.strip()}", fg="red")
+            sys.exit(1)
+        return
 
     url = _resolve_daemon_url(daemon_url or "localhost")
-    click.echo(f"Attempting to stop daemon at {url}...")
-    click.echo("(Stop the daemon directly with Ctrl+C if running in foreground, or via systemd)")
+    api_key = _discover_api_key()
+    click.echo(f"Sending shutdown request to {url}...")
+
+    req = Request(f"{url}/api/shutdown", data=b"", method="POST")
+    if api_key:
+        req.add_header("Authorization", f"Bearer {api_key}")
+    try:
+        with urlopen(req, timeout=5) as resp:
+            if resp.status == 202:
+                click.secho("Daemon is shutting down.", fg="green")
+            elif resp.status == 401:
+                click.secho("Unauthorized — check API key in config.", fg="red")
+                sys.exit(1)
+            else:
+                click.secho(f"Unexpected response: {resp.status}", fg="yellow")
+    except URLError as e:
+        click.secho(f"Could not reach daemon at {url}: {e}", fg="red")
+        click.echo("If running in the foreground, press Ctrl+C to stop it.")
+        sys.exit(1)
 
 
 # ═══════════════════════════════════════════════════════════════════════

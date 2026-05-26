@@ -21,9 +21,9 @@
 
 ## 4. daemon stop (real implementation)
 
-- [ ] 4.1 Implement `daemon_stop` in `cli.py`: if `~/.config/systemd/user/voltkeeper.service` exists, run `systemctl --user stop voltkeeper` and print what it's doing; otherwise call `POST /api/shutdown`
-- [ ] 4.2 Print confirmation after successful stop; print informative error and exit non-zero if daemon unreachable and no unit file found
-- [ ] 4.3 Write tests for `daemon_stop` logic (systemctl path, API path, error path)
+- [x] 4.1 Implement `daemon_stop` in `cli.py`: if `~/.config/systemd/user/voltkeeper.service` exists, run `systemctl --user stop voltkeeper` and print what it's doing; otherwise call `POST /api/shutdown`
+- [x] 4.2 Print confirmation after successful stop; print informative error and exit non-zero if daemon unreachable and no unit file found
+- [x] 4.3 Write tests for `daemon_stop` logic (systemctl path, API path, error path)
 
 ## 5. voltkeeper config Command Group
 
