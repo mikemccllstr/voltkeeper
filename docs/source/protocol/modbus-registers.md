@@ -606,16 +606,37 @@ zIsLowPower ? ConnConstantsV2.lowPowerFaultNames : ConnectConstants.faultInfoNam
   `ConnConstantsV2.lowPowerWarnNames` (2 words) and
   `ConnConstantsV2.lowPowerFaultNames` (5 words).
 
-**V2 path (`ProtocolParserV2.parseDeviceData`, protocolVer ≥ 2000):**
+**V2 path (`ProtocolParserV2.parseHomeData`, protocolVer ≥ 2000):**
 
-- Inverter type 3 (high-power): `ConnConstantsV2.highPowerWarnNames` /
+Alarm bits are read from `APP_HOME_DATA` (register 100), not `BASE_REAL_DATA`:
+
+- `alarmInfo`: byte offsets 52–59 within the APP_HOME_DATA payload, 4 × 16-bit words.
+  *(TODO(hardware): verify)*
+- `faultInfo`: byte offsets 66–77 within the APP_HOME_DATA payload, 6 × 16-bit words.
+  *(TODO(hardware): verify)*
+
+Table selection by inverter type:
+
+- Inverter type 3 (high-power, e.g. EP600): `ConnConstantsV2.highPowerWarnNames` /
   `highPowerFaultNames`.
 - Micro-inverter type: `ConnConstantsV2.microInvWarnNames` / `microInvFaultNames`.
-- Otherwise: `ConnConstantsV2.lowPowerWarnNames` / `lowPowerFaultNames`.
+- Otherwise (portables: AC2A, AC60, AC180, EL\*): `ConnConstantsV2.lowPowerWarnNames` /
+  `lowPowerFaultNames`.
+
+Implementation: `src/voltkeeper/core/devices/_v2_alarm_tables.py` contains the resolved
+name tables (APK string IDs cross-referenced against `values-en/strings.xml`).
+`V2Base.V2_ALARM_PROFILE` selects the table set; subclasses override as needed.
 
 **BMS_PACK (V2 only, address 6000/6100/7200) is a separate path** that uses
 `ConnConstantsV2.packHighVoltAlarmNames`, `packHighVoltErrorNames`, and
-`bmuWarnNames`. It does **not** decode the BASE_REAL_DATA alarm/fault region.
+`bmuWarnNames`. Pack alarm bytes within `PACK_MAIN_INFO` (address 6000):
+
+- `packSysErr`: byte offsets 76–81, 3 × 16-bit words → `packHighVoltErrorNames`.
+  *(TODO(hardware): verify)*
+- `packHighVoltAlarm`: byte offsets 82–83, 1 × 16-bit word → `packHighVoltAlarmNames`.
+  *(TODO(hardware): verify)*
+
+`PACK_ALARM_PROFILE = "high_volt"` on the device class enables this decoding.
 
 ## Base Config Parsing (`parseBaseConfig()`)
 

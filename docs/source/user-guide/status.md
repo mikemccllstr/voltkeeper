@@ -15,6 +15,32 @@ voltkeeper status AA:BB:CC:DD:EE:FF  # connect directly
 - Time to full / time to empty (context-dependent)
 - DC load, AC load, and total load (watts)
 
+## Alarms and faults
+
+When the device reports an active alarm or fault condition, the output includes
+one or more keys of the form:
+
+```
+alarm.<name> = True
+fault.<name> = True
+```
+
+For example:
+
+```
+alarm.Grid Voltage High = True
+fault.Inverter Over Temperature = True
+```
+
+Alarm names are sourced verbatim from the Bluetti APK string resources (see
+`src/voltkeeper/core/devices/_v2_alarm_tables.py` for V2 devices and
+`_v1_alarm_tables.py` for V1 devices). For pack-connected devices, pack alarms
+include a sub-device prefix:
+
+```
+sub[41].alarm.Overall Overvoltage Alarm = True
+```
+
 ## Options
 
 | Option                | Description                                                                                                                                                                  |
