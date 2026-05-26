@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from .bluetooth import ScanResult, build_device, scan_devices
 from .bus import EventBus
-from .config import Config
+from .config import Config, DeviceEntry
 from .device_handler import DeviceHandler
 
 if TYPE_CHECKING:
@@ -56,6 +56,12 @@ class DeviceManager:
                 break
             await self._reconcile()
             self._update_handlers()
+
+    async def apply_config_devices(self, devices: list[DeviceEntry]) -> None:
+        """Apply an updated device list from a config reload; triggers reconcile."""
+        self._config.devices = list(devices)
+        await self._reconcile()
+        self._update_handlers()
 
     async def shutdown(self):
         self._shutting_down.set()

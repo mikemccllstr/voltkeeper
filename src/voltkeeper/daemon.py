@@ -22,14 +22,22 @@ logger = logging.getLogger(__name__)
 
 class Daemon:
     def __init__(self, config: Config | None = None, *, config_path: Path | None = None):
+        self._config_path = config_path
         self._config = config or load_config(config_path)
         self._bus = EventBus()
         self._store = state_store.StateStore(self._bus)
         self._device_manager = DeviceManager(self._config, self._bus)
-        self._app = create_app(self._config, self._bus, self._store, self._device_manager)
+        self._shutdown_event = asyncio.Event()
+        self._app = create_app(
+            self._config,
+            self._bus,
+            self._store,
+            self._device_manager,
+            shutdown_event=self._shutdown_event,
+            config_path=config_path,
+        )
         self._runner: web.AppRunner | None = None
         self._tasks: list[asyncio.Task] = []
-        self._shutdown_event = asyncio.Event()
 
     def run(self) -> None:
         asyncio.run(self._run())

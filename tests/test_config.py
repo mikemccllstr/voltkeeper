@@ -7,8 +7,10 @@ import pytest
 from voltkeeper.config import (
     Config,
     DeviceEntry,
+    ScanConfig,
     ServerConfig,
     load_config,
+    write_config,
 )
 
 
@@ -206,6 +208,7 @@ class TestConfigDataclasses:
         assert s.port == 8080
         assert s.allowed_networks == []
         assert s.interface is None
+        assert s.mdns is False
 
     def test_device_entry_without_name(self):
         d = DeviceEntry(address="AA:BB:CC:DD:EE:FF")
@@ -220,3 +223,89 @@ class TestConfigDataclasses:
         s = ServerConfig(api_key="test", allowed_networks=["not-cidr"])
         with pytest.raises(ValueError):
             s.normalized_networks()
+
+
+class TestWriteConfig:
+    def test_write_and_reload(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        config = Config(
+            server=ServerConfig(api_key="mykey", host="0.0.0.0", port=9090),
+            devices=[DeviceEntry(address="AA:BB:CC:DD:EE:FF", name="Test")],
+            scan=ScanConfig(interval=30, timeout=5.0),
+        )
+        write_config(config, path)
+        reloaded = load_config(path)
+        assert reloaded.server.api_key == "mykey"
+        assert reloaded.server.host == "0.0.0.0"
+        assert reloaded.server.port == 9090
+        assert len(reloaded.devices) == 1
+        assert reloaded.devices[0].address == "AA:BB:CC:DD:EE:FF"
+        assert reloaded.devices[0].name == "Test"
+        assert reloaded.scan.interval == 30
+        assert reloaded.scan.timeout == 5.0
+
+    def test_comment_preservation(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        path.write_text(
+            "# My voltkeeper config\n"
+            "server:\n"
+            "  api_key: oldkey  # keep this\n"
+            "  host: 127.0.0.1\n"
+            "  port: 8080\n"
+            "devices: []\n"
+            "scan:\n"
+            "  interval: 60\n"
+            "  timeout: 10.0\n"
+        )
+        config = load_config(path)
+        config.scan.interval = 120
+        write_config(config, path)
+        written = path.read_text()
+        assert "# My voltkeeper config" in written
+        assert "# keep this" in written
+        assert "120" in written
+
+    def test_write_creates_file(self, tmp_path):
+        path = tmp_path / "new.yaml"
+        config = Config(server=ServerConfig(api_key="k"))
+        write_config(config, path)
+        assert path.exists()
+        reloaded = load_config(path)
+        assert reloaded.server.api_key == "k"
+
+    def test_write_mdns_true(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        config = Config(server=ServerConfig(api_key="k", host="0.0.0.0", mdns=True))
+        write_config(config, path)
+        reloaded = load_config(path)
+        assert reloaded.server.mdns is True
+
+    def test_write_mdns_false_omits_key(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        config = Config(server=ServerConfig(api_key="k"))
+        write_config(config, path)
+        text = path.read_text()
+        assert "mdns" not in text
+
+
+class TestMdnsConfig:
+    def test_mdns_defaults_to_false(self, tmp_path):
+        config_path = _write_config(tmp_path, 'server:\n  api_key: "key"\n')
+        config = load_config(config_path)
+        assert config.server.mdns is False
+
+    def test_mdns_true(self, tmp_path):
+        config_path = _write_config(
+            tmp_path,
+            'server:\n  api_key: "key"\n  mdns: true\n',
+        )
+        config = load_config(config_path)
+        assert config.server.mdns is True
+
+    def test_mdns_invalid_type(self, tmp_path):
+        config_path = _write_config(
+            tmp_path,
+            'server:\n  api_key: "key"\n  mdns: "yes"\n',
+        )
+        with pytest.raises(SystemExit):
+            load_config(config_path)
