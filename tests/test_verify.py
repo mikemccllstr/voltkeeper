@@ -12,7 +12,7 @@ from voltkeeper.core.devices.ac2a import AC2A, ChargingMode
 from voltkeeper.core.struct import BoolField, DecimalField, EnumField, UintField
 from voltkeeper.core.verify import (
     FIELD_TIERS,
-    SKIP_TIER2,
+    SKIP_AUTO,
     TierResult,
     build_report,
     build_tier_plan,
@@ -123,9 +123,9 @@ def test_build_tier_plan_unknown_field_defaults_to_auto():
     assert "some_new_field_not_in_tiers" in plan[2]
 
 
-def test_build_tier_plan_skip_tier2_fields_excluded(ac2a):
+def test_build_tier_plan_skip_auto_fields_excluded(ac2a):
     plan = build_tier_plan(ac2a)
-    for name in SKIP_TIER2:
+    for name in SKIP_AUTO:
         if name in ac2a.WRITABLE_FIELD_NAMES:
             assert name not in plan[2]
             assert name not in plan[4]
@@ -361,6 +361,25 @@ def test_build_report_includes_firmware_fields(ac2a):
     assert "firmware" in report["device"]
     assert "arm_version" in report["device"]["firmware"]
     assert "battery_level" not in report["device"]["firmware"]
+
+
+def test_build_report_firmware_includes_v2_software_number(ac2a):
+    # V2 devices expose softwareNumber, not arm_version/dsp_version.
+    # The "software" substring must be in _FIRMWARE_FIELD_SUBSTRINGS.
+    t1 = TierResult(tier=1, status="pass")
+    tier1_values = {"softwareNumber": 42, "packTotalSoc": 95}
+    report = build_report(ac2a, "x", "x", [t1], tier1_values)
+    assert "firmware" in report["device"]
+    assert "softwareNumber" in report["device"]["firmware"]
+    assert "packTotalSoc" not in report["device"]["firmware"]
+
+
+def test_build_tier_plan_ja12_enable_excluded(ac2a):
+    plan = build_tier_plan(ac2a)
+    assert "ja12_enable" not in plan[2]
+    assert "ja12_enable" not in plan[4]
+    assert "ja12_enable" not in plan[5]
+    assert "ja12_enable" not in plan[6]
 
 
 # ── 5.10–5.12 Tier-2 roundtrip and mismatch via FakeBluetoothClient ──────────

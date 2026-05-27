@@ -33,8 +33,10 @@ FIELD_TIERS: dict[str, int] = {
     "power_off": 6,
 }
 
-# Fields skipped in tier 2/3 because no safe default exists.
-SKIP_TIER2: frozenset[str] = frozenset({"system_time", "system_timezone"})
+# Fields excluded from automatic tier 2/3 testing — either no safe default
+# exists (system_time, system_timezone) or the register does not support
+# read-after-write on known hardware (ja12_enable times out on AC2A).
+SKIP_AUTO: frozenset[str] = frozenset({"system_time", "system_timezone", "ja12_enable"})
 
 
 @dataclass
@@ -143,7 +145,7 @@ def build_tier_plan(device: Any) -> dict[int, list[str]]:
     """Partition WRITABLE_FIELD_NAMES by risk tier.
 
     Tiers 2 and 3 operate on the same field list (automatic tiers).
-    Fields in SKIP_TIER2 are omitted from automatic tiers.
+    Fields in SKIP_AUTO are omitted from automatic tiers.
     """
     auto: list[str] = []
     t4: list[str] = []
@@ -158,7 +160,7 @@ def build_tier_plan(device: Any) -> dict[int, list[str]]:
             t5.append(name)
         elif tier == 4:
             t4.append(name)
-        elif name not in SKIP_TIER2:
+        elif name not in SKIP_AUTO:
             auto.append(name)
 
     return {2: auto, 3: auto, 4: t4, 5: t5, 6: t6}
@@ -505,7 +507,7 @@ async def run_tier_supervised(
 # ── Report builder ─────────────────────────────────────────────────────────────
 
 
-_FIRMWARE_FIELD_SUBSTRINGS = ("ver", "version", "firmware")
+_FIRMWARE_FIELD_SUBSTRINGS = ("ver", "version", "firmware", "software")
 
 
 def _tier_result_to_dict(tr: TierResult) -> dict:
