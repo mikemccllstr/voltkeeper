@@ -9,7 +9,7 @@ import pytest
 
 from voltkeeper.core.commands import ReadHoldingRegisters, WriteSingleRegister
 from voltkeeper.core.devices.ac2a import AC2A, ChargingMode
-from voltkeeper.core.struct import BoolField, DecimalField, EnumField, UintField
+from voltkeeper.core.struct import BoolField, DecimalField, EnumField, Uint8Field, UintField
 from voltkeeper.core.verify import (
     FIELD_TIERS,
     SKIP_AUTO,
@@ -263,6 +263,18 @@ async def test_run_tier3_numeric_no_discrepancy_when_ranges_match():
     assert result.range_discrepancy is False
 
 
+async def test_run_tier3_numeric_uint8_field_caps_probe_at_255():
+    # Uint8Field occupies one byte of a 16-bit register; probing 65535 (0xFFFF)
+    # would corrupt the adjacent byte.  Probe values must stay <= 255.
+    field = Uint8Field("some_byte_field", 200, word_offset=0)
+    client = FakeBluetoothClient({200: 5})
+    result = await run_tier3_numeric(client, field, 5)
+
+    probed_values = {p.wrote for p in result.probes if p.wrote is not None}
+    assert 65535 not in probed_values
+    assert all(v <= 255 for v in probed_values)
+
+
 # ── 5.6 run_tier3_bool ────────────────────────────────────────────────────────
 
 
@@ -380,6 +392,14 @@ def test_build_tier_plan_ja12_enable_excluded(ac2a):
     assert "ja12_enable" not in plan[4]
     assert "ja12_enable" not in plan[5]
     assert "ja12_enable" not in plan[6]
+
+
+def test_build_tier_plan_ctrl_led_excluded(ac2a):
+    plan = build_tier_plan(ac2a)
+    assert "ctrl_led" not in plan[2]
+    assert "ctrl_led" not in plan[4]
+    assert "ctrl_led" not in plan[5]
+    assert "ctrl_led" not in plan[6]
 
 
 # ── 5.10–5.12 Tier-2 roundtrip and mismatch via FakeBluetoothClient ──────────

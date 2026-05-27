@@ -173,6 +173,20 @@ tier_4:
 
 Skipped tiers are always present in the report — they are never omitted.
 
+### Result codes
+
+Each tier-3 probe entry includes a `result` field:
+
+- `accepted` — the value was written and the subsequent read returned the same value.
+- `no-readback` — the write command was accepted by the device but the read-back did not match what was written (the register silently ignored the value, or uses write-only/toggle semantics).
+- `rejected` — the write itself raised an error at the BLE/Modbus layer.
+
+The `range_discrepancy` flag is set to `true` on a field when the `discovered_range` (the outermost values the hardware actually accepted) differs from the range declared in the device model. A discrepancy is not necessarily a bug — it may indicate the device accepts a wider range than documented, or that observed-valid values depend on device state.
+
+### Output file
+
+The report is written to the current working directory. If your project is a git repository you may want to add `verify-*.yaml` to your `.gitignore` to avoid accidentally committing test artifacts.
+
 ## Submitting a report
 
 After running verify, file a GitHub issue at

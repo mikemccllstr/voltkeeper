@@ -233,6 +233,22 @@ def test_build_setter_command_v2():
     assert cmd.value == 2
 
 
+def test_ac2a_lcd_timeout_range_enforced():
+    import pytest
+
+    from voltkeeper.core.devices.ac2a import AC2A
+
+    d = AC2A("AA:BB:CC:DD:EE:FF", "1234567")
+    cmd = d.build_setter_command("lcd_timeout", 100)
+    assert cmd.value == 100
+
+    with pytest.raises(ValueError):
+        d.build_setter_command("lcd_timeout", 256)
+
+    with pytest.raises(ValueError):
+        d.build_setter_command("lcd_timeout", 65535)
+
+
 def test_ac200l_control_struct_has_new_fields():
     from voltkeeper.core.devices.ac200l import AC200L
 

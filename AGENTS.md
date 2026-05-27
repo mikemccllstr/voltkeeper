@@ -33,3 +33,14 @@ This project uses [mise](https://mise.jdx.dev/) to define developer tasks. Alway
 | `mise run docs-format-check` | Format check only, no changes (used in CI) |
 
 Run `mise run check` before every commit to ensure lint, types, and tests all pass.
+
+## Bluetti APK Source
+
+The Bluetti Android app v3.0.9 APK has been decompiled and is available under `bluetti-files/BLUETTI-v3.0.9.apk/`:
+
+| Directory | Tool | Contents |
+|---|---|---|
+| `jadx_out/` | JADX | Java source reconstruction (readable class/method names) |
+| `apktool_out/` | apktool | Smali bytecode + resources (AndroidManifest, assets, layouts) |
+
+Use the JADX output (`jadx_out/`) when searching for register definitions, field ranges, enum values, or protocol constants. Use the apktool output for raw resources or assets not present in the JADX tree.

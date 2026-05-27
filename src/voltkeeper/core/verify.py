@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from .commands import ReadHoldingRegisters, WriteSingleRegister
 from .devices.bluetti_device import BluettiDevice
-from .struct import BoolField, DecimalField, EnumField, UintField
+from .struct import BoolField, DecimalField, EnumField, Uint8Field, UintField
 
 # Global field risk classification.  Fields not listed default to tier 2/3 (automatic).
 FIELD_TIERS: dict[str, int] = {
@@ -34,9 +34,10 @@ FIELD_TIERS: dict[str, int] = {
 }
 
 # Fields excluded from automatic tier 2/3 testing — either no safe default
-# exists (system_time, system_timezone) or the register does not support
-# read-after-write on known hardware (ja12_enable times out on AC2A).
-SKIP_AUTO: frozenset[str] = frozenset({"system_time", "system_timezone", "ja12_enable"})
+# exists (system_time, system_timezone), the register does not support
+# read-after-write on known hardware (ja12_enable times out on AC2A), or the
+# register uses write-only/toggle semantics (ctrl_led).
+SKIP_AUTO: frozenset[str] = frozenset({"system_time", "system_timezone", "ja12_enable", "ctrl_led"})
 
 
 @dataclass
@@ -387,10 +388,12 @@ async def run_tier3_numeric(
         ci = current_int
         sequence = [ci, 0, 255, 65535, ci + 1, max(0, ci - 1)]
 
+    max_probe = 255 if isinstance(device_field, Uint8Field) else 65535
+
     seen: set[int] = set()
     probes_to_run: list[int] = []
     for v in sequence:
-        if 0 <= v <= 65535 and v not in seen:
+        if 0 <= v <= max_probe and v not in seen:
             seen.add(v)
             probes_to_run.append(v)
 

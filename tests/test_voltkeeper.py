@@ -3155,7 +3155,7 @@ class TestRangeValidation:
         assert cmd.value == 100
 
     def test_no_range_field_accepted(self, ac2a_device):
-        cmd = ac2a_device.build_setter_command("lcd_timeout", 9999)
+        cmd = ac2a_device.build_setter_command("pv_adv_set", 9999)
         assert cmd.value == 9999
 
     def test_enum_field_not_range_checked(self, ac2a_device):

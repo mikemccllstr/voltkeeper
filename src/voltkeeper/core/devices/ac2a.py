@@ -64,7 +64,7 @@ class AC2A(V2Base):
         s.add_enum_field("pv_type_set", 2060, PvType)
         s.add_enum_field("pv2_type_set", 2061, Pv2Type)
         s.add_bool_field("alarm_sound", 2066)
-        s.add_uint_field("lcd_timeout", 2067)
+        s.add_uint_field("lcd_timeout", 2067, range=(0, 255))
         s.add_uint_field("soc_holding_low", 2075, range=(0, 100))
         s.add_enum_field("led_color", 2078, LedColor)
         s.add_uint_field("soc_holding_high", 2083, range=(0, 100))

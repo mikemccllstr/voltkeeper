@@ -17,6 +17,10 @@ The system SHALL add module-level constants and control struct field definitions
 - **WHEN** building the control struct for AC2A
 - **THEN** `CTRL_LED` (address 2007) is included as a writable field
 
+#### Scenario: LCD timeout is writable on AC2A with declared range
+- **WHEN** building the control struct for AC2A
+- **THEN** `LCD_TIMEOUT` (address 2067) is included as a writable `UintField` with range (0, 255)
+
 #### Scenario: DC ECO settings are writable on AC2A
 - **WHEN** building the control struct for AC2A
 - **THEN** `DC_ECO_AUTO_OFF_TIME` (address 2015) is included as a writable `UintField`
