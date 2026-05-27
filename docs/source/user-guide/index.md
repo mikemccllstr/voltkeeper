@@ -7,6 +7,7 @@ hidden:
 scan
 status
 write
+verify
 mqtt
 daemon
 load-test
