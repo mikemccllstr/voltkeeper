@@ -196,88 +196,89 @@ Key `APP_HOME_DATA` fields at byte offsets within the 124-byte block:
 
 **Inverter — Write/Control Registers:**
 
-| Address | Constant                       | R/W | Description                                                                                                                    |
-| ------- | ------------------------------ | --- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 2000    | `INV_BASE_SETTINGS`            | R/W | Base settings                                                                                                                  |
-| 2001    | `SYSTEM_TIME`                  | R/W | System clock                                                                                                                   |
-| 2004    | `SYSTEM_TIME_ZONE`             | R   | System timezone (unverified: APK does not parse this register)                                                                 |
-| 2005    | `WORKING_MODE`                 | R/W | Working mode (1=Customized, 2=PV Priority, 3=Standard UPS, 4=Time Control, 5=V2 Time Control, 11=Self-Consumption Export)      |
-| 2006    | `CTRL_EVENT`                   | W   | Control events                                                                                                                 |
-| 2007    | `CTRL_LED`                     | R/W | LED control                                                                                                                    |
-| 2008    | `CTRL_METER`                   | R/W | Meter control                                                                                                                  |
-| 2010    | `CTRL_INVERTER`                | R/W | Inverter power control                                                                                                         |
-| 2011    | `AC_SWITCH`                    | R/W | AC output switch                                                                                                               |
-| 2012    | `DC_SWITCH`                    | R/W | DC output switch                                                                                                               |
-| 2013    | `SYSTEM_POWER_OFF`             | W   | System power off (1=shutdown, 2=power down V1, 3=power down V2, 4=sleep mode)                                                  |
-| 2014    | `CTRL_DC_ECO_MODE`             | R/W | DC ECO mode                                                                                                                    |
-| 2015    | `DC_ECO_AUTO_OFF_TIME`         | R/W | DC ECO auto-off time                                                                                                           |
-| 2016    | `DC_ECO_POWER`                 | R/W | DC ECO power threshold                                                                                                         |
-| 2017    | `CTRL_AC_ECO_MODE`             | R/W | AC ECO mode                                                                                                                    |
-| 2018    | `AC_ECO_AUTO_OFF_TIME`         | R/W | AC ECO auto-off time                                                                                                           |
-| 2019    | `AC_ECO_POWER`                 | R/W | AC ECO power threshold                                                                                                         |
-| 2020    | `CHARGING_MODE`                | R/W | Charging mode (Standard/Turbo/Silent)                                                                                          |
-| 2021    | `CTRL_SUPER_POWER_MODE`        | R/W | Power lifting mode                                                                                                             |
-| 2022    | `SYS_LOW_POWER`                | R/W | System low power threshold                                                                                                     |
-| 2023    | `SYS_HIGH_POWER`               | R/W | System high power threshold                                                                                                    |
-| 2026    | `SET_HISTORY_ENERGY_TYPE`      | W   | History energy type selector                                                                                                   |
-| 2027    | `SET_CURR_ENERGY_TYPE`         | W   | Current energy type selector                                                                                                   |
-| 2028    | `SET_LOG_HISTORY_PAGE`         | W   | Log history page selector                                                                                                      |
-| 2029    | `CTRL_CHG_DSG_TIME`            | W   | Charge/discharge time control                                                                                                  |
-| 2030    | `WORKING_TIME_START`           | R/W | Working time start                                                                                                             |
-| 2060    | `PV_TYPE_SET`                  | R/W | PV input type (0=PV/Solar, 3=Other)                                                                                            |
-| 2061    | `PV2_TYPE_SET`                 | R/W | PV2 input type (0=PV/Solar, 3=Other, 4=Alternator Charger)                                                                     |
-| 2066    | `CTRL_ALARM_SOUND`             | R/W | Alarm sound toggle                                                                                                             |
-| 2067    | `LCD_SCREEN_TIME`              | R/W | LCD screen timeout                                                                                                             |
-| 2075    | `SOC_HOLDING_LOW`              | R/W | SOC holding low threshold                                                                                                      |
-| 2072    | `CTRL_CHILD_LOCK`              | R/W | Child lock on/off — bit 4=OFF (0x10), bit 5=ON (0x20)                                                                          |
-| 2073    | `AUTO_SLEEP_DAYS`              | R/W | Auto-sleep day count                                                                                                           |
-| 2074    | `REMOTE_STARTUP_SOC`           | R/W | Remote startup SOC threshold (0-100%)                                                                                          |
-| 2076    | `CHILD_LOCK_LEVEL`             | R/W | Child lock level — 1=block output ON, 2=block all output switches                                                              |
-| 2078    | `LED_COLOR_SET`                | R/W | LED color/brightness (0/4=Off, 1=Cool/Half, 2=Warm/Full, 3=SOS)                                                                |
-| 2079    | `SLEEP_POWER_THRESHOLD`        | R/W | Sleep power threshold (watts)                                                                                                  |
-| 2080    | `PACK_NUM_SET_SHOW`            | R/W | Pack number display setting                                                                                                    |
-| 2081    | `INV_NUM_SET`                  | R/W | Inverter count setting                                                                                                         |
-| 2083    | `SOC_HOLDING_HIGH`             | R/W | SOC holding high threshold                                                                                                     |
-| 2084    | `PV_ADV_SET`                   | R/W | PV advanced settings                                                                                                           |
-| 2086    | `JA12_ENABLE`                  | R/W | 12V output enable                                                                                                              |
-| 2200    | `INV_ADVANCE_SETTINGS`         | R/W | Advanced settings (login password required)                                                                                    |
-| 2206    | `SYSTEM_FACTORY_RESET`         | W   | Factory reset                                                                                                                  |
-| 2207    | `CTRL_GRID`                    | R/W | Grid control                                                                                                                   |
-| 2208    | `CTRL_FEED`                    | R/W | Grid feed-in control                                                                                                           |
-| 2209    | `INV_VOLTAGE`                  | R/W | Output voltage — mapping depends on voltType (not discoverable): low-volt 0=100V,1=120V,2=208V; high-volt 0=220V,1=230V,2=240V |
-| 2210    | `INV_FREQ`                     | R/W | Output frequency (0=50Hz, 1=60Hz)                                                                                              |
-| 2211    | `CHG_MAX_VOLTAGE`              | R/W | Max charge voltage                                                                                                             |
-| 2212    | `CHG_MAX_CURRENT`              | R/W | Max charge current                                                                                                             |
-| 2213    | `GRID_MAX_POWER`               | R/W | Max grid input power                                                                                                           |
-| 2214    | `GRID_MAX_CURRENT`             | R/W | Max grid input current                                                                                                         |
-| 2215    | `FEED_MAX_POWER`               | R/W | Max feed-in power                                                                                                              |
-| 2216    | `FEED_MAX_CURRENT`             | R/W | Max feed-in current                                                                                                            |
-| 2217    | `GRID_OFF_AC_PV_POWER`         | R/W | Off-grid AC PV power limit                                                                                                     |
-| 2218    | `USER_REGION_SETTING`          | R/W | User region setting                                                                                                            |
-| 2219    | `CTRL_PV1_PARALLEL`            | R/W | PV1 parallel control                                                                                                           |
-| 2225    | `CTRL_GRID_PLUS_MODE`          | R/W | Grid+ mode toggle                                                                                                              |
-| 2226    | `CTRL_POWER_OUTPUT_STATE_SAVE` | R/W | Power output state save                                                                                                        |
-| 2227    | `ADVANCED_SETTINGS_CTRL_METER` | R/W | Advanced meter control                                                                                                         |
-| 2228    | `ADVANCED_SETTINGS_METER_TYPE` | R/W | Meter type selection                                                                                                           |
-| 2229    | `ADV_SETTINGS_CTRL_INV`        | R/W | Advanced inverter control                                                                                                      |
-| 2230    | `ADV_SETTINGS_INV_ADDR`        | R/W | Inverter address setting                                                                                                       |
-| 2231    | `ADV_SETTINGS_CT_TEST`         | R/W | CT sensor test                                                                                                                 |
-| 2232    | `ADV_SETTINGS_OTHER`           | R/W | Other advanced settings                                                                                                        |
-| 2233    | `ADV_BATTERY_AGING`            | R/W | Battery aging mode                                                                                                             |
-| 2241    | `EMS_CTRL_MODE_SET`            | R/W | EMS control mode (0=Disable, 3=Cloud, 4=Local, 5=DynamicPrice, 8=AI)                                                           |
-| 2242    | `ADV_SETTINGS_OTHER_2`         | R/W | Other advanced settings 2                                                                                                      |
-| 2243    | `ADV_CHARGING_STATION_MODEL`   | R/W | EV charging station model                                                                                                      |
-| 2244    | `ADV_CT_RATIO`                 | R/W | CT ratio setting                                                                                                               |
-| 2245    | `ADV_AC_CT_TEST`               | R/W | AC CT sensor test                                                                                                              |
-| 2246    | `GEN_SET`                      | R/W | Generator settings                                                                                                             |
-| 2267    | `METER_CTRL_GRID`              | R/W | Meter grid control                                                                                                             |
-| 2269    | `ADV_PV_SET`                   | R/W | PV advanced settings                                                                                                           |
-| 2271    | `DC_OUTPUT_VOLT_LEVEL`         | R/W | DC output voltage level                                                                                                        |
-| 2275    | `ALT_DELAYS_SET`               | R/W | Altitude delay settings                                                                                                        |
-| 2276    | `RV_ENABLE_SET`                | R/W | RV mode enable                                                                                                                 |
-| 2280    | `HEAT_PUMP_ENABLE`             | R/W | Heat pump enable                                                                                                               |
-| 2304    | `MULTI_PEAK_ENABLE`            | R/W | Multi-peak shaving enable                                                                                                      |
-| 30901   | `TEST_SETTINGS`                | R/W | Factory test settings                                                                                                          |
+| Address | Constant                       | R/W | Description                                                                                                                                                                                               |
+| ------- | ------------------------------ | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2000    | `INV_BASE_SETTINGS`            | R/W | Base settings                                                                                                                                                                                             |
+| 2001    | `SYSTEM_TIME`                  | R/W | System clock                                                                                                                                                                                              |
+| 2004    | `SYSTEM_TIME_ZONE`             | R   | System timezone (unverified: APK does not parse this register)                                                                                                                                            |
+| 2005    | `WORKING_MODE`                 | R/W | Working mode (1=Customized, 2=PV Priority, 3=Standard UPS, 4=Time Control, 5=V2 Time Control, 11=Self-Consumption Export)                                                                                 |
+| 3035    | `UPS_MODE` (via V1 block)      | R/W | UPS sub-mode for V2 devices — Online (1) vs Standby (0). V2 apps read/write this V1 register (`ProtocolAddr.UPS_MODE`). See V1 register table for V1 device usage. TODO(hardware): verify on V2 hardware. |
+| 2006    | `CTRL_EVENT`                   | W   | Control events                                                                                                                                                                                            |
+| 2007    | `CTRL_LED`                     | R/W | LED control                                                                                                                                                                                               |
+| 2008    | `CTRL_METER`                   | R/W | Meter control                                                                                                                                                                                             |
+| 2010    | `CTRL_INVERTER`                | R/W | Inverter power control                                                                                                                                                                                    |
+| 2011    | `AC_SWITCH`                    | R/W | AC output switch                                                                                                                                                                                          |
+| 2012    | `DC_SWITCH`                    | R/W | DC output switch                                                                                                                                                                                          |
+| 2013    | `SYSTEM_POWER_OFF`             | W   | System power off (1=shutdown, 2=power down V1, 3=power down V2, 4=sleep mode)                                                                                                                             |
+| 2014    | `CTRL_DC_ECO_MODE`             | R/W | DC ECO mode                                                                                                                                                                                               |
+| 2015    | `DC_ECO_AUTO_OFF_TIME`         | R/W | DC ECO auto-off time                                                                                                                                                                                      |
+| 2016    | `DC_ECO_POWER`                 | R/W | DC ECO power threshold                                                                                                                                                                                    |
+| 2017    | `CTRL_AC_ECO_MODE`             | R/W | AC ECO mode                                                                                                                                                                                               |
+| 2018    | `AC_ECO_AUTO_OFF_TIME`         | R/W | AC ECO auto-off time                                                                                                                                                                                      |
+| 2019    | `AC_ECO_POWER`                 | R/W | AC ECO power threshold                                                                                                                                                                                    |
+| 2020    | `CHARGING_MODE`                | R/W | Charging mode (Standard/Turbo/Silent)                                                                                                                                                                     |
+| 2021    | `CTRL_SUPER_POWER_MODE`        | R/W | Power lifting mode                                                                                                                                                                                        |
+| 2022    | `SYS_LOW_POWER`                | R/W | System low power threshold                                                                                                                                                                                |
+| 2023    | `SYS_HIGH_POWER`               | R/W | System high power threshold                                                                                                                                                                               |
+| 2026    | `SET_HISTORY_ENERGY_TYPE`      | W   | History energy type selector                                                                                                                                                                              |
+| 2027    | `SET_CURR_ENERGY_TYPE`         | W   | Current energy type selector                                                                                                                                                                              |
+| 2028    | `SET_LOG_HISTORY_PAGE`         | W   | Log history page selector                                                                                                                                                                                 |
+| 2029    | `CTRL_CHG_DSG_TIME`            | W   | Charge/discharge time control                                                                                                                                                                             |
+| 2030    | `WORKING_TIME_START`           | R/W | Working time start                                                                                                                                                                                        |
+| 2060    | `PV_TYPE_SET`                  | R/W | PV input type (0=PV/Solar, 3=Other)                                                                                                                                                                       |
+| 2061    | `PV2_TYPE_SET`                 | R/W | PV2 input type (0=PV/Solar, 3=Other, 4=Alternator Charger)                                                                                                                                                |
+| 2066    | `CTRL_ALARM_SOUND`             | R/W | Alarm sound toggle                                                                                                                                                                                        |
+| 2067    | `LCD_SCREEN_TIME`              | R/W | LCD screen timeout                                                                                                                                                                                        |
+| 2075    | `SOC_HOLDING_LOW`              | R/W | SOC holding low threshold                                                                                                                                                                                 |
+| 2072    | `CTRL_CHILD_LOCK`              | R/W | Child lock on/off — bit 4=OFF (0x10), bit 5=ON (0x20)                                                                                                                                                     |
+| 2073    | `AUTO_SLEEP_DAYS`              | R/W | Auto-sleep day count                                                                                                                                                                                      |
+| 2074    | `REMOTE_STARTUP_SOC`           | R/W | Remote startup SOC threshold (0-100%)                                                                                                                                                                     |
+| 2076    | `CHILD_LOCK_LEVEL`             | R/W | Child lock level — 1=block output ON, 2=block all output switches                                                                                                                                         |
+| 2078    | `LED_COLOR_SET`                | R/W | LED color/brightness (0/4=Off, 1=Cool/Half, 2=Warm/Full, 3=SOS)                                                                                                                                           |
+| 2079    | `SLEEP_POWER_THRESHOLD`        | R/W | Sleep power threshold (watts)                                                                                                                                                                             |
+| 2080    | `PACK_NUM_SET_SHOW`            | R/W | Pack number display setting                                                                                                                                                                               |
+| 2081    | `INV_NUM_SET`                  | R/W | Inverter count setting                                                                                                                                                                                    |
+| 2083    | `SOC_HOLDING_HIGH`             | R/W | SOC holding high threshold                                                                                                                                                                                |
+| 2084    | `PV_ADV_SET`                   | R/W | PV advanced settings                                                                                                                                                                                      |
+| 2086    | `JA12_ENABLE`                  | R/W | 12V output enable                                                                                                                                                                                         |
+| 2200    | `INV_ADVANCE_SETTINGS`         | R/W | Advanced settings (login password required)                                                                                                                                                               |
+| 2206    | `SYSTEM_FACTORY_RESET`         | W   | Factory reset                                                                                                                                                                                             |
+| 2207    | `CTRL_GRID`                    | R/W | Grid control                                                                                                                                                                                              |
+| 2208    | `CTRL_FEED`                    | R/W | Grid feed-in control                                                                                                                                                                                      |
+| 2209    | `INV_VOLTAGE`                  | R/W | Output voltage — mapping depends on voltType (not discoverable): low-volt 0=100V,1=120V,2=208V; high-volt 0=220V,1=230V,2=240V                                                                            |
+| 2210    | `INV_FREQ`                     | R/W | Output frequency (0=50Hz, 1=60Hz)                                                                                                                                                                         |
+| 2211    | `CHG_MAX_VOLTAGE`              | R/W | Max charge voltage                                                                                                                                                                                        |
+| 2212    | `CHG_MAX_CURRENT`              | R/W | Max charge current                                                                                                                                                                                        |
+| 2213    | `GRID_MAX_POWER`               | R/W | Max grid input power                                                                                                                                                                                      |
+| 2214    | `GRID_MAX_CURRENT`             | R/W | Max grid input current                                                                                                                                                                                    |
+| 2215    | `FEED_MAX_POWER`               | R/W | Max feed-in power                                                                                                                                                                                         |
+| 2216    | `FEED_MAX_CURRENT`             | R/W | Max feed-in current                                                                                                                                                                                       |
+| 2217    | `GRID_OFF_AC_PV_POWER`         | R/W | Off-grid AC PV power limit                                                                                                                                                                                |
+| 2218    | `USER_REGION_SETTING`          | R/W | User region setting                                                                                                                                                                                       |
+| 2219    | `CTRL_PV1_PARALLEL`            | R/W | PV1 parallel control                                                                                                                                                                                      |
+| 2225    | `CTRL_GRID_PLUS_MODE`          | R/W | Grid+ mode toggle                                                                                                                                                                                         |
+| 2226    | `CTRL_POWER_OUTPUT_STATE_SAVE` | R/W | Power output state save                                                                                                                                                                                   |
+| 2227    | `ADVANCED_SETTINGS_CTRL_METER` | R/W | Advanced meter control                                                                                                                                                                                    |
+| 2228    | `ADVANCED_SETTINGS_METER_TYPE` | R/W | Meter type selection                                                                                                                                                                                      |
+| 2229    | `ADV_SETTINGS_CTRL_INV`        | R/W | Advanced inverter control                                                                                                                                                                                 |
+| 2230    | `ADV_SETTINGS_INV_ADDR`        | R/W | Inverter address setting                                                                                                                                                                                  |
+| 2231    | `ADV_SETTINGS_CT_TEST`         | R/W | CT sensor test                                                                                                                                                                                            |
+| 2232    | `ADV_SETTINGS_OTHER`           | R/W | Other advanced settings                                                                                                                                                                                   |
+| 2233    | `ADV_BATTERY_AGING`            | R/W | Battery aging mode                                                                                                                                                                                        |
+| 2241    | `EMS_CTRL_MODE_SET`            | R/W | EMS control mode (0=Disable, 3=Cloud, 4=Local, 5=DynamicPrice, 8=AI)                                                                                                                                      |
+| 2242    | `ADV_SETTINGS_OTHER_2`         | R/W | Other advanced settings 2                                                                                                                                                                                 |
+| 2243    | `ADV_CHARGING_STATION_MODEL`   | R/W | EV charging station model                                                                                                                                                                                 |
+| 2244    | `ADV_CT_RATIO`                 | R/W | CT ratio setting                                                                                                                                                                                          |
+| 2245    | `ADV_AC_CT_TEST`               | R/W | AC CT sensor test                                                                                                                                                                                         |
+| 2246    | `GEN_SET`                      | R/W | Generator settings                                                                                                                                                                                        |
+| 2267    | `METER_CTRL_GRID`              | R/W | Meter grid control                                                                                                                                                                                        |
+| 2269    | `ADV_PV_SET`                   | R/W | PV advanced settings                                                                                                                                                                                      |
+| 2271    | `DC_OUTPUT_VOLT_LEVEL`         | R/W | DC output voltage level                                                                                                                                                                                   |
+| 2275    | `ALT_DELAYS_SET`               | R/W | Altitude delay settings                                                                                                                                                                                   |
+| 2276    | `RV_ENABLE_SET`                | R/W | RV mode enable                                                                                                                                                                                            |
+| 2280    | `HEAT_PUMP_ENABLE`             | R/W | Heat pump enable                                                                                                                                                                                          |
+| 2304    | `MULTI_PEAK_ENABLE`            | R/W | Multi-peak shaving enable                                                                                                                                                                                 |
+| 30901   | `TEST_SETTINGS`                | R/W | Factory test settings                                                                                                                                                                                     |
 
 **APK Visibility Notes (AC2A / PR20C / AC2P model):**
 The official Bluetti Android app's `InvAdvancedParamsConfig` feature flags hide the
@@ -606,16 +607,37 @@ zIsLowPower ? ConnConstantsV2.lowPowerFaultNames : ConnectConstants.faultInfoNam
   `ConnConstantsV2.lowPowerWarnNames` (2 words) and
   `ConnConstantsV2.lowPowerFaultNames` (5 words).
 
-**V2 path (`ProtocolParserV2.parseDeviceData`, protocolVer ≥ 2000):**
+**V2 path (`ProtocolParserV2.parseHomeData`, protocolVer ≥ 2000):**
 
-- Inverter type 3 (high-power): `ConnConstantsV2.highPowerWarnNames` /
+Alarm bits are read from `APP_HOME_DATA` (register 100), not `BASE_REAL_DATA`:
+
+- `alarmInfo`: byte offsets 52–59 within the APP_HOME_DATA payload, 4 × 16-bit words.
+  *(confirmed on AC2A)*
+- `faultInfo`: byte offsets 66–77 within the APP_HOME_DATA payload, 6 × 16-bit words.
+  *(confirmed on AC2A)*
+
+Table selection by inverter type:
+
+- Inverter type 3 (high-power, e.g. EP600): `ConnConstantsV2.highPowerWarnNames` /
   `highPowerFaultNames`.
 - Micro-inverter type: `ConnConstantsV2.microInvWarnNames` / `microInvFaultNames`.
-- Otherwise: `ConnConstantsV2.lowPowerWarnNames` / `lowPowerFaultNames`.
+- Otherwise (portables: AC2A, AC60, AC180, EL\*): `ConnConstantsV2.lowPowerWarnNames` /
+  `lowPowerFaultNames`.
+
+Implementation: `src/voltkeeper/core/devices/_v2_alarm_tables.py` contains the resolved
+name tables (APK string IDs cross-referenced against `values-en/strings.xml`).
+`V2Base.V2_ALARM_PROFILE` selects the table set; subclasses override as needed.
 
 **BMS_PACK (V2 only, address 6000/6100/7200) is a separate path** that uses
 `ConnConstantsV2.packHighVoltAlarmNames`, `packHighVoltErrorNames`, and
-`bmuWarnNames`. It does **not** decode the BASE_REAL_DATA alarm/fault region.
+`bmuWarnNames`. Pack alarm bytes within `PACK_MAIN_INFO` (address 6000):
+
+- `packSysErr`: byte offsets 76–81, 3 × 16-bit words → `packHighVoltErrorNames`.
+  *(not yet hardware-verified)*
+- `packHighVoltAlarm`: byte offsets 82–83, 1 × 16-bit word → `packHighVoltAlarmNames`.
+  *(not yet hardware-verified)*
+
+`PACK_ALARM_PROFILE = "high_volt"` on the device class enables this decoding.
 
 ## Base Config Parsing (`parseBaseConfig()`)
 

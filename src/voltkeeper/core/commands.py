@@ -52,6 +52,15 @@ class EmsCtrlMode(Enum):
     AI = 8
 
 
+@unique
+class SystemPowerOff(Enum):
+    NORMAL = 0
+    SHUTDOWN = 1
+    POWER_DOWN_V1 = 2
+    POWER_DOWN_V2 = 3
+    SLEEP = 4
+
+
 # ── TLV read request encoding ────────────────────────────────────────
 
 _TLV_REQ_HEADER = bytes.fromhex("00105208")

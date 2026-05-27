@@ -2,6 +2,38 @@
 
 Generate systemd unit files for long-running voltkeeper services.
 
+## voltkeeperd daemon
+
+For installing `voltkeeperd` as a systemd user service, use:
+
+```bash
+voltkeeper daemon install
+```
+
+See the [Daemon](daemon.md) page for the full install workflow, options, and
+idempotency behaviour.
+
+### System-level install (advanced)
+
+The default install is a **user service** (`~/.config/systemd/user/`), which
+requires no root and runs as your login user. This is the right choice for
+personal workstations and always-logged-in users.
+
+For headless servers where the daemon must start before any user logs in,
+install as a system service instead:
+
+1. Write a custom unit file at `/etc/systemd/system/voltkeeperd.service`.
+   See the generated `~/.config/systemd/user/voltkeeper.service` for the
+   recommended hardening directives.
+1. Set `User=` to a dedicated service account.
+1. Run `sudo systemctl daemon-reload && sudo systemctl enable --now voltkeeperd`.
+
+Consider enabling systemd user lingering as a lighter alternative:
+
+```bash
+loginctl enable-linger $USER   # user services survive logout
+```
+
 ## mqtt-publish-service
 
 Generates a systemd unit file for the MQTT publish command.

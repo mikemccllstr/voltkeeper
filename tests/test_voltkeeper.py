@@ -653,6 +653,24 @@ class TestChargingMode:
         assert ChargingMode(2) == ChargingMode.SILENT
 
 
+class TestSystemPowerOff:
+    def test_values(self):
+        from voltkeeper.core.commands import SystemPowerOff
+
+        assert SystemPowerOff.NORMAL.value == 0
+        assert SystemPowerOff.SHUTDOWN.value == 1
+        assert SystemPowerOff.POWER_DOWN_V1.value == 2
+        assert SystemPowerOff.POWER_DOWN_V2.value == 3
+        assert SystemPowerOff.SLEEP.value == 4
+
+    def test_round_trip(self):
+        from voltkeeper.core.commands import SystemPowerOff
+
+        for member in SystemPowerOff:
+            assert SystemPowerOff(member.value) is member
+            assert int(SystemPowerOff(member.value).value) == member.value
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #  EL100V2 device class
 # ═══════════════════════════════════════════════════════════════════════
@@ -967,21 +985,41 @@ class TestEL400:
             "charging_mode",
             "power_lifting",
             "working_mode",
-            "sleep_mode",
+            "system_power",
             "remote_startup_soc",
             "sleep_power_threshold",
         ):
             assert el400_device.has_field_setter(field), f"{field} should be writable"
 
-    def test_sleep_mode_setter_on(self, el400_device):
-        cmd = el400_device.build_setter_command("sleep_mode", True)
+    def test_old_power_off_field_removed(self, el400_device):
+        # `power_off` and `sleep_mode` are no longer writable — they were
+        # replaced by `system_power` to fix the register-2013 read collision.
+        assert not el400_device.has_field_setter("power_off")
+        assert not el400_device.has_field_setter("sleep_mode")
+
+    def test_system_power_setter_sleep(self, el400_device):
+        cmd = el400_device.build_setter_command("system_power", "sleep")
         assert cmd.address == 2013
         assert cmd.value == 4
 
-    def test_sleep_mode_setter_off(self, el400_device):
-        cmd = el400_device.build_setter_command("sleep_mode", False)
+    def test_system_power_setter_shutdown(self, el400_device):
+        cmd = el400_device.build_setter_command("system_power", "shutdown")
         assert cmd.address == 2013
         assert cmd.value == 1
+
+    def test_system_power_parse_sleep_value(self, el400_device):
+        # Reading register 2013 with raw value 4 must yield system_power=SLEEP
+        # as a single enum field, not collide with two true bools.
+        from voltkeeper.core.commands import SystemPowerOff
+
+        # control_struct.parse expects a contiguous block starting at the
+        # first field; build a sparse block by parsing a 1-register block
+        # at address 2013 with value 4.
+        data = (4).to_bytes(2, "big")
+        result = el400_device.control_struct.parse(2013, data)
+        assert result.get("system_power") is SystemPowerOff.SLEEP
+        assert "power_off" not in result
+        assert "sleep_mode" not in result
 
     def test_remote_startup_soc_setter(self, el400_device):
         cmd = el400_device.build_setter_command("remote_startup_soc", 50)
@@ -2763,6 +2801,47 @@ class TestTopologyDiscovery:
         addrs = {cmd.starting_address for cmd in v2.polling_commands}
         assert 6000 not in addrs
 
+    def test_topology_discovered_property_false_before_node_info(self):
+        # A device declaring has_battery_packs must not claim topology is
+        # discovered before NODE_INFO has actually arrived — the previous
+        # precedence bug returned True here, hiding the not-yet-discovered
+        # state and skipping per-pack polling.
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        class _StubWithPacks(V2Base):
+            has_battery_packs = True
+
+        v2 = _StubWithPacks("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        assert v2.topology_discovered is False
+
+    def test_topology_discovered_property_true_after_node_info(self):
+        from voltkeeper.core.devices.v2_base import V2Base
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        tlv_data = bytearray(TLV_MAGIC)
+        tlv_data.append(0x29)
+        tlv_data.extend(b"\x17\x70\x00\x20")
+        tlv_data.extend(b"\x00" * 32)
+        tlv_data.extend(b"\x00\x00")
+        v2.discover_topology(bytes(tlv_data))
+        assert v2.topology_discovered is True
+
+    def test_tlv_sections_includes_node_info_before_discovery(self):
+        # NODE_INFO must keep being polled until the device actually
+        # responds — verify it stays in the main bundle for a
+        # has_sub_devices device whose topology isn't discovered yet.
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        class _StubWithSubDevices(V2Base):
+            has_sub_devices = True
+
+        v2 = _StubWithSubDevices("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        assert v2.topology_discovered is False
+        sections = v2._tlv_sections()
+        addrs = [a for a, _ in sections]
+        assert 21000 in addrs  # NODE_INFO
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  TLV-bundled polling
@@ -2793,6 +2872,46 @@ class TestTlvBundledPolling:
         addrs = {a for a, _ in cmd.sections}
         assert 100 in addrs
         assert 1100 in addrs
+
+    def test_tlv_polling_single_bundle_for_ac2a(self):
+        # AC2A has no packs and no sub-devices: a single bundle on slave 1.
+        from voltkeeper.core.devices.ac2a import AC2A
+
+        ac2a = AC2A("AA:BB:CC:DD:EE:FF", "1234567")
+        cmds = ac2a.tlv_polling_commands
+        assert len(cmds) == 1
+        assert cmds[0].slave_addr == 1
+
+    def test_tlv_polling_per_slave_bundles_for_discovered_packs(self):
+        # A device with discovered pack slaves emits one bundle per slave.
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        # Inject discovered packs without going through TLV parsing.
+        v2._discovered_packs = [41, 42]
+        v2._topology_discovered = True
+        cmds = v2.tlv_polling_commands
+        assert [c.slave_addr for c in cmds] == [1, 41, 42]
+        # Each pack bundle carries only the PACK_MAIN_INFO section.
+        for c in cmds[1:]:
+            assert [a for a, _ in c.sections] == [6000]
+            assert all(count == 32 for _, count in c.sections)
+
+    def test_tlv_polling_pre_discovery_fallback_for_battery_packs(self):
+        # has_battery_packs=True but no NODE_INFO yet: a single bundle on
+        # slave 1 that includes PACK_MAIN_INFO so the home screen has data
+        # on the first poll.
+        from voltkeeper.core.devices.v2_base import V2Base
+
+        class _StubWithPacks(V2Base):
+            has_battery_packs = True
+
+        v2 = _StubWithPacks("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        cmds = v2.tlv_polling_commands
+        assert len(cmds) == 1
+        assert cmds[0].slave_addr == 1
+        addrs = [a for a, _ in cmds[0].sections]
+        assert 6000 in addrs
 
     def test_parse_tlv_dispatches_home_data(self):
         from voltkeeper.core.devices.v2_base import V2Base
@@ -3109,3 +3228,229 @@ class TestFieldEnums:
         cmd = ac2a_device.build_setter_command("ems_ctrl_mode_set", "LOCAL")
         assert cmd.address == 2241
         assert cmd.value == 4
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  V2 alarm/fault decoding
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestV2AlarmDecoding:
+    """Tests for _fill_v2_alarms and _fill_v2_pack_alarms on V2Base."""
+
+    def _home_data(self, alarm_word1=0, fault_word1=0):
+        """Build an APP_HOME_DATA payload with specific alarm/fault bits set."""
+        data = bytearray(78)  # covers alarmInfo (52–59) and faultInfo (66–77)
+        # alarmInfo: 4 × 16-bit words, big-endian, at bytes 52–59
+        data[52] = (alarm_word1 >> 8) & 0xFF
+        data[53] = alarm_word1 & 0xFF
+        # faultInfo: 6 × 16-bit words, big-endian, at bytes 66–77
+        data[66] = (fault_word1 >> 8) & 0xFF
+        data[67] = fault_word1 & 0xFF
+        return bytes(data)
+
+    def test_no_alarms_when_all_bytes_zero(self):
+        """All-zero alarm/fault bytes yield no alarm.* or fault.* keys (task 6.1)."""
+        from voltkeeper.core.devices.v2_base import APP_HOME_DATA, V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        result = v2.parse(APP_HOME_DATA, self._home_data())
+        alarm_keys = [k for k in result if k.startswith("alarm.") or k.startswith("fault.")]
+        assert alarm_keys == []
+
+    def test_alarm_word1_bit0_low_power(self):
+        """Alarm word 1 bit 0 set on low_power device yields exactly one alarm key (task 6.2)."""
+        from voltkeeper.core.devices.v2_base import APP_HOME_DATA, V2Base
+
+        v2 = V2Base("AA:BB:CC:DD:EE:FF", "TEST", "0")
+        result = v2.parse(APP_HOME_DATA, self._home_data(alarm_word1=0x0001))
+        alarm_keys = [k for k in result if k.startswith("alarm.")]
+        fault_keys = [k for k in result if k.startswith("fault.")]
+        assert alarm_keys == ["alarm.Grid voltage high"]
+        assert fault_keys == []
+
+    def test_profile_switch_changes_alarm_names(self):
+        """Same bytes produce different names on low_power vs high_power devices (task 6.3)."""
+        from voltkeeper.core.devices.v2_base import APP_HOME_DATA, V2Base
+
+        class _HighPower(V2Base):
+            V2_ALARM_PROFILE = "high_power"
+
+        low = V2Base("AA:BB:CC:DD:EE:FF", "LOW", "0")
+        high = _HighPower("AA:BB:CC:DD:EE:FF", "HIGH", "0")
+        data = self._home_data(alarm_word1=0x0001)
+        result_low = low.parse(APP_HOME_DATA, data)
+        result_high = high.parse(APP_HOME_DATA, data)
+        # low_power word 1 bit 0 = "Grid voltage high" (lowercase v)
+        assert "alarm.Grid voltage high" in result_low
+        # high_power word 1 bit 0 = "Grid Voltage High" (uppercase V)
+        assert "alarm.Grid Voltage High" in result_high
+        assert "alarm.Grid voltage high" not in result_high
+        assert "alarm.Grid Voltage High" not in result_low
+
+    def test_pack_alarm_prefixed_with_sub_addr(self):
+        """Pack alarm bit decoded via _parse_node_info gets sub[N]. prefix (task 6.4)."""
+        from voltkeeper.core.devices.v2_base import V2Base
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        class _HighVolt(V2Base):
+            PACK_ALARM_PROFILE = "high_volt"
+
+        dev = _HighVolt("AA:BB:CC:DD:EE:FF", "TEST", "0")
+
+        # PACK_MAIN_INFO payload: 84 bytes with packHighVoltAlarm bit 0 set.
+        # packHighVoltAlarm at bytes 82–83 → PACK_HIGH_VOLT_ALARM_NAMES word 1 bit 0.
+        pack_data = bytearray(84)
+        pack_data[82] = 0x00
+        pack_data[83] = 0x01  # bit 0 → "Overall Overvoltage Alarm"
+
+        tlv = bytearray(TLV_MAGIC)
+        tlv.append(0x29)  # slave_addr = 41
+        tlv.append(0x17)  # reg_addr hi: 0x1770 = 6000 (PACK_MAIN_INFO)
+        tlv.append(0x70)  # reg_addr lo
+        length = len(pack_data)
+        tlv.append(length >> 8)
+        tlv.append(length & 0xFF)
+        tlv.extend(pack_data)
+        tlv.extend(b"\x00\x00")  # placeholder CRC16 (not validated by parser)
+
+        result = dev._parse_node_info(bytes(tlv))
+        assert result.get("sub[41].alarm.Overall Overvoltage Alarm") is True
+
+    def test_v1_alarm_decoding_regression(self):
+        """V1 _fill_alarms still decodes a set alarm bit correctly after V2 changes (task 6.5)."""
+        from voltkeeper.core.devices.ep500 import EP500
+
+        ep = EP500("AA:BB:CC:DD:EE:FF", "12345678")
+        # BASE_REAL_DATA=10; alarm word 1 at reg 54 → byte offset (54-10)*2=88
+        data = bytearray(220)
+        data[88] = 0x00
+        data[89] = 0x01  # bit 0 → CONNECT_CONSTANTS_ALARM_NAMES[1][0] = "Grid voltage high"
+        result = ep.parse(10, bytes(data))
+        assert result.get("alarm.Grid voltage high") is True
+
+
+class TestUpsMode:
+    """Tests for ups_mode writable BoolField on V1 and V2 devices (tasks 4.1–4.5)."""
+
+    def test_v1_write_on_produces_register_3035_value_1(self):
+        """AC300 write ups_mode on → WriteSingleRegister(3035, 1) (task 4.1)."""
+        from voltkeeper.core.devices.ac300 import AC300
+
+        dev = AC300("AA:BB:CC:DD:EE:FF", "0")
+        cmd = dev.build_setter_command("ups_mode", "on")
+        assert isinstance(cmd, WriteSingleRegister)
+        assert cmd.address == 3035
+        assert cmd.value == 1
+
+    def test_v1_write_off_produces_register_3035_value_0(self):
+        """AC300 write ups_mode off → WriteSingleRegister(3035, 0) (task 4.2)."""
+        from voltkeeper.core.devices.ac300 import AC300
+
+        dev = AC300("AA:BB:CC:DD:EE:FF", "0")
+        cmd = dev.build_setter_command("ups_mode", "off")
+        assert isinstance(cmd, WriteSingleRegister)
+        assert cmd.address == 3035
+        assert cmd.value == 0
+
+    def test_v1_read_register_3035_value_1_yields_ups_mode_true(self):
+        """Reading register 3035 value 1 yields ups_mode=True in parsed result (task 4.3)."""
+        from voltkeeper.core.devices.ac300 import AC300
+
+        dev = AC300("AA:BB:CC:DD:EE:FF", "0")
+        # Single register read: 2 bytes, value 0x0001
+        data = bytes([0x00, 0x01])
+        result = dev.parse(3035, data)
+        assert result.get("ups_mode") is True
+
+    def test_v1_read_register_3035_value_0_yields_ups_mode_false(self):
+        """Reading register 3035 value 0 yields ups_mode=False in parsed result."""
+        from voltkeeper.core.devices.ac300 import AC300
+
+        dev = AC300("AA:BB:CC:DD:EE:FF", "0")
+        data = bytes([0x00, 0x00])
+        result = dev.parse(3035, data)
+        assert result.get("ups_mode") is False
+
+    def test_v2_write_on_produces_register_3035_value_1(self):
+        """EL400 write ups_mode on → WriteSingleRegister(3035, 1) (task 4.4)."""
+        from voltkeeper.core.devices.el400 import EL400
+
+        dev = EL400("AA:BB:CC:DD:EE:FF", "0")
+        cmd = dev.build_setter_command("ups_mode", "on")
+        assert isinstance(cmd, WriteSingleRegister)
+        assert cmd.address == 3035
+        assert cmd.value == 1
+
+    def test_v2_write_off_produces_register_3035_value_0(self):
+        """EL400 write ups_mode off → WriteSingleRegister(3035, 0)."""
+        from voltkeeper.core.devices.el400 import EL400
+
+        dev = EL400("AA:BB:CC:DD:EE:FF", "0")
+        cmd = dev.build_setter_command("ups_mode", "off")
+        assert isinstance(cmd, WriteSingleRegister)
+        assert cmd.address == 3035
+        assert cmd.value == 0
+
+    def test_v2_read_register_3035_value_1_yields_ups_mode_true(self):
+        """V2 parse of register 3035 value 1 yields ups_mode=True."""
+        from voltkeeper.core.devices.el400 import EL400
+
+        dev = EL400("AA:BB:CC:DD:EE:FF", "0")
+        data = bytes([0x00, 0x01])
+        result = dev.parse(3035, data)
+        assert result.get("ups_mode") is True
+
+    def test_v1_all_supporting_devices_expose_ups_mode(self):
+        """AC300, AC500, AC200L, AC200PL, EP500 all have ups_mode in WRITABLE_FIELD_NAMES."""
+        from voltkeeper.core.devices.ac200l import AC200L
+        from voltkeeper.core.devices.ac200pl import AC200PL
+        from voltkeeper.core.devices.ac300 import AC300
+        from voltkeeper.core.devices.ac500 import AC500
+        from voltkeeper.core.devices.ep500 import EP500
+
+        for cls in (AC300, AC500, AC200L, AC200PL, EP500):
+            assert "ups_mode" in cls.WRITABLE_FIELD_NAMES, f"{cls.__name__} missing ups_mode"
+
+    def test_v2_all_supporting_devices_expose_ups_mode(self):
+        """EL10V2, EL30V2, EL100V2, EL400, EP600 all have ups_mode in WRITABLE_FIELD_NAMES."""
+        from voltkeeper.core.devices.el10v2 import EL10V2
+        from voltkeeper.core.devices.el30v2 import EL30V2
+        from voltkeeper.core.devices.el100v2 import El100V2
+        from voltkeeper.core.devices.el400 import EL400
+        from voltkeeper.core.devices.ep600 import EP600
+
+        for cls in (EL10V2, EL30V2, El100V2, EL400, EP600):
+            assert "ups_mode" in cls.WRITABLE_FIELD_NAMES, f"{cls.__name__} missing ups_mode"
+
+    def test_unsupported_devices_do_not_expose_ups_mode(self):
+        """ups_mode is NOT exposed on AC2A, EB3A, AC60, AC180, AORA Mini (task 4.5)."""
+        from voltkeeper.core.devices.ac2a import AC2A
+        from voltkeeper.core.devices.ac60 import AC60
+        from voltkeeper.core.devices.ac180 import AC180
+        from voltkeeper.core.devices.aora_mini import Aora100Mini
+        from voltkeeper.core.devices.eb3a import EB3A
+
+        for cls in (AC2A, EB3A, AC60, AC180, Aora100Mini):
+            names = getattr(cls, "WRITABLE_FIELD_NAMES", [])
+            assert "ups_mode" not in names, f"{cls.__name__} wrongly has ups_mode"
+
+    def test_ep500_write_produces_register_3035(self):
+        """EP500 write ups_mode on → WriteSingleRegister(3035, 1)."""
+        from voltkeeper.core.devices.ep500 import EP500
+
+        dev = EP500("AA:BB:CC:DD:EE:FF", "0")
+        cmd = dev.build_setter_command("ups_mode", "on")
+        assert isinstance(cmd, WriteSingleRegister)
+        assert cmd.address == 3035
+        assert cmd.value == 1
+
+    def test_ep600_write_produces_register_3035(self):
+        """EP600 write ups_mode off → WriteSingleRegister(3035, 0)."""
+        from voltkeeper.core.devices.ep600 import EP600
+
+        dev = EP600("AA:BB:CC:DD:EE:FF", "0")
+        cmd = dev.build_setter_command("ups_mode", "off")
+        assert isinstance(cmd, WriteSingleRegister)
+        assert cmd.address == 3035
+        assert cmd.value == 0

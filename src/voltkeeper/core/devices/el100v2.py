@@ -10,6 +10,7 @@ from .v2_base import (
     INV_BASE_SETTINGS,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
+    V1_UPS_MODE,
     WORKING_MODE,
     V2Base,
 )
@@ -66,6 +67,8 @@ class El100V2(V2Base):
         s.add_decimal_field("grid_max_current", 2214, 1)
         s.add_uint_field("feed_max_power", 2215)
         s.add_decimal_field("feed_max_current", 2216, 1)
+        # TODO(hardware): verify — V2 uses same V1 register per APK DeviceSettingsWorkingModeActivityV2
+        s.add_bool_field("ups_mode", V1_UPS_MODE)
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",
@@ -100,6 +103,7 @@ class El100V2(V2Base):
         "system_time",
         "system_timezone",
         "ctrl_led",
+        "ups_mode",
     ]
 
     @property
@@ -119,4 +123,5 @@ class El100V2(V2Base):
             ReadHoldingRegisters(INV_BASE_SETTINGS, 24),
             ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
             ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 18),
+            ReadHoldingRegisters(V1_UPS_MODE, 1),
         ]

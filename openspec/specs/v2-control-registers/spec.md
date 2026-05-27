@@ -170,3 +170,91 @@ All V2 device classes that include an `inv_voltage` field SHALL document the kno
 #### Scenario: Out-of-range ECO power rejected
 - **WHEN** user writes `dc_eco_power = 100` (no explicit range on ac2a.py, so no rejection for fields without range)
 - **THEN** for fields WITH range like `sys_low_power`, writing 150 to a field with range (0, 100) raises `ValueError`
+
+### Requirement: SystemPowerOff enum lives in shared commands module
+
+The `SystemPowerOff(Enum)` SHALL be defined in `src/voltkeeper/core/commands.py` alongside `WorkingMode` and `ChargingMode`, with members `NORMAL=0`, `SHUTDOWN=1`, `POWER_DOWN_V1=2`, `POWER_DOWN_V2=3`, `SLEEP=4`. The integer values match the V2 `SYSTEM_POWER_OFF` register semantics documented in `docs/source/protocol/modbus-registers.md`.
+
+#### Scenario: Enum importable from commands module
+- **WHEN** importing `SystemPowerOff` from `voltkeeper.core.commands`
+- **THEN** the import succeeds with all five members accessible
+- **THEN** `SystemPowerOff.SLEEP.value == 4`
+
+### Requirement: EL400 system-power register modeled as a single enum
+
+The EL400 device class SHALL model V2 register 2013 (`SYSTEM_POWER_OFF`) as a single `EnumField` named `system_power` using the `SystemPowerOff` enum. It SHALL NOT expose two BoolFields on the same address (the previous `power_off` + `sleep_mode` modeling caused read-side collisions). Writes SHALL accept the enum member name (`"sleep"`, `"shutdown"`, etc.) or the integer value, and SHALL emit the corresponding integer to register 2013 via `WriteSingleRegister`.
+
+#### Scenario: Read register 2013 with sleep value
+- **WHEN** EL400 parses register 2013 with raw value `4`
+- **THEN** the parsed result contains `system_power = SystemPowerOff.SLEEP`
+- **THEN** the result does NOT contain `power_off` or `sleep_mode` keys
+
+#### Scenario: Write sleep mode
+- **WHEN** user runs `voltkeeper write <addr> system_power sleep` on an EL400
+- **THEN** the system sends `WriteSingleRegister(address=2013, value=4)`
+
+#### Scenario: Write shutdown
+- **WHEN** user runs `voltkeeper write <addr> system_power shutdown` on an EL400
+- **THEN** the system sends `WriteSingleRegister(address=2013, value=1)`
+
+#### Scenario: Invalid value rejected
+- **WHEN** user writes `system_power = "wakeup"` (not an enum member)
+- **THEN** `build_setter_command` raises `KeyError` or `ValueError` before sending any BLE traffic
+## ADDED Requirements
+
+### Requirement: V2 alarm and fault name tables ported from ConnConstantsV2
+
+The system SHALL maintain table sets in `src/voltkeeper/core/devices/_v2_alarm_tables.py` mirroring the APK's `ConnConstantsV2` arrays:
+
+- `LOW_POWER_WARN_NAMES` / `LOW_POWER_FAULT_NAMES` (single-phase portable inverters)
+- `HIGH_POWER_WARN_NAMES` / `HIGH_POWER_FAULT_NAMES` (3-phase / home-power inverters)
+- `MICRO_INV_WARN_NAMES` / `MICRO_INV_FAULT_NAMES` (BalconySolar / micro-inverter family)
+- `PACK_HIGH_VOLT_ALARM_NAMES` / `PACK_HIGH_VOLT_ERROR_NAMES` (high-voltage battery packs)
+- `BMU_WARN_NAMES` (BMU-level warnings)
+
+Each table SHALL be a `dict[int, list[str | None]]` where the integer key is the 1-based word index and the list contains 16 entries (one per bit), with `None` for unused positions. Names SHALL be transcribed verbatim from APK string resources, preserving any spelling quirks.
+
+#### Scenario: Module importable with all tables
+- **WHEN** importing the alarm-tables module
+- **THEN** all eight named tables are present as module-level constants
+- **THEN** each table is a `dict[int, list[str | None]]`
+
+### Requirement: V2Base selects alarm tables via per-class profile
+
+`V2Base` SHALL expose `V2_ALARM_PROFILE: str = "low_power"` as a class attribute. Subclasses SHALL override this attribute to `"high_power"` for 3-phase devices (EP500, EP600, any future home-power class) or `"micro_inv"` for micro-inverter devices. The class attribute `PACK_ALARM_PROFILE: str | None = None` SHALL select a pack alarm table set, with `"high_volt"` enabling high-voltage pack alarm decoding.
+
+#### Scenario: Default profile for portable power stations
+- **WHEN** inspecting `AC2A.V2_ALARM_PROFILE`
+- **THEN** the value is `"low_power"`
+
+#### Scenario: High-power override
+- **WHEN** inspecting `EP600.V2_ALARM_PROFILE`
+- **THEN** the value is `"high_power"`
+
+### Requirement: V2 alarm bits decoded into named keys
+
+When `V2Base.parse()` processes an `APP_HOME_DATA` block (address 100), it SHALL call `_fill_v2_alarms(result, data)`. That method SHALL extract alarm-info (bytes 52–59, 4 × 16-bit words) and fault-info (bytes 66–77, 6 × 16-bit words) from the data payload and, for each set bit, add a key `alarm.<name>` or `fault.<name>` (value `True`) to the result dict using the table selected by `V2_ALARM_PROFILE`. Bits with `None` names SHALL be skipped silently.
+
+#### Scenario: No alarms set
+- **WHEN** parsing an `APP_HOME_DATA` block with all alarm/fault bytes zero
+- **THEN** the result contains no keys starting with `alarm.` or `fault.`
+
+#### Scenario: One alarm bit set
+- **WHEN** parsing an `APP_HOME_DATA` block with alarm-word 1 bit 0 set, profile `"low_power"`
+- **THEN** the result contains `alarm.<the name at low-power warn word 1 bit 0> = True`
+
+#### Scenario: Profile selection affects output names
+- **WHEN** identical input bytes are parsed on a `low_power` profile device vs a `high_power` profile device
+- **THEN** the emitted alarm names differ, matching the respective table set
+
+### Requirement: V2 pack alarm bits decoded with sub-device prefix
+
+When pack alarm bytes are present in a parsed `PACK_MAIN_INFO` block (address 6000) on a device whose `PACK_ALARM_PROFILE` is set, the system SHALL emit `alarm.<name>` / `fault.<name>` keys. When the pack arrives via `_parse_node_info` with a non-zero slave address, the keys SHALL be prefixed with `sub[<slave_addr>].`.
+
+#### Scenario: Pack alarm via direct read
+- **WHEN** parsing `PACK_MAIN_INFO` on a device with `PACK_ALARM_PROFILE="high_volt"` and a set alarm bit
+- **THEN** the result contains `alarm.<the corresponding pack alarm name> = True` (no `sub[...]` prefix)
+
+#### Scenario: Pack alarm via NODE_INFO
+- **WHEN** `_parse_node_info` returns a TLV item with `slave_addr=41` and `reg_addr=PACK_MAIN_INFO`, alarm bit set
+- **THEN** the result contains `sub[41].alarm.<the corresponding pack alarm name> = True`

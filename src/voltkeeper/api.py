@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import ipaddress
 import json
@@ -11,12 +12,13 @@ import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from aiohttp import web
 
 from .bus import CommandMessage, EventBus
-from .config import Config
+from .config import Config, load_config
 from .core.commands import WriteSingleRegister
 from .core.struct import BoolField, DecimalField, EnumField, UintField
 from .device_manager import DeviceManager
@@ -29,24 +31,38 @@ BUS_KEY: Any = web.AppKey("bus", EventBus)
 STORE_KEY: Any = web.AppKey("store", StateStore)
 DEVICE_MANAGER_KEY: Any = web.AppKey("device_manager", DeviceManager)
 _RATE_STORE_KEY: Any = web.AppKey("rate_store", dict)
+_SHUTDOWN_EVENT_KEY: Any = web.AppKey("shutdown_event", object)
+_CONFIG_PATH_KEY: Any = web.AppKey("config_path", object)
 
 _RATE_LIMIT_WINDOW = 60.0  # seconds
 _RATE_LIMIT_MAX = 60  # requests per window per IP
 _RATE_LIMIT_MAX_TRACKED = 1024  # cap on distinct IPs tracked; triggers eviction sweep
 
 
-def create_app(config: Config, bus: EventBus, store: StateStore, device_manager: DeviceManager) -> web.Application:
+def create_app(
+    config: Config,
+    bus: EventBus,
+    store: StateStore,
+    device_manager: DeviceManager,
+    *,
+    shutdown_event: Any = None,
+    config_path: Any = None,
+) -> web.Application:
     app = web.Application(middlewares=[_acl_middleware, _rate_limit_middleware, _auth_middleware])
     app[CONFIG_KEY] = config
     app[BUS_KEY] = bus
     app[STORE_KEY] = store
     app[DEVICE_MANAGER_KEY] = device_manager
     app[_RATE_STORE_KEY] = {}
+    app[_SHUTDOWN_EVENT_KEY] = shutdown_event
+    app[_CONFIG_PATH_KEY] = config_path
 
     app.router.add_get("/api/devices", _handle_devices)
     app.router.add_get("/api/device/{address}", _handle_device)
     app.router.add_get("/api/device/{address}/fields", _handle_fields)
     app.router.add_post("/api/device/{address}/command", _handle_command)
+    app.router.add_post("/api/shutdown", _handle_shutdown)
+    app.router.add_post("/api/reload", _handle_reload)
     app.router.add_get("/ws", _handle_websocket)
     app.router.add_get("/", _handle_index)
 
@@ -260,6 +276,59 @@ async def _handle_fields(request: web.Request) -> web.Response:
         fields.append(entry)
 
     return web.json_response({"fields": fields})
+
+
+# ── Daemon Control Handlers ──────────────────────────────────────────────
+
+
+async def _handle_shutdown(request: web.Request) -> web.Response:
+    shutdown_event = request.app[_SHUTDOWN_EVENT_KEY]
+    if shutdown_event is None:
+        return web.json_response({"error": "Shutdown not available"}, status=503)
+    logger.info("Shutdown requested via API")
+    shutdown_event.set()
+    return web.json_response({"accepted": True}, status=202)
+
+
+async def _handle_reload(request: web.Request) -> web.Response:
+    config_path = request.app[_CONFIG_PATH_KEY]
+    device_manager: DeviceManager = request.app[DEVICE_MANAGER_KEY]
+
+    if config_path is None:
+        return web.json_response({"error": "Config path not available"}, status=503)
+
+    try:
+        new_config = load_config(Path(config_path))
+    except SystemExit:
+        return web.json_response({"error": "Config file could not be loaded"}, status=400)
+
+    old_config: Config = request.app[CONFIG_KEY]
+    restart_reasons = []
+
+    if new_config.server.host != old_config.server.host:
+        restart_reasons.append("server.host changed")
+    if new_config.server.port != old_config.server.port:
+        restart_reasons.append("server.port changed")
+
+    if restart_reasons:
+        return web.json_response(
+            {
+                "reloaded": False,
+                "restart_required": True,
+                "reason": "; ".join(restart_reasons),
+            }
+        )
+
+    # Apply hot-reloadable changes
+    old_config.scan.interval = new_config.scan.interval
+    old_config.scan.timeout = new_config.scan.timeout
+    old_config.devices[:] = new_config.devices
+
+    # Notify device manager of updated device list
+    asyncio.create_task(device_manager.apply_config_devices(new_config.devices))
+
+    logger.info("Config reloaded: scan.interval=%s, devices=%s", new_config.scan.interval, len(new_config.devices))
+    return web.json_response({"reloaded": True, "restart_required": False})
 
 
 # ── WebSocket Handler ────────────────────────────────────────────────────

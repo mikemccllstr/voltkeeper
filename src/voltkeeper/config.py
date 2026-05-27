@@ -33,6 +33,7 @@ class ServerConfig:
     api_key: str = ""
     allowed_networks: list[str] = field(default_factory=list)
     interface: str | None = None
+    mdns: bool = False
 
     def normalized_networks(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
         result = []
@@ -151,12 +152,17 @@ def _parse_server(raw: dict, config_path: Path) -> ServerConfig:
     if interface is not None and not isinstance(interface, str):
         _fail("server.interface", "must be a string (interface name) or null", config_path)
 
+    mdns = raw.get("mdns", False)
+    if not isinstance(mdns, bool):
+        _fail("server.mdns", "must be a boolean", config_path)
+
     return ServerConfig(
         host=str(host),
         port=int(port),
         api_key=str(api_key),
         allowed_networks=[str(a) for a in allowed],
         interface=str(interface) if interface else None,
+        mdns=bool(mdns),
     )
 
 
@@ -189,6 +195,68 @@ def _parse_shutdown_watchdog(raw: dict) -> ShutdownWatchdogConfig:
         soc_threshold=int(raw.get("soc_threshold", 10)),
         grace_period=int(raw.get("grace_period", 60)),
     )
+
+
+def find_writable_config_path() -> Path:
+    """Return the user config path, creating its parent directory if needed."""
+    path = _xdg_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def write_config(config: Config, path: Path) -> None:
+    """Write config to path using ruamel.yaml, preserving existing comments."""
+    from ruamel.yaml import YAML
+
+    ry = YAML()
+    ry.default_flow_style = False
+    ry.preserve_quotes = True
+
+    if path.exists():
+        with path.open() as f:
+            doc = ry.load(f)
+        if doc is None:
+            doc = {}
+    else:
+        doc = {}
+
+    # server section
+    if "server" not in doc:
+        doc["server"] = {}
+    s = doc["server"]
+    s["host"] = config.server.host
+    s["port"] = config.server.port
+    s["api_key"] = config.server.api_key
+    if config.server.allowed_networks:
+        s["allowed_networks"] = list(config.server.allowed_networks)
+    elif "allowed_networks" in s:
+        del s["allowed_networks"]
+    if config.server.interface is not None:
+        s["interface"] = config.server.interface
+    elif "interface" in s:
+        del s["interface"]
+    if config.server.mdns:
+        s["mdns"] = True
+    elif "mdns" in s:
+        del s["mdns"]
+
+    # devices section
+    devices_list = []
+    for d in config.devices:
+        entry: dict = {"address": d.address}
+        if d.name is not None:
+            entry["name"] = d.name
+        devices_list.append(entry)
+    doc["devices"] = devices_list
+
+    # scan section
+    if "scan" not in doc:
+        doc["scan"] = {}
+    doc["scan"]["interval"] = config.scan.interval
+    doc["scan"]["timeout"] = config.scan.timeout
+
+    with path.open("w") as f:
+        ry.dump(doc, f)
 
 
 def _fail(field: str, message: str, config_path: Path) -> None:

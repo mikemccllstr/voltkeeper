@@ -501,6 +501,120 @@ class TestRateLimit:
         asyncio.run(_run())
 
 
+class TestShutdownEndpoint:
+    def test_authorized_shutdown_returns_202(self, config, bus, store, device_manager, unused_tcp_port):
+        config.server.port = unused_tcp_port
+
+        async def _run():
+            import asyncio as _asyncio
+
+            shutdown_event = _asyncio.Event()
+            app = create_app(config, bus, store, device_manager, shutdown_event=shutdown_event)
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/api/shutdown"
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=_auth_headers(config)) as resp:
+                        assert resp.status == 202
+                        data = await resp.json()
+                        assert data["accepted"] is True
+                assert shutdown_event.is_set()
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+    def test_unauthorized_shutdown_returns_401(self, config, bus, store, device_manager, unused_tcp_port):
+        config.server.port = unused_tcp_port
+
+        async def _run():
+            import asyncio as _asyncio
+
+            shutdown_event = _asyncio.Event()
+            app = create_app(config, bus, store, device_manager, shutdown_event=shutdown_event)
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/api/shutdown"
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers={"Authorization": "Bearer wrong"}) as resp:
+                        assert resp.status == 401
+                assert not shutdown_event.is_set()
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+
+class TestReloadEndpoint:
+    def test_hot_reload_applies_scan_interval(self, config, bus, store, device_manager, tmp_path, unused_tcp_port):
+        config.server.port = unused_tcp_port
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            f"server:\n  api_key: {config.server.api_key}\n  host: 127.0.0.1\n  port: {config.server.port}\n"
+            "scan:\n  interval: 120\n  timeout: 10.0\n"
+            "devices: []\n"
+        )
+
+        async def _run():
+            app = create_app(config, bus, store, device_manager, config_path=str(config_file))
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/api/reload"
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=_auth_headers(config)) as resp:
+                        assert resp.status == 200
+                        data = await resp.json()
+                        assert data["reloaded"] is True
+                        assert data["restart_required"] is False
+                assert config.scan.interval == 120
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+    def test_restart_required_for_port_change(self, config, bus, store, device_manager, tmp_path, unused_tcp_port):
+        config.server.port = unused_tcp_port
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            f"server:\n  api_key: {config.server.api_key}\n  host: 127.0.0.1\n  port: 9999\ndevices: []\n"
+        )
+
+        async def _run():
+            app = create_app(config, bus, store, device_manager, config_path=str(config_file))
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/api/reload"
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=_auth_headers(config)) as resp:
+                        assert resp.status == 200
+                        data = await resp.json()
+                        assert data["reloaded"] is False
+                        assert data["restart_required"] is True
+                        assert "server.port" in data["reason"]
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+    def test_bad_config_returns_400(self, config, bus, store, device_manager, tmp_path, unused_tcp_port):
+        config.server.port = unused_tcp_port
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("not: valid: yaml: [\n")
+
+        async def _run():
+            app = create_app(config, bus, store, device_manager, config_path=str(config_file))
+            runner, site = await _create_cli(app, config.server.port)
+            try:
+                url = f"http://127.0.0.1:{config.server.port}/api/reload"
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=_auth_headers(config)) as resp:
+                        assert resp.status == 400
+            finally:
+                await runner.cleanup()
+
+        asyncio.run(_run())
+
+
 class TestCommandErrorPrivacy:
     def test_command_error_does_not_leak_exception_details(self, app, config, device_manager, bus):
         async def _run():

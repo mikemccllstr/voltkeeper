@@ -39,6 +39,8 @@ dependencies = [
     "paho-mqtt>=2.0",
     "aiomqtt>=2.0",
     "pyyaml>=6.0",
+    "ruamel.yaml>=0.18",
+    "zeroconf>=0.132",
     "watchdog>=6.0",
     "aiohttp>=3.13",
 ]

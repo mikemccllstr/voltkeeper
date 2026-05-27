@@ -66,6 +66,76 @@ class TestDaemonShutdown:
         assert daemon._runner is None
 
 
+class TestDaemonStopCommand:
+    def test_stop_via_systemctl_when_unit_file_exists(self, tmp_path):
+        from unittest.mock import MagicMock, patch
+
+        from click.testing import CliRunner
+
+        from voltkeeper.cli import cli
+
+        # Build the exact path the CLI looks for
+        unit_dir = tmp_path / ".config" / "systemd" / "user"
+        unit_dir.mkdir(parents=True)
+        (unit_dir / "voltkeeper.service").write_text("[Unit]\n")
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with (
+            patch("pathlib.Path.home", return_value=tmp_path),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            runner = CliRunner()
+            result = runner.invoke(cli, ["daemon", "stop"])
+
+        assert result.exit_code == 0, result.output
+        assert "systemctl" in result.output
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert "stop" in cmd
+        assert "voltkeeper" in cmd
+
+    def test_stop_via_api_when_no_unit_file(self, tmp_path):
+        from http.client import HTTPResponse
+        from unittest.mock import MagicMock, patch
+
+        from click.testing import CliRunner
+
+        from voltkeeper.cli import cli
+
+        fake_response = MagicMock(spec=HTTPResponse)
+        fake_response.status = 202
+        fake_response.__enter__ = lambda s: s
+        fake_response.__exit__ = MagicMock(return_value=False)
+        fake_response.read.return_value = b'{"accepted": true}'
+
+        with (
+            patch("pathlib.Path.home", return_value=tmp_path),
+            patch("voltkeeper.cli._discover_api_key", return_value="testkey"),
+            patch("urllib.request.urlopen", return_value=fake_response),
+        ):
+            cli_runner = CliRunner()
+            result = cli_runner.invoke(cli, ["daemon", "stop", "--daemon-url", "http://127.0.0.1:8080"])
+
+        assert result.exit_code == 0, result.output
+        assert "shutting down" in result.output.lower()
+
+    def test_stop_exits_nonzero_when_unreachable(self, tmp_path):
+        from unittest.mock import patch
+
+        from click.testing import CliRunner
+
+        from voltkeeper.cli import cli
+
+        cli_runner = CliRunner()
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            result = cli_runner.invoke(cli, ["daemon", "stop", "--daemon-url", "http://127.0.0.1:19999"])
+
+        assert result.exit_code != 0
+
+
 class TestInterfaceResolution:
     def test_resolve_host_uses_config_host(self, test_config):
         daemon = Daemon(test_config)

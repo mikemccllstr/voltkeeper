@@ -5,6 +5,17 @@ from typing import Any, List
 from ..commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
 from ..struct import BoolField, DeviceStruct, EnumField
 from ..tlv import TlvParser
+from ..utils import _u16
+from ._v2_alarm_tables import (
+    HIGH_POWER_FAULT_NAMES,
+    HIGH_POWER_WARN_NAMES,
+    LOW_POWER_FAULT_NAMES,
+    LOW_POWER_WARN_NAMES,
+    MICRO_INV_FAULT_NAMES,
+    MICRO_INV_WARN_NAMES,
+    PACK_HIGH_VOLT_ALARM_NAMES,
+    PACK_HIGH_VOLT_ERROR_NAMES,
+)
 from .bluetti_device import BluettiDevice
 
 APP_HOME_DATA = 100
@@ -27,6 +38,9 @@ NODE_INFO = 21000
 PACK_MAIN_INFO = 6000
 PACK_ITEM_INFO = 6100
 PACK_BMU_INFO = 7200
+# V1 SETTABLE_DATA register used by V2 devices for UPS sub-mode (per APK ProtocolAddr.UPS_MODE).
+# V2 activities read and write this same register (DeviceSettingsWorkingModeActivityV2 line 667).
+V1_UPS_MODE = 3035
 
 # ── ctrl_event capability bits ──────────────────────────────────────
 
@@ -52,6 +66,25 @@ def decode_ctrl_event(ctrl_event: int) -> dict[str, bool]:
 
 class V2Base(BluettiDevice):
     protocol_version: int = 2000
+
+    # Alarm profile selects which warn/fault name tables _fill_v2_alarms uses.
+    # Subclasses for 3-phase home-power devices override to "high_power";
+    # micro-inverter devices override to "micro_inv". All portables keep the default.
+    V2_ALARM_PROFILE: str = "low_power"
+
+    # Pack alarm profile; None disables pack alarm decoding. Override to
+    # "high_volt" on devices with high-voltage packs (e.g. EP600).
+    PACK_ALARM_PROFILE: str | None = None
+
+    _V2_INV_TABLES: dict[str, tuple[dict, dict]] = {
+        "low_power": (LOW_POWER_WARN_NAMES, LOW_POWER_FAULT_NAMES),
+        "high_power": (HIGH_POWER_WARN_NAMES, HIGH_POWER_FAULT_NAMES),
+        "micro_inv": (MICRO_INV_WARN_NAMES, MICRO_INV_FAULT_NAMES),
+    }
+
+    _V2_PACK_TABLES: dict[str, tuple[dict, dict]] = {
+        "high_volt": (PACK_HIGH_VOLT_ALARM_NAMES, PACK_HIGH_VOLT_ERROR_NAMES),
+    }
 
     # Default pack-voltage scale for V2 devices. EP500/EP600 and other
     # high-voltage packs use ÷10 (raw register value × 0.1 = volts). The AC2A
@@ -223,7 +256,9 @@ class V2Base(BluettiDevice):
 
     def parse(self, address: int, data: bytes) -> dict:
         if APP_HOME_DATA <= address < INV_BASE_INFO:
-            return self.home_struct.parse(address, data)
+            result = self.home_struct.parse(address, data)
+            self._fill_v2_alarms(result, data)
+            return result
         elif INV_BASE_INFO <= address < INV_PV_INFO:
             return self.inv_base_struct.parse(address, data)
         elif INV_PV_INFO <= address < INV_GRID_INFO:
@@ -236,10 +271,14 @@ class V2Base(BluettiDevice):
             return self.inv_inv_struct.parse(address, data)
         elif INV_BASE_SETTINGS <= address < 2300:
             return self.control_struct.parse(address, data)
+        elif address == V1_UPS_MODE:
+            return self.control_struct.parse(address, data)
         elif address == NODE_INFO:
             return self._parse_node_info(data)
         elif PACK_MAIN_INFO <= address < PACK_ITEM_INFO:
-            return self.pack_main_struct.parse(address, data) if hasattr(self, "pack_main_struct") else {}
+            result = self.pack_main_struct.parse(address, data) if hasattr(self, "pack_main_struct") else {}
+            self._fill_v2_pack_alarms(result, data)
+            return result
         elif PACK_ITEM_INFO <= address < PACK_BMU_INFO:
             return self.pack_item_struct.parse(address, data) if hasattr(self, "pack_item_struct") else {}
         return {}
@@ -267,6 +306,7 @@ class V2Base(BluettiDevice):
                 if PACK_MAIN_INFO <= item.reg_addr < PACK_ITEM_INFO:
                     if hasattr(self, "pack_main_struct"):
                         parsed = self.pack_main_struct.parse(item.reg_addr, item.value)
+                        self._fill_v2_pack_alarms(parsed, item.value)
                         for k, v in parsed.items():
                             result[f"{prefix}.{k}"] = v
                 elif PACK_ITEM_INFO <= item.reg_addr < PACK_BMU_INFO:
@@ -277,6 +317,69 @@ class V2Base(BluettiDevice):
             except Exception:
                 pass
         return result
+
+    # ── Alarm decoding ─────────────────────────────────────────────────
+
+    def _fill_v2_alarms(self, result: dict, data: bytes) -> None:
+        """Decode inverter alarmInfo and faultInfo from an APP_HOME_DATA payload.
+
+        Byte offsets are from ProtocolParserV2.parseHomeData (APK v3.0.9);
+        confirmed correct on AC2A (zero under both grid-on and battery-only operation):
+          alarmInfo: bytes 52–59, 4 × 16-bit words
+          faultInfo: bytes 66–77, 6 × 16-bit words
+        """
+        warn_names, fault_names = self._V2_INV_TABLES[self.V2_ALARM_PROFILE]
+
+        for word_idx in range(4):
+            off = 52 + word_idx * 2
+            if len(data) < off + 2:
+                break
+            word_val = _u16(data, off)
+            names = warn_names.get(word_idx + 1, [])
+            for bit in range(16):
+                if (word_val >> bit) & 1 and bit < len(names) and names[bit] is not None:
+                    result[f"alarm.{names[bit]}"] = True
+
+        for word_idx in range(6):
+            off = 66 + word_idx * 2
+            if len(data) < off + 2:
+                break
+            word_val = _u16(data, off)
+            names = fault_names.get(word_idx + 1, [])
+            for bit in range(16):
+                if (word_val >> bit) & 1 and bit < len(names) and names[bit] is not None:
+                    result[f"fault.{names[bit]}"] = True
+
+    def _fill_v2_pack_alarms(self, result: dict, data: bytes) -> None:
+        """Decode pack alarm/error bits from a PACK_MAIN_INFO payload.
+
+        Only runs when PACK_ALARM_PROFILE is set. Byte offsets from
+        ProtocolParserV2.parsePackMainInfo (APK v3.0.9); not yet verified on
+        hardware with an active pack alarm:
+          packSysErr:        bytes 76–81, 3 × 16-bit words
+          packHighVoltAlarm: bytes 82–83, 1 × 16-bit word
+        """
+        if self.PACK_ALARM_PROFILE is None:
+            return
+        alarm_names, error_names = self._V2_PACK_TABLES[self.PACK_ALARM_PROFILE]
+
+        for word_idx in range(3):
+            off = 76 + word_idx * 2
+            if len(data) < off + 2:
+                break
+            word_val = _u16(data, off)
+            names = error_names.get(word_idx + 1, [])
+            for bit in range(16):
+                if (word_val >> bit) & 1 and bit < len(names) and names[bit] is not None:
+                    result[f"fault.{names[bit]}"] = True
+
+        off = 82
+        if len(data) >= off + 2:
+            word_val = _u16(data, off)
+            names = alarm_names.get(1, [])
+            for bit in range(16):
+                if (word_val >> bit) & 1 and bit < len(names) and names[bit] is not None:
+                    result[f"alarm.{names[bit]}"] = True
 
     # ── Writable-field plumbing ────────────────────────────────────────
 
@@ -345,10 +448,16 @@ class V2Base(BluettiDevice):
         return self.protocol_version >= 2000
 
     def _tlv_sections(self) -> list[tuple[int, int]]:
-        """Return register sections for a TLV-bundled poll request.
+        """Sections for the main-slave (1) TLV bundle.
 
-        Fast blocks (every cycle): HOME, CONTROLS, PACK, NODE_INFO.
+        Fast blocks (every cycle): HOME, NODE_INFO, plus a pre-discovery PACK
+        read for battery-pack devices that haven't yet seen a NODE_INFO
+        response.
         Slow blocks (every 3rd cycle): INV_BASE, PV, GRID, LOAD, INV.
+
+        Per-slave pack reads are not included here — they are emitted as
+        separate bundles by ``tlv_polling_commands`` once topology is
+        discovered.
         """
         sections: list[tuple[int, int]] = [
             (APP_HOME_DATA, self.HOME_DATA_REGS),
@@ -365,10 +474,10 @@ class V2Base(BluettiDevice):
             sections.extend(slow_blocks)
         if self.has_sub_devices:
             sections.append((NODE_INFO, 32))
-        if self._discovered_packs:
-            for _ in self._discovered_packs:
-                sections.append((PACK_MAIN_INFO, 32))
-        elif self.has_battery_packs:
+        # Pre-discovery fallback: a battery-pack device that has not yet seen
+        # NODE_INFO data reads PACK_MAIN_INFO from the main slave so the home
+        # screen has something to show on the first poll.
+        if self.has_battery_packs and not self._discovered_packs:
             sections.append((PACK_MAIN_INFO, 32))
         return sections
 
@@ -386,7 +495,13 @@ class V2Base(BluettiDevice):
 
     @property
     def tlv_polling_commands(self) -> List[TlvReadHoldingRegisters]:
-        return [TlvReadHoldingRegisters(self._tlv_sections(), slave_addr=1)]
+        cmds = [TlvReadHoldingRegisters(self._tlv_sections(), slave_addr=1)]
+        # Per-slave pack reads: one TLV bundle per discovered pack, matching
+        # the APK's ModbusV2Dispatcher behavior. Before discovery, the main
+        # bundle's pre-discovery fallback handles it (see _tlv_sections).
+        for pack_slave in self._discovered_packs:
+            cmds.append(TlvReadHoldingRegisters([(PACK_MAIN_INFO, 32)], slave_addr=pack_slave))
+        return cmds
 
     def discover_topology(self, tlv_data: bytes) -> None:
         """Parse a NODE_INFO TLV response and update discovered topology.
@@ -406,7 +521,11 @@ class V2Base(BluettiDevice):
 
     @property
     def topology_discovered(self) -> bool:
-        return hasattr(self, "has_battery_packs") and self.has_battery_packs or self._topology_discovered
+        # True only after discover_topology() has consumed a NODE_INFO TLV
+        # response. Class-level has_battery_packs declarations are not enough
+        # — until the device actually answers, _discovered_packs is empty
+        # and per-slave reads can't be addressed correctly.
+        return self._topology_discovered
 
     @property
     def polling_commands(self) -> List[ReadHoldingRegisters]:
@@ -438,4 +557,4 @@ class V2Base(BluettiDevice):
 
     @property
     def writable_ranges(self) -> List[range]:
-        return [range(2000, 2087), range(2200, 2272)]
+        return [range(2000, 2087), range(2200, 2272), range(V1_UPS_MODE, V1_UPS_MODE + 1)]

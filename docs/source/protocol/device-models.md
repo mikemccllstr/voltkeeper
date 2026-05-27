@@ -109,13 +109,14 @@ The following device models are currently supported in voltkeeper, with model nu
 
 ### Key Features by Model
 
-| Feature                     | AC2A | AC180 | EL10V2 | EL30V2 | EL100V2 | EL400 |
-| --------------------------- | ---- | ----- | ------ | ------ | ------- | ----- |
-| Working Mode (UPS strategy) | y    | y     | y      | y      | y       | y     |
-| Child Lock                  | —    | y     | y      | —      | —       | —     |
-| Sleep Mode / Remote Power   | —    | —     | —      | —      | —       | y     |
-| Grid Control                | y    | —     | —      | y      | y       | y     |
-| Feed-in Control             | y    | —     | —      | y      | y       | y     |
-| Charge/Grid Limits          | y    | —     | —      | y      | y       | y     |
+| Feature                     | AC2A | AC60 | AC180 | AC200L | AC200PL | AC300 | AC500 | EP500 | EL10V2 | EL30V2 | EL100V2 | EL400 | EP600 |
+| --------------------------- | ---- | ---- | ----- | ------ | ------- | ----- | ----- | ----- | ------ | ------ | ------- | ----- | ----- |
+| Working Mode (UPS strategy) | y    | —    | y     | y      | y       | y     | y     | —     | y      | y      | y       | y     | —     |
+| Online UPS (`ups_mode`)     | —    | —    | —     | y      | y       | y     | y     | y     | y      | y      | y       | y     | y     |
+| Child Lock                  | —    | —    | y     | —      | —       | —     | —     | —     | y      | —      | —       | —     | —     |
+| Sleep Mode / Remote Power   | —    | —    | —     | —      | —       | —     | —     | —     | —      | —      | —       | y     | —     |
+| Grid Control                | y    | —    | —     | —      | —       | —     | —     | —     | —      | y      | y       | y     | —     |
+| Feed-in Control             | y    | —    | —     | —      | —       | —     | —     | —     | —      | y      | y       | y     | —     |
+| Charge/Grid Limits          | y    | —    | —     | —      | —       | —     | —     | —     | —      | y      | y       | y     | —     |
 
 All device classes marked with `# TODO(hardware): verify against physical device` are derived from APK data without hardware verification.
