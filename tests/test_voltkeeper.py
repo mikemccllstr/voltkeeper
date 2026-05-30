@@ -324,10 +324,12 @@ class TestParseInvBaseInfo:
 
     def test_software_versions_present(self, ac2a_device, ac2a_inv_base_bytes):
         result = ac2a_device.parse(1100, ac2a_inv_base_bytes)
-        soft_keys = [k for k in result if k.startswith("software[")]
-        assert len(soft_keys) >= 0
-        for k in soft_keys:
-            assert "ver=v" in result[k]
+        ver_keys = sorted(k for k in result if k.endswith("_version"))
+        assert ver_keys == ["arm_version", "dsp_version"]
+        # Entry 0: 00 01 2e 19 00 03 → mcu_type=1 (ARM), version=0x00032e19=208409
+        assert result["arm_version"] == 208409
+        # Entry 1: 00 02 34 54 00 03 → mcu_type=2 (DSP), version=0x00033454=210004
+        assert result["dsp_version"] == 210004
 
     def test_temperatures_absent_when_sensor_off(self, ac2a_device, ac2a_inv_base_bytes):
         result = ac2a_device.parse(1100, ac2a_inv_base_bytes)

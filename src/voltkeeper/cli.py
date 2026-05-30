@@ -22,6 +22,7 @@ from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .config import load_config, write_config
 from .core.commands import ReadHoldingRegisters
+from .core.utils import _format_version
 from .probe import emit_yaml, probe_device
 from .validate import validate_profile
 
@@ -377,11 +378,12 @@ def _print_verbose(
                 click.echo(f"    {t}")
 
     # ── Software Versions ──
-    soft_keys = [k for k in inv_base if k.startswith("software[")]
-    if soft_keys:
+    ver_keys = [k for k in inv_base if k.endswith("_version")]
+    if ver_keys:
         click.echo(f"\n  {click.style('SOFTWARE VERSIONS', bold=True, fg='magenta')}")
-        for k in sorted(soft_keys):
-            click.echo(f"    {k}: {inv_base[k]}")
+        for k in sorted(ver_keys):
+            label = k.removesuffix("_version").replace("_", " ").upper()
+            click.echo(f"    {label}:  {_format_version(inv_base[k])}")
 
     # ── PV Details ──
     pv_keys = [k for k in pv if k.startswith("pv[") and k.endswith(".type") and pv.get(k, 0) != 0]
