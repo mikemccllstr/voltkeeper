@@ -21,5 +21,5 @@
 
 ## 5. Hardware Validation
 
-- [ ] 5.1 Run `uv run voltkeeper status DC:B4:D9:46:73:96` and confirm a successful SOC read with no errors
+- [x] 5.1 Run `uv run voltkeeper status DC:B4:D9:46:73:96` and confirm a successful SOC read with no errors
 - [x] 5.2 Run the full test suite (`uv run pytest`) and confirm all tests pass
