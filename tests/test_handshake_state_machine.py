@@ -98,9 +98,7 @@ async def build_device_side_handshake(client, app_client) -> ShareSession:
     )
 
     # Device sends confirmation (length-prefixed, fresh session)
-    conf_msg = b"\x2a\x2a\x06\x00" + b"\x00" * 10
-    conf_msg += _checksum(conf_msg)
-    client.feed(frame_encode(conf_msg, CbcSession(ble_conn_aes_key, initial_iv)))
+    client.feed(frame_encode(_frame(0x06, 0x01, b"\x00"), CbcSession(ble_conn_aes_key, initial_iv)))
 
     return ShareSession(shared)
 
@@ -249,6 +247,40 @@ class TestHandshakeStateMachine:
         client.feed(frame_encode(bad_conf, CbcSession(ble_conn_aes_key, initial_iv)))
 
         with pytest.raises(ValueError, match="Expected confirmation 0x2A2A06"):
+            await task
+
+    @pytest.mark.asyncio
+    async def test_rejects_ecdh_confirmation_with_nonzero_status(self):
+        client = FakeClient()
+        h = HandshakeSession()
+
+        random_bytes = b"\x01\x02\x03\x04"
+        random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
+        initial_iv = derive_iv(random_md5_hex)
+
+        device_priv = ec.generate_private_key(ec.SECP256R1())
+        device_pub_raw = device_priv.public_key().public_bytes(
+            encoding=Encoding.X962, format=PublicFormat.UncompressedPoint
+        )[1:]
+        device_sig = sign_app_pubkey(device_pub_raw, random_md5_hex)
+        enc_ecdh = frame_encode(
+            _frame(0x04, 0x80, device_pub_raw + device_sig), CbcSession(ble_conn_aes_key, initial_iv)
+        )
+
+        task = asyncio.create_task(h.run(client))
+        while client._notify_callback is None:
+            await asyncio.sleep(0)
+
+        client.feed(_frame(0x01, 0x04, random_bytes))
+        await _await_send(client)
+        client.feed(_frame(0x03, 0x01, b"\x00"))
+        client.feed(enc_ecdh)
+        await _await_send(client)
+
+        # Device sends 0x06 with status=1 (rejected)
+        client.feed(frame_encode(_frame(0x06, 0x01, b"\x01"), CbcSession(ble_conn_aes_key, initial_iv)))
+
+        with pytest.raises(ValueError, match="ECDH confirmation failed"):
             await task
 
     @pytest.mark.asyncio

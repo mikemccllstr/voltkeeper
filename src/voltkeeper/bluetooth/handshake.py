@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import logging
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -10,6 +11,8 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_der_public_key
 
 from .cipher import CbcSession, ShareSession, derive_iv, frame_decode, frame_encode
+
+_log = logging.getLogger(__name__)
 
 LOCAL_AES_KEY = bytes.fromhex("459FC535808941F17091E0993EE3E93D")
 PRIVATE_KEY_L1_HEX = "4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337"
@@ -137,6 +140,8 @@ class HandshakeSession:
             random_bytes = parse_legacy_challenge(challenge)
 
             random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
+            _log.debug("handshake: random_bytes=%s random_md5=%s", random_bytes.hex(), random_md5_hex)
+            _log.debug("handshake: ble_conn_aes_key=%s", ble_conn_aes_key.hex())
 
             await self._send(client, build_legacy_reply(random_md5_hex))
 
@@ -160,12 +165,14 @@ class HandshakeSession:
 
             device_pub_raw = plaintext[4:68]
             signature_rs = plaintext[68:132]
+            _log.debug("handshake: device_pub_raw=%s", device_pub_raw.hex())
 
             device_pub = verify_device_pubkey(device_pub_raw, signature_rs, random_md5_hex)
 
             app_priv = ec.generate_private_key(ec.SECP256R1())
             app_pub = app_priv.public_key()
             app_pub_raw = app_pub.public_bytes(encoding=Encoding.X962, format=PublicFormat.UncompressedPoint)[1:]
+            _log.debug("handshake: app_pub_raw=%s", app_pub_raw.hex())
 
             app_sig = sign_app_pubkey(app_pub_raw, random_md5_hex)
 
@@ -175,10 +182,15 @@ class HandshakeSession:
             # Path 2 confirmation
             conf_frame = await self._collect_encrypted_frame()
             conf_plaintext = frame_decode(conf_frame, CbcSession(ble_conn_aes_key, initial_iv))
+            _log.debug("handshake: conf_plaintext=%s", conf_plaintext.hex())
             if conf_plaintext[:3] != b"\x2a\x2a\x06":
                 raise ValueError(f"Expected confirmation 0x2A2A06, got {conf_plaintext[:3].hex()}")
+            if len(conf_plaintext) < 5 or conf_plaintext[4] != 0:
+                status = conf_plaintext[4] if len(conf_plaintext) >= 5 else 0xFF
+                raise ValueError(f"ECDH confirmation failed with status 0x{status:02x}")
 
             shared_key = derive_shared_key(app_priv, device_pub)
+            _log.debug("handshake: shared_key=%s", shared_key.hex())
             return ShareSession(shared_key)
         finally:
             await client.stop_notify(NOTIFY_UUID)
