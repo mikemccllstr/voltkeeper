@@ -13,6 +13,7 @@ from voltkeeper.core.struct import BoolField, DecimalField, EnumField, Uint8Fiel
 from voltkeeper.core.verify import (
     FIELD_TIERS,
     SKIP_AUTO,
+    FieldResult,
     TierResult,
     build_report,
     build_tier_plan,
@@ -38,6 +39,13 @@ class FakeBluetoothClient:
 
     max_writes: dict[address, N] — allow at most N writes to address before
     raising RuntimeError, used to test restore-failure paths.
+
+    accepted_values: dict[address, set[int]] — only these values update state
+    at that address; other writes succeed but leave state unchanged (simulates
+    silent device rejection without raising an exception).
+
+    write_log: populated on every write — list of (address, value) tuples,
+    used to verify restore-skip behaviour.
     """
 
     def __init__(
@@ -46,12 +54,15 @@ class FakeBluetoothClient:
         rejected_addresses: frozenset[int] = frozenset(),
         read_overrides: dict[int, int] | None = None,
         max_writes: dict[int, int] | None = None,
+        accepted_values: dict[int, set[int]] | None = None,
     ):
         self.state = dict(state)
         self.rejected_addresses = set(rejected_addresses)
         self.read_overrides = read_overrides or {}
         self.max_writes = max_writes or {}
+        self.accepted_values = accepted_values
         self._write_counts: dict[int, int] = {}
+        self.write_log: list[tuple[int, int]] = []
 
     async def execute(self, cmd):
         if isinstance(cmd, WriteSingleRegister):
@@ -62,7 +73,13 @@ class FakeBluetoothClient:
             if limit is not None and count >= limit:
                 raise RuntimeError(f"write limit exceeded for address {cmd.address}")
             self._write_counts[cmd.address] = count + 1
-            self.state[cmd.address] = cmd.value
+            self.write_log.append((cmd.address, cmd.value))
+            if self.accepted_values is not None and cmd.address in self.accepted_values:
+                if cmd.value in self.accepted_values[cmd.address]:
+                    self.state[cmd.address] = cmd.value
+                # else: state unchanged — device silently rejected the value
+            else:
+                self.state[cmd.address] = cmd.value
             return b""
         if isinstance(cmd, ReadHoldingRegisters):
             parts = []
@@ -207,33 +224,26 @@ async def test_run_tier2_overall_pass_when_all_match(ac2a):
 # ── 5.4 run_tier3_numeric with declared range ─────────────────────────────────
 
 
-async def test_run_tier3_numeric_probe_sequence_includes_boundaries():
-    # range=(1, 5): sequence = [current=3, low=1, high=5, low-1=0, high+1=6, high+2=7, 0(dup), 65535]
-    # after dedup+filter: [3, 1, 5, 0, 6, 7, 65535]
+async def test_run_tier3_numeric_exhaustive_sweep_covers_all_values():
+    # Exhaustive sweep 0–255; FakeBluetoothClient accepts everything.
+    # With range=(1, 5), device accepts all values, so probe_cap_hit=True and
+    # all 256 values are probed. probed_range covers [0, 255].
     field = UintField("dc_eco_auto_off_time", 2015, range=(1, 5))
     client = FakeBluetoothClient({2015: 3})
     result = await run_tier3_numeric(client, field, 3)
 
-    probed_values = {p.wrote for p in result.probes}
-    assert 1 in probed_values  # low boundary
-    assert 5 in probed_values  # high boundary
-    assert 0 in probed_values  # low - 1
-    assert 6 in probed_values  # high + 1
-    assert 7 in probed_values  # high + 2
-    assert 65535 in probed_values  # max sentinel
+    assert result.probes_count == 256
+    assert result.probed_range == [0, 255]
+    assert result.probe_cap_hit is True
 
 
 async def test_run_tier3_numeric_discovered_range_inferred(ac2a, sys_low_power_field):
-    # sys_low_power range=(0, 100); FakeBluetoothClient accepts everything
-    # Probes: [current=20, 0, 100, 0(dup), 101, 102, 0(dup), 65535]
-    # After dedup+filter: [20, 0, 100, 101, 102, 65535]
-    # Accepted (excluding 65535): [20, 0, 100, 101, 102]
-    # discovered_range = [0, 102]
+    # sys_low_power range=(0, 100); FakeBluetoothClient accepts everything.
+    # Exhaustive sweep accepts all 256 values → discovered_range = [0, 255].
     client = FakeBluetoothClient({2022: 20})
     result = await run_tier3_numeric(client, sys_low_power_field, 20)
     assert result.discovered_range is not None
-    assert result.discovered_range[0] == 0
-    assert result.discovered_range[1] == 102
+    assert result.discovered_range == [0, 255]
 
 
 # ── 5.5 run_tier3_numeric range_discrepancy ───────────────────────────────────
@@ -249,30 +259,24 @@ async def test_run_tier3_numeric_range_discrepancy_flag():
 
 
 async def test_run_tier3_numeric_no_discrepancy_when_ranges_match():
-    # With range=(0, 102): sequence = [20, 0, 102, -1(skip), 103, 104, 0(dup), 65535]
-    # After dedup+filter: [20, 0, 102, 103, 104, 65535]
-    # All accepted → discovered_range = [0, 104] — still a discrepancy
-    # To get no discrepancy we need a range that encompasses all probe values.
-    # With range=(0, 65534): probes include [20, 0, 65534, -1(skip), 65535, 65536(skip), 0(dup), 65535(dup)]
-    # After dedup+filter: [20, 0, 65534, 65535]
-    # range_vals (excl 65535): [20, 0, 65534]
-    # discovered_range = [0, 65534], declared_range = (0, 65534) → no discrepancy
-    field = UintField("x", 100, range=(0, 65534))
+    # range=(0, 255); FakeBluetoothClient accepts everything.
+    # Exhaustive sweep accepts all 256 values → discovered_range = [0, 255] == declared → no discrepancy.
+    field = UintField("x", 100, range=(0, 255))
     client = FakeBluetoothClient({100: 20})
     result = await run_tier3_numeric(client, field, 20)
     assert result.range_discrepancy is False
 
 
 async def test_run_tier3_numeric_uint8_field_caps_probe_at_255():
-    # Uint8Field occupies one byte of a 16-bit register; probing 65535 (0xFFFF)
-    # would corrupt the adjacent byte.  Probe values must stay <= 255.
+    # Uint8Field must not probe values above 255. With the exhaustive sweep,
+    # probed_range[1] == 255 and all write_log values <= 255.
     field = Uint8Field("some_byte_field", 200, word_offset=0)
     client = FakeBluetoothClient({200: 5})
     result = await run_tier3_numeric(client, field, 5)
 
-    probed_values = {p.wrote for p in result.probes if p.wrote is not None}
-    assert 65535 not in probed_values
-    assert all(v <= 255 for v in probed_values)
+    assert result.probed_range is not None
+    assert result.probed_range[1] <= 255
+    assert all(v <= 255 for (_, v) in client.write_log)
 
 
 # ── 5.6 run_tier3_bool ────────────────────────────────────────────────────────
@@ -431,13 +435,13 @@ async def test_tier2_mismatch_path_fake_client(ac2a):
 
 async def test_tier3_range_probe_via_fake_client(ac2a):
     # sys_low_power at 2022, range=(0, 100), current=20
-    # run_tier3 should dispatch to run_tier3_numeric
+    # run_tier3 should dispatch to run_tier3_numeric; no probes list for numeric fields
     client = FakeBluetoothClient({2022: 20})
     tier1 = {"sys_low_power": 20}
     result = await run_tier3(client, ac2a, tier1, ["sys_low_power"])
     fr = result.fields["sys_low_power"]
-    assert fr.probes is not None
-    assert len(fr.probes) > 0
+    assert fr.probes is None
+    assert fr.probes_count is not None and fr.probes_count > 0
     assert fr.discovered_range is not None
     assert fr.restore_failed is False
     # Restored to original
@@ -458,4 +462,183 @@ async def test_tier3_restore_failure_continues_next_field(ac2a):
     # sys_low_power should have been tested despite alarm_sound restore failure
     assert "sys_low_power" in result.fields
     assert result.fields["sys_low_power"].status in ("pass", "fail")
-    assert result.fields["sys_low_power"].probes is not None
+
+
+# ── 5.15 Serialisation for numeric field summary fields ──────────────────────
+
+
+def test_tier_result_to_dict_numeric_summary_fields(ac2a):
+    # FieldResult with all new summary fields populated; verify the report dict matches.
+    fr = FieldResult(
+        status="pass",
+        current_value=10,
+        probes_count=23,
+        probed_range=[0, 22],
+        probe_cap_hit=False,
+        declared_range=[3, 10],
+        in_range_rejected=[7],
+        discovered_range=[3, 10],
+        range_discrepancy=False,
+    )
+    t3 = TierResult(tier=3, status="pass", fields={"some_field": fr})
+    report = build_report(ac2a, "x", "x", [t3], {})
+    fd = report["tier_3"]["fields"]["some_field"]
+
+    assert fd["status"] == "pass"
+    assert fd["current_value"] == 10
+    assert fd["probes_count"] == 23
+    assert fd["probed_range"] == [0, 22]
+    assert fd["probe_cap_hit"] is False
+    assert fd["declared_range"] == [3, 10]
+    assert fd["in_range_rejected"] == [7]
+    assert fd["discovered_range"] == [3, 10]
+    assert fd["range_discrepancy"] is False
+    assert "probes" not in fd
+
+
+def test_tier_result_to_dict_in_range_rejected_omitted_when_empty(ac2a):
+    # in_range_rejected must be omitted (not emitted as empty list) when null.
+    fr = FieldResult(
+        status="pass",
+        current_value=5,
+        probes_count=10,
+        probed_range=[0, 9],
+        probe_cap_hit=False,
+        declared_range=[0, 5],
+        in_range_rejected=None,
+        discovered_range=[0, 5],
+        range_discrepancy=False,
+    )
+    t3 = TierResult(tier=3, status="pass", fields={"f": fr})
+    report = build_report(ac2a, "x", "x", [t3], {})
+    fd = report["tier_3"]["fields"]["f"]
+    assert "in_range_rejected" not in fd
+
+
+# ── 6. Exhaustive sweep — new TDD tests (run_tier3_numeric) ──────────────────
+
+
+async def test_exhaustive_sweep_discovers_range_not_starting_at_zero():
+    # Device accepts [5, 10]; sweep stops at 12 (2 consecutive post-range rejections)
+    addr = 300
+    field = UintField("dc_eco_power", addr)
+    client = FakeBluetoothClient({addr: 7}, accepted_values={addr: set(range(5, 11))})
+    result = await run_tier3_numeric(client, field, 7)
+
+    assert result.discovered_range == [5, 10]
+    assert result.probed_range == [0, 12]
+    assert result.probe_cap_hit is False
+    assert result.probes_count == 13
+    assert result.current_value == 7
+    assert result.probes is None
+
+
+async def test_pre_range_never_triggers_early_termination():
+    # Device only accepts values in [200, 202]; 200 consecutive pre-range
+    # rejections must not cause early termination.
+    addr = 301
+    field = UintField("late_range_field", addr)
+    client = FakeBluetoothClient({addr: 200}, accepted_values={addr: {200, 201, 202}})
+    result = await run_tier3_numeric(client, field, 200)
+
+    assert result.discovered_range is not None
+    assert result.discovered_range[0] == 200
+    # Sweep must have reached value 200 despite 200 consecutive pre-range rejections
+    assert result.probed_range is not None
+    assert result.probed_range[0] == 0
+
+
+async def test_post_range_early_termination_after_2_rejections():
+    # Accepted [5, 10]; after 10, values 11 and 12 are both rejected → stop at 12.
+    addr = 302
+    field = UintField("some_field", addr)
+    client = FakeBluetoothClient({addr: 5}, accepted_values={addr: set(range(5, 11))})
+    result = await run_tier3_numeric(client, field, 5)
+
+    assert result.probed_range == [0, 12]
+    assert result.probe_cap_hit is False
+    # Should NOT have probed past 12
+    assert result.probes_count == 13
+
+
+async def test_exhaustive_sweep_declared_range_all_accepted_no_probes_list():
+    # Declared range (0, 5), device accepts all 0–255 → probe_cap_hit=True, no probes list
+    addr = 303
+    field = UintField("capped_field", addr, range=(0, 5))
+    client = FakeBluetoothClient({addr: 3})  # accepts everything (default)
+    result = await run_tier3_numeric(client, field, 3)
+
+    assert result.probes is None
+    assert result.probes_count is not None
+    assert result.probed_range is not None
+    assert result.probe_cap_hit is not None
+    assert result.declared_range == [0, 5]
+    assert result.current_value == 3
+
+
+async def test_in_range_rejected_values_recorded_status_remains_pass():
+    # Declared range (0, 10), device rejects value 5 inside range
+    addr = 304
+    field = UintField("holey_field", addr, range=(0, 10))
+    accepted = set(range(0, 11)) - {5}
+    client = FakeBluetoothClient({addr: 3}, accepted_values={addr: accepted})
+    result = await run_tier3_numeric(client, field, 3)
+
+    assert result.in_range_rejected is not None
+    assert 5 in result.in_range_rejected
+    assert result.status == "pass"
+
+
+async def test_full_sweep_device_accepts_all_probe_cap_hit():
+    # No accepted_values restriction: all 256 values accepted → probe_cap_hit=True
+    addr = 305
+    field = UintField("wide_field", addr)
+    client = FakeBluetoothClient({addr: 0})
+    result = await run_tier3_numeric(client, field, 0)
+
+    assert result.probe_cap_hit is True
+    assert result.discovered_range == [0, 255]
+    assert result.probes_count == 256
+
+
+async def test_restore_skipped_when_readback_equals_current():
+    # Device rejects all writes silently (rb always returns original current_int=7).
+    # The restore optimisation skips the restore write when rb == current_int.
+    # Total writes in write_log must equal probes_count — no extra restore writes.
+    addr = 306
+    field = UintField("silent_reject_field", addr)
+    client = FakeBluetoothClient({addr: 7}, accepted_values={addr: set()})
+    result = await run_tier3_numeric(client, field, 7)
+
+    # One write per probe, zero restore writes.
+    assert len(client.write_log) == result.probes_count
+
+
+async def test_restore_failure_sets_restore_failed_and_halts_probe():
+    # Device accepts only value 10. After probe of 10 is accepted, restore fails.
+    # current_int=255 so probes 0-9 are rejected with rb==255==current (no restores needed).
+    # Probe 10 is accepted (state→10, rb=10≠current=255 → restore needed).
+    # Writes 0-10 = 11 probe writes. max_writes=11 means restore write #12 fails.
+    addr = 307
+    field = UintField("restore_fail_field", addr)
+    client = FakeBluetoothClient(
+        {addr: 255},
+        accepted_values={addr: {10}},
+        max_writes={addr: 11},
+    )
+    result = await run_tier3_numeric(client, field, 255)
+
+    assert result.restore_failed is True
+    assert result.last_known_value is not None
+
+
+async def test_declared_range_and_discrepancy_when_discovered_differs():
+    # Declared range (10, 20), device accepts [5, 25]
+    addr = 308
+    field = UintField("wide_accepted", addr, range=(10, 20))
+    client = FakeBluetoothClient({addr: 10}, accepted_values={addr: set(range(5, 26))})
+    result = await run_tier3_numeric(client, field, 10)
+
+    assert result.declared_range == [10, 20]
+    assert result.discovered_range == [5, 25]
+    assert result.range_discrepancy is True

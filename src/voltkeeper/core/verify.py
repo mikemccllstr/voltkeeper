@@ -60,6 +60,12 @@ class FieldResult:
     range_discrepancy: Optional[bool] = None
     restore_failed: bool = False
     last_known_value: Optional[int] = None
+    current_value: Optional[int] = None
+    probes_count: Optional[int] = None
+    probed_range: Optional[list[int]] = None
+    probe_cap_hit: Optional[bool] = None
+    declared_range: Optional[list[int]] = None
+    in_range_rejected: Optional[list[int]] = None
 
 
 @dataclass
@@ -378,77 +384,117 @@ async def run_tier3_numeric(
     device_field: Any,
     current_int: int,
 ) -> FieldResult:
-    """Probe boundary values for numeric fields, infer discovered range."""
+    """Exhaustive 0–255 sweep for numeric fields with pre/in/post-range state machine."""
     raw_range = _field_range_raw(device_field)
+    declared_range = list(raw_range) if raw_range is not None else None
 
-    if raw_range is not None:
-        low, high = raw_range
-        sequence = [current_int, low, high, low - 1, high + 1, high + 2, 0, 65535]
-    else:
-        ci = current_int
-        sequence = [ci, 0, 255, 65535, ci + 1, max(0, ci - 1)]
-
-    max_probe = 255 if isinstance(device_field, Uint8Field) else 65535
-
-    seen: set[int] = set()
-    probes_to_run: list[int] = []
-    for v in sequence:
-        if 0 <= v <= max_probe and v not in seen:
-            seen.add(v)
-            probes_to_run.append(v)
-
-    probes: list[ProbeResult] = []
     accepted: list[int] = []
     restore_failed = False
     last_known = current_int
+    probes_count = 0
+    last_probed = 0
 
-    for probe_val in probes_to_run:
+    # State machine: "pre" → "in" → "post"
+    zone = "pre"
+    consecutive_post_rejections = 0
+
+    for probe_val in range(256):
+        last_probed = probe_val
+
+        # Write the probe value
         try:
             await client.execute(WriteSingleRegister(device_field.address, probe_val))
         except Exception:
-            probes.append(ProbeResult(wrote=probe_val, readback=None, result="rejected"))
+            # Exception counts as rejection; treat as readback == current_int for restore logic
+            probes_count += 1
+            if zone == "in":
+                zone = "post"
+                consecutive_post_rejections = 1
+            elif zone == "post":
+                consecutive_post_rejections += 1
+                if consecutive_post_rejections >= 2:
+                    break
             continue
 
+        # Read back
         try:
             raw = await _read_raw(client, device_field.address)
             rb = struct.unpack("!H", raw)[0]
         except Exception:
-            probes.append(ProbeResult(wrote=probe_val, readback=None, result="no-readback"))
+            probes_count += 1
+            # Unknown state — must restore
             if not await _probe_restore(client, device_field.address, current_int):
                 restore_failed = True
                 last_known = probe_val
                 break
             last_known = current_int
+            if zone == "in":
+                zone = "post"
+                consecutive_post_rejections = 1
+            elif zone == "post":
+                consecutive_post_rejections += 1
+                if consecutive_post_rejections >= 2:
+                    break
             continue
 
+        probes_count += 1
+
         if rb == probe_val:
-            probes.append(ProbeResult(wrote=probe_val, readback=rb, result="accepted"))
             accepted.append(probe_val)
+            last_known = rb
+            zone = "in"
+            consecutive_post_rejections = 0
+            # Restore: skip if readback already equals original
+            if rb != current_int:
+                if not await _probe_restore(client, device_field.address, current_int):
+                    restore_failed = True
+                    last_known = probe_val
+                    break
+                last_known = current_int
         else:
-            probes.append(ProbeResult(wrote=probe_val, readback=rb, result="no-readback"))
-        last_known = rb
+            # Rejected
+            last_known = rb
+            if zone == "in":
+                zone = "post"
+                consecutive_post_rejections = 1
+            elif zone == "post":
+                consecutive_post_rejections += 1
+                if consecutive_post_rejections >= 2:
+                    break
+            # Restore optimisation: skip if readback already equals original
+            if rb != current_int:
+                if not await _probe_restore(client, device_field.address, current_int):
+                    restore_failed = True
+                    last_known = probe_val
+                    break
+                last_known = current_int
 
-        if probe_val != current_int:
-            if not await _probe_restore(client, device_field.address, current_int):
-                restore_failed = True
-                last_known = probe_val
-                break
-            last_known = current_int
+    probed_range = [0, last_probed]
+    probe_cap_hit = last_probed == 255 and zone == "in" and not restore_failed
 
-    range_vals = [v for v in accepted if v <= 65534]
-    discovered_range = [min(range_vals), max(range_vals)] if range_vals else None
+    discovered_range = [min(accepted), max(accepted)] if accepted else None
 
     range_discrepancy: Optional[bool] = None
-    if raw_range is not None and discovered_range is not None:
-        range_discrepancy = discovered_range != list(raw_range)
+    if declared_range is not None and discovered_range is not None:
+        range_discrepancy = discovered_range != declared_range
+
+    in_range_rejected: list[int] = []
+    if raw_range is not None:
+        lo, hi = raw_range
+        in_range_rejected = [v for v in range(lo, hi + 1) if v not in accepted and v <= last_probed]
 
     return FieldResult(
         status="fail" if restore_failed else "pass",
-        probes=probes,
         discovered_range=discovered_range,
         range_discrepancy=range_discrepancy,
         restore_failed=restore_failed,
         last_known_value=last_known if restore_failed else None,
+        current_value=current_int,
+        probes_count=probes_count,
+        probed_range=probed_range,
+        probe_cap_hit=probe_cap_hit,
+        declared_range=declared_range,
+        in_range_rejected=in_range_rejected if in_range_rejected else None,
     )
 
 
@@ -474,7 +520,7 @@ async def run_tier3(
             fr = await run_tier3_bool(client, device_field, current_int)
         elif isinstance(device_field, EnumField):
             fr = await run_tier3_enum(client, device_field, current_int)
-        elif isinstance(device_field, (UintField, DecimalField)):
+        elif isinstance(device_field, (UintField, DecimalField, Uint8Field)):
             fr = await run_tier3_numeric(client, device_field, current_int)
         else:
             fr = FieldResult(
@@ -542,6 +588,18 @@ def _tier_result_to_dict(tr: TierResult) -> dict:
                 fd["note"] = fr.note
             if fr.probes:
                 fd["probes"] = [{"wrote": p.wrote, "readback": p.readback, "result": p.result} for p in fr.probes]
+            if fr.current_value is not None:
+                fd["current_value"] = fr.current_value
+            if fr.probes_count is not None:
+                fd["probes_count"] = fr.probes_count
+            if fr.probed_range is not None:
+                fd["probed_range"] = fr.probed_range
+            if fr.probe_cap_hit is not None:
+                fd["probe_cap_hit"] = fr.probe_cap_hit
+            if fr.declared_range is not None:
+                fd["declared_range"] = fr.declared_range
+            if fr.in_range_rejected:
+                fd["in_range_rejected"] = fr.in_range_rejected
             if fr.discovered_range is not None:
                 fd["discovered_range"] = fr.discovered_range
             if fr.range_discrepancy is not None:
