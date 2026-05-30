@@ -45,11 +45,11 @@
 
 ## 5. hardware-data folder
 
-- [ ] 5.1 Create `hardware-data/` directory at project root
-- [ ] 5.2 Write `hardware-data/README.md` explaining purpose, naming convention, and that files are committed
-- [ ] 5.3 Move `verify-AC2A-2026-05-26.yaml` and `verify-AC2A-2026-05-27.yaml` into `hardware-data/`
-- [ ] 5.4 Update CLI default output path to `hardware-data/verify-<MODEL>-<DATE>.yaml`
-- [ ] 5.5 Write test: CLI default output path resolves to `hardware-data/` prefix
+- [x] 5.1 Create `hardware-data/` directory at project root
+- [x] 5.2 Write `hardware-data/README.md` explaining purpose, naming convention, and that files are committed
+- [x] 5.3 Move `verify-AC2A-2026-05-26.yaml` and `verify-AC2A-2026-05-27.yaml` into `hardware-data/`
+- [x] 5.4 Update CLI default output path to `hardware-data/verify-<MODEL>-<DATE>.yaml`
+- [x] 5.5 Write test: CLI default output path resolves to `hardware-data/` prefix
 
 ## 6. Documentation — verify.md updates
 

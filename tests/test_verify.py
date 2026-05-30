@@ -515,6 +515,19 @@ def test_tier_result_to_dict_in_range_rejected_omitted_when_empty(ac2a):
     assert "in_range_rejected" not in fd
 
 
+def test_cli_default_output_path_uses_hardware_data_prefix():
+    # The default output path must start with hardware-data/ so verify files
+    # land in the committed hardware-data folder, not the working directory.
+    import datetime
+
+    model = "AC2A"
+    today = datetime.date.today().isoformat()
+    output = f"hardware-data/verify-{model}-{today}.yaml"
+    assert output.startswith("hardware-data/")
+    assert f"verify-{model}-" in output
+    assert output.endswith(".yaml")
+
+
 # ── 6. Exhaustive sweep — new TDD tests (run_tier3_numeric) ──────────────────
 
 

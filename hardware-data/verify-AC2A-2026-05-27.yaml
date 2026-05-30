@@ -1,0 +1,689 @@
+voltkeeper_version: 2026.5.post54+gde09d72dc.d20260527
+verified_at: '2026-05-27T16:50:40.793664+00:00'
+device:
+  model: AC2A
+  sn: VKTEST000000
+  ble_address: AA:BB:CC:DD:EE:FF
+  firmware:
+    softwareNumber: 2
+tier_1:
+  status: pass
+  blocks:
+    '100':
+      status: pass
+      fields_parsed: 28
+    '1100':
+      status: pass
+      fields_parsed: 5
+    '1200':
+      status: pass
+      fields_parsed: 9
+    '1300':
+      status: pass
+      fields_parsed: 7
+    '1400':
+      status: pass
+      fields_parsed: 16
+    '1500':
+      status: pass
+      fields_parsed: 7
+    '2000':
+      status: pass
+      fields_parsed: 18
+    '2060':
+      status: pass
+      fields_parsed: 9
+    '2200':
+      status: pass
+      fields_parsed: 11
+    '2241':
+      status: pass
+      fields_parsed: 1
+  fields: {}
+tier_2:
+  status: pass
+  fields:
+    dc_eco_auto_off_time:
+      status: pass
+      read: 4
+      wrote: 4
+      readback: 4
+      match: true
+    dc_eco_power:
+      status: pass
+      read: 5
+      wrote: 5
+      readback: 5
+      match: true
+    ac_eco_auto_off_time:
+      status: pass
+      read: 4
+      wrote: 4
+      readback: 4
+      match: true
+    ac_eco_power:
+      status: pass
+      read: 10
+      wrote: 10
+      readback: 10
+      match: true
+    charging_mode:
+      status: pass
+      read: silent
+      wrote: 2
+      readback: 2
+      match: true
+    sys_low_power:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    sys_high_power:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    alarm_sound:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
+    lcd_timeout:
+      status: pass
+      read: 4
+      wrote: 4
+      readback: 4
+      match: true
+    led_color:
+      status: pass
+      read: 'off'
+      wrote: 0
+      readback: 0
+      match: true
+    soc_holding_low:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    soc_holding_high:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    inv_voltage:
+      status: pass
+      read: 1
+      wrote: 1
+      readback: 1
+      match: true
+    inv_freq:
+      status: pass
+      read: hz_60
+      wrote: 1
+      readback: 1
+      match: true
+    pv_type_set:
+      status: pass
+      read: pv
+      wrote: 0
+      readback: 0
+      match: true
+    pv2_type_set:
+      status: pass
+      read: pv
+      wrote: 0
+      readback: 0
+      match: true
+    pv_adv_set:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    chg_max_voltage:
+      status: pass
+      read: 0.0
+      wrote: 0
+      readback: 0
+      match: true
+    chg_max_current:
+      status: pass
+      read: 0.0
+      wrote: 0
+      readback: 0
+      match: true
+    grid_max_power:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    grid_max_current:
+      status: pass
+      read: 0.0
+      wrote: 0
+      readback: 0
+      match: true
+    feed_max_power:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    feed_max_current:
+      status: pass
+      read: 0.0
+      wrote: 0
+      readback: 0
+      match: true
+    ems_ctrl_mode_set:
+      status: pass
+      read: disable
+      wrote: 0
+      readback: 0
+      match: true
+tier_3:
+  status: pass
+  fields:
+    dc_eco_auto_off_time:
+      status: pass
+      probes:
+      - wrote: 4
+        readback: 4
+        result: accepted
+      - wrote: 0
+        readback: 4
+        result: no-readback
+      - wrote: 255
+        readback: 4
+        result: no-readback
+      - wrote: 65535
+        readback: 4
+        result: no-readback
+      - wrote: 5
+        readback: 4
+        result: no-readback
+      - wrote: 3
+        readback: 3
+        result: accepted
+      discovered_range:
+      - 3
+      - 4
+    dc_eco_power:
+      status: pass
+      probes:
+      - wrote: 5
+        readback: 5
+        result: accepted
+      - wrote: 0
+        readback: 5
+        result: no-readback
+      - wrote: 255
+        readback: 5
+        result: no-readback
+      - wrote: 65535
+        readback: 5
+        result: no-readback
+      - wrote: 6
+        readback: 6
+        result: accepted
+      - wrote: 4
+        readback: 5
+        result: no-readback
+      discovered_range:
+      - 5
+      - 6
+    ac_eco_auto_off_time:
+      status: pass
+      probes:
+      - wrote: 4
+        readback: 4
+        result: accepted
+      - wrote: 0
+        readback: 4
+        result: no-readback
+      - wrote: 255
+        readback: 4
+        result: no-readback
+      - wrote: 65535
+        readback: 4
+        result: no-readback
+      - wrote: 5
+        readback: 4
+        result: no-readback
+      - wrote: 3
+        readback: 3
+        result: accepted
+      discovered_range:
+      - 3
+      - 4
+    ac_eco_power:
+      status: pass
+      probes:
+      - wrote: 10
+        readback: 10
+        result: accepted
+      - wrote: 0
+        readback: 10
+        result: no-readback
+      - wrote: 255
+        readback: 10
+        result: no-readback
+      - wrote: 65535
+        readback: 10
+        result: no-readback
+      - wrote: 11
+        readback: 11
+        result: accepted
+      - wrote: 9
+        readback: 10
+        result: no-readback
+      discovered_range:
+      - 10
+      - 11
+    charging_mode:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      - wrote: 2
+        readback: 2
+        result: accepted
+    sys_low_power:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 100
+        readback: 100
+        result: accepted
+      - wrote: 101
+        readback: 101
+        result: accepted
+      - wrote: 102
+        readback: 102
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      discovered_range:
+      - 0
+      - 102
+      range_discrepancy: true
+    sys_high_power:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 100
+        readback: 100
+        result: accepted
+      - wrote: 101
+        readback: 101
+        result: accepted
+      - wrote: 102
+        readback: 102
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      discovered_range:
+      - 0
+      - 102
+      range_discrepancy: true
+    alarm_sound:
+      status: pass
+      probes:
+      - wrote: 1
+        readback: 1
+        result: accepted
+    lcd_timeout:
+      status: pass
+      probes:
+      - wrote: 4
+        readback: 4
+        result: accepted
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 256
+        readback: 0
+        result: no-readback
+      - wrote: 257
+        readback: 1
+        result: no-readback
+      - wrote: 65535
+        readback: 255
+        result: no-readback
+      discovered_range:
+      - 0
+      - 255
+      range_discrepancy: false
+    led_color:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      - wrote: 2
+        readback: 2
+        result: accepted
+      - wrote: 3
+        readback: 3
+        result: accepted
+    soc_holding_low:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 100
+        readback: 100
+        result: accepted
+      - wrote: 101
+        readback: 101
+        result: accepted
+      - wrote: 102
+        readback: 102
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      discovered_range:
+      - 0
+      - 102
+      range_discrepancy: true
+    soc_holding_high:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 100
+        readback: 100
+        result: accepted
+      - wrote: 101
+        readback: 101
+        result: accepted
+      - wrote: 102
+        readback: 102
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      discovered_range:
+      - 0
+      - 102
+      range_discrepancy: true
+    inv_voltage:
+      status: pass
+      probes:
+      - wrote: 1
+        readback: 1
+        result: accepted
+      - wrote: 0
+        readback: 1
+        result: no-readback
+      - wrote: 255
+        readback: 1
+        result: no-readback
+      - wrote: 65535
+        readback: 1
+        result: no-readback
+      - wrote: 2
+        readback: 1
+        result: no-readback
+      discovered_range:
+      - 1
+      - 1
+    inv_freq:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 1
+        result: no-readback
+      - wrote: 1
+        readback: 1
+        result: accepted
+    pv_type_set:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 3
+        readback: 3
+        result: accepted
+    pv2_type_set:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 3
+        readback: 3
+        result: accepted
+      - wrote: 4
+        readback: 4
+        result: accepted
+    pv_adv_set:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      discovered_range:
+      - 0
+      - 255
+    chg_max_voltage:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      discovered_range:
+      - 0
+      - 255
+    chg_max_current:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      discovered_range:
+      - 0
+      - 255
+    grid_max_power:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      discovered_range:
+      - 0
+      - 255
+    grid_max_current:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      discovered_range:
+      - 0
+      - 255
+    feed_max_power:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      discovered_range:
+      - 0
+      - 255
+    feed_max_current:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 255
+        readback: 255
+        result: accepted
+      - wrote: 65535
+        readback: 65535
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      discovered_range:
+      - 0
+      - 255
+    ems_ctrl_mode_set:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 3
+        readback: 3
+        result: accepted
+      - wrote: 4
+        readback: 4
+        result: accepted
+      - wrote: 5
+        readback: 5
+        result: accepted
+      - wrote: 8
+        readback: 8
+        result: accepted
+tier_4:
+  status: pass
+  consent: user confirmed
+  fields:
+    ac_output:
+      status: pass
+      read: true
+      wrote: 1
+      readback: 1
+      match: true
+    dc_output:
+      status: pass
+      read: true
+      wrote: 1
+      readback: 1
+      match: true
+    dc_eco_mode:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
+    ac_eco_mode:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
+    power_lifting:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
+    ctrl_grid:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
+    ctrl_feed:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
+tier_5:
+  status: pass
+  consent: user confirmed
+  fields:
+    working_mode:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+tier_6:
+  status: skipped
+  reason: tier limit
+  fields: {}

@@ -1254,7 +1254,7 @@ def mqtt_listen_service(serial, broker, port, username, password, shutdown_at, g
 
 @cli.command()
 @click.argument("address")
-@click.option("-o", "--output", default=None, help="Output YAML file (default: verify-MODEL-DATE.yaml)")
+@click.option("-o", "--output", default=None, help="Output YAML file (default: hardware-data/verify-MODEL-DATE.yaml)")
 @click.option("--tier", "max_tier", default=6, type=int, help="Run through this tier only (1–6).")
 @click.option("--yes", "pre_consent", is_flag=True, default=False, help="Pre-consent to all supervised tiers.")
 @click.option("--no-scrub", "no_scrub", is_flag=True, default=False, help="Keep real SN and BLE address in report.")
@@ -1305,7 +1305,7 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
 
     if output is None:
         today = datetime.date.today().isoformat()
-        output = f"verify-{device.type}-{today}.yaml"
+        output = f"hardware-data/verify-{device.type}-{today}.yaml"
 
     client = BluetoothClient(address, encrypted=sr.encrypted or False)
     loop = asyncio.new_event_loop()
