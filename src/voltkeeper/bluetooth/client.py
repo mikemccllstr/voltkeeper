@@ -25,13 +25,22 @@ class BluetoothClient:
         self._notify_response = bytearray()
         self._notify_future: Optional[asyncio.Future] = None
         self._current_cmd: Optional[Union[DeviceCommand, TlvReadHoldingRegisters]] = None
+        self._handshake_mode: bool = False
+        self._handshake_queue: asyncio.Queue[bytes] = asyncio.Queue()
 
     async def connect(self, timeout: float = 15.0) -> None:
         self.client = BleakClient(self.address)
         await self.client.connect(timeout=timeout)
-        if self.encrypted:
-            self._session = await HandshakeSession().run(self.client)
+        # Subscribe once for the entire session; the notification handler routes
+        # incoming bytes to the handshake queue during the handshake phase.
         await self.client.start_notify(NOTIFY_UUID, self._on_notification)  # type: ignore[arg-type]
+        if self.encrypted:
+            self._handshake_queue = asyncio.Queue()
+            self._handshake_mode = True
+            try:
+                self._session = await HandshakeSession(self._handshake_queue).run(self.client)
+            finally:
+                self._handshake_mode = False
 
     @property
     def is_connected(self) -> bool:
@@ -92,6 +101,10 @@ class BluetoothClient:
         await self.execute(cmd)
 
     def _on_notification(self, _sender: int, data: bytearray) -> None:
+        if self._handshake_mode:
+            self._handshake_queue.put_nowait(bytes(data))
+            return
+
         if not self._notify_future or self._notify_future.done():
             return
 

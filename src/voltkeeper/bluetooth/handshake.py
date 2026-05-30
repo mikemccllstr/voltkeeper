@@ -98,8 +98,11 @@ def build_legacy_reply(random_md5_hex: str) -> bytes:
 
 
 class HandshakeSession:
-    def __init__(self):
-        self._queue: asyncio.Queue[bytes] = asyncio.Queue()
+    def __init__(self, notify_queue: asyncio.Queue[bytes] | None = None):
+        # When an external queue is supplied the caller owns the BLE subscription;
+        # run() must not call start_notify / stop_notify.
+        self._queue: asyncio.Queue[bytes] = notify_queue if notify_queue is not None else asyncio.Queue()
+        self._owns_subscription = notify_queue is None
 
     def _notify_handler(self, _sender: int, data: bytearray):
         self._queue.put_nowait(bytes(data))
@@ -132,7 +135,8 @@ class HandshakeSession:
     async def run(self, client) -> ShareSession:
         from . import NOTIFY_UUID
 
-        await client.start_notify(NOTIFY_UUID, self._notify_handler)
+        if self._owns_subscription:
+            await client.start_notify(NOTIFY_UUID, self._notify_handler)
 
         try:
             # Path 1 — legacy challenge-response
@@ -193,4 +197,5 @@ class HandshakeSession:
             _log.debug("handshake: shared_key=%s", shared_key.hex())
             return ShareSession(shared_key)
         finally:
-            await client.stop_notify(NOTIFY_UUID)
+            if self._owns_subscription:
+                await client.stop_notify(NOTIFY_UUID)

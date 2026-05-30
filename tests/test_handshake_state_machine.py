@@ -43,13 +43,17 @@ class FakeClient:
         self.sent: list[bytes] = []
         self._notify_queue: asyncio.Queue[bytes] = asyncio.Queue()
         self._is_notifying = False
+        self.start_notify_count = 0
+        self.stop_notify_count = 0
 
     async def start_notify(self, _uuid, callback):
         self._notify_callback = callback
         self._is_notifying = True
+        self.start_notify_count += 1
 
     async def stop_notify(self, _uuid):
         self._is_notifying = False
+        self.stop_notify_count += 1
 
     async def write_gatt_char(self, _uuid, data, response=False):
         self.sent.append(data)
@@ -306,3 +310,41 @@ class TestHandshakeStateMachine:
 
         with pytest.raises(ValueError, match="device rejected handshake"):
             await task
+
+    @pytest.mark.asyncio
+    async def test_external_queue_skips_subscribe_lifecycle(self):
+        """HandshakeSession with an external queue must not call start_notify or stop_notify.
+
+        The caller (BluetoothClient) owns the single BLE subscription; the handshake
+        must not add a second subscribe/unsubscribe cycle that triggers a device reset.
+        """
+        ext_queue: asyncio.Queue[bytes] = asyncio.Queue()
+        h = HandshakeSession(notify_queue=ext_queue)  # fails until queue param is added
+
+        random_bytes = b"\x01\x02\x03\x04"
+        random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
+        initial_iv = derive_iv(random_md5_hex)
+
+        device_priv = ec.generate_private_key(ec.SECP256R1())
+        device_pub_raw = device_priv.public_key().public_bytes(
+            encoding=Encoding.X962, format=PublicFormat.UncompressedPoint
+        )[1:]
+        device_sig = sign_app_pubkey(device_pub_raw, random_md5_hex)
+
+        client = FakeClient()
+        task = asyncio.create_task(h.run(client))
+
+        # Feed handshake data directly into the external queue (simulating BluetoothClient routing)
+        ext_queue.put_nowait(_frame(0x01, 0x04, random_bytes))
+        ext_queue.put_nowait(_frame(0x03, 0x01, b"\x00"))
+        ext_queue.put_nowait(
+            frame_encode(_frame(0x04, 0x80, device_pub_raw + device_sig), CbcSession(ble_conn_aes_key, initial_iv))
+        )
+        await _await_send(client)  # wait for app 05 reply
+        ext_queue.put_nowait(frame_encode(_frame(0x06, 0x01, b"\x00"), CbcSession(ble_conn_aes_key, initial_iv)))
+
+        session = await task
+
+        assert isinstance(session, ShareSession)
+        assert client.start_notify_count == 0, "must not subscribe when external queue is provided"
+        assert client.stop_notify_count == 0, "must not unsubscribe when external queue is provided"
