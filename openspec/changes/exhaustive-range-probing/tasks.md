@@ -72,5 +72,5 @@
 
 ## 8. OpenSpec spec update
 
-- [ ] 8.1 Sync `openspec/specs/device-verify/spec.md` with the delta spec (update tier 3 requirement text and scenarios, update output report requirement)
-- [ ] 8.2 Create `openspec/specs/verify-interpretation/spec.md` with the new capability spec
+- [x] 8.1 Sync `openspec/specs/device-verify/spec.md` with the delta spec (update tier 3 requirement text and scenarios, update output report requirement)
+- [x] 8.2 Create `openspec/specs/verify-interpretation/spec.md` with the new capability spec
