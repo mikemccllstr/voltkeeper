@@ -1,5 +1,6 @@
 # ABOUTME: EL100V2 (Elite 100 V2) device definition — V2 protocol per APK v3.0.9 template chain
-# ABOUTME:   ELITE200_V2 → AC200PL → AC240. 56V portable power station, model ID 31.
+# ABOUTME:   ELITE200_V2 → AC200PL. 56V portable power station, model ID 31.
+# ABOUTME: TODO(hardware): verify against physical device.
 
 from enum import Enum, unique
 from typing import List

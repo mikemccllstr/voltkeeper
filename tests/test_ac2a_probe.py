@@ -67,16 +67,3 @@ def test_ac2a_probe_real_pack_voltage_scale():
     voltage = float(parsed["packTotalVoltage"])
     assert 25.0 <= voltage <= 30.0, f"packTotalVoltage={voltage} outside plausible range"
     assert parsed["packTotalSoc"] == 100
-
-
-def test_ac2a_probe_real_full_validate_no_errors():
-    """validate-profile against the fixture must report zero errors.
-
-    Mirrors the Unit 12 done-when criterion ('AC2A's probe output
-    validates with zero ERROR entries'), pinned to a specific capture.
-    """
-    from voltkeeper.validate import validate_profile
-
-    verdicts = validate_profile(str(FIXTURE))
-    errors = [v for v in verdicts if v.status == "error"]
-    assert errors == [], f"unexpected parse errors: {errors}"

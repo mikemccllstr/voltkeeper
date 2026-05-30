@@ -9,7 +9,6 @@ import sys
 import click
 
 from . import load_test
-from .annotate import annotate_loop
 from .bluetooth import (
     ScanResult,
     build_device,
@@ -23,8 +22,6 @@ from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .config import load_config, write_config
 from .core.commands import ReadHoldingRegisters
 from .core.utils import _format_version
-from .probe import emit_yaml, probe_device
-from .validate import validate_profile
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 
@@ -1523,100 +1520,6 @@ def _finish(
         "Share this file in a GitHub issue: https://github.com/mikemccllstr/voltkeeper/issues",
         fg="cyan",
     )
-
-
-@cli.command()
-@click.argument("address")
-@click.option("-o", "--output", default="profile.yaml", help="Output YAML file path")
-def probe(address: str, output: str) -> None:
-    """Probe a Bluetti device and emit a draft profile YAML.
-
-    The serial number in the saved YAML is replaced with a synthetic
-    placeholder so the file is safe to commit or share.  The real SN
-    is shown to you on stdout.
-    """
-    from .scrub import SYNTHETIC_SN_STR, scrub_profile, split_model_sn
-
-    address = address.upper()
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        sr = loop.run_until_complete(lookup_scan_result(address))
-    finally:
-        loop.close()
-
-    profile = asyncio.run(probe_device(address, sr.name, encrypted=bool(sr.encrypted)))
-
-    parts = split_model_sn(sr.name or "")
-    if parts:
-        model, real_sn = parts
-        click.echo(f"Probed {model} SN {real_sn} ({len(profile.get('blocks', {}))} blocks)")
-    else:
-        click.echo(f"Probed {sr.name or address} ({len(profile.get('blocks', {}))} blocks)")
-
-    emit_yaml(scrub_profile(profile), output)
-    click.echo(f"Wrote profile draft to {output} (SN scrubbed to {SYNTHETIC_SN_STR} for privacy)")
-
-
-@cli.command("annotate")
-@click.argument("address")
-@click.option("-o", "--output", default="draft.yaml", help="Output YAML draft file")
-def annotate(address: str, output: str) -> None:
-    """Live-poll a device and annotate changing register values.
-
-    Connect, sweep register blocks, and highlight byte-level
-    changes in real time.  At each changed register offset you
-    are prompted for a field name; type a name to record the
-    annotation, or press Enter to skip.
-
-    Saves to *output* incrementally (Ctrl-C safe).
-    """
-    from pathlib import Path
-
-    address = address.upper()
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        sr = loop.run_until_complete(lookup_scan_result(address))
-    finally:
-        loop.close()
-
-    asyncio.run(annotate_loop(address, Path(output), encrypted=bool(sr.encrypted), device_name=sr.name))
-
-
-@cli.command("validate-profile")
-@click.argument("yaml_path")
-def validate_profile_cmd(yaml_path: str) -> None:
-    """Validate a probe YAML against field sanity checks.
-
-    Loads a profile YAML (from ``voltkeeper probe``), parses
-    each register block with the device model's parser, and flags
-    fields with stuck-at values (0, 0xFFFF, 0xFFFFFFFF) or
-    out-of-range values.
-    """
-    verdicts = validate_profile(yaml_path)
-    if not verdicts:
-        click.echo("No fields to validate (unknown model or empty profile).")
-        return
-
-    ok = sum(1 for v in verdicts if v.status == "ok")
-    suspect = sum(1 for v in verdicts if v.status == "suspect")
-    error = sum(1 for v in verdicts if v.status == "error")
-
-    click.echo(f"Fields: {ok} ok, {suspect} suspect, {error} error\n")
-
-    for v in verdicts:
-        line = f"  [{v.status.upper()}] {v.name}: {v.value}"
-        if v.note:
-            line += f"  ({v.note})"
-        if v.status == "ok":
-            click.secho(line, fg="green")
-        elif v.status == "suspect":
-            click.secho(line, fg="yellow")
-        else:
-            click.secho(line, fg="red", bold=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════

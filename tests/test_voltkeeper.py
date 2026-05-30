@@ -3076,43 +3076,6 @@ def test_decode_ctrl_event_all_on():
     assert all(caps.values())
 
 
-def test_probe_emit_capabilities_v2():
-    from voltkeeper.probe import _emit_capabilities
-
-    profile = {
-        "blocks": {
-            "APP_HOME_DATA": {
-                "address": 100,
-                "size": 62,
-                "raw_hex": "00" * 48 + "0407" + "00" * 72,
-            }
-        }
-    }
-    _emit_capabilities(profile)
-    assert "capabilities" in profile
-    assert profile["capabilities"]["ctrl_event"] == 0x0407
-    decoded = profile["capabilities"]["decoded"]
-    assert decoded["power_control"] is True
-    assert decoded["ac_control"] is True
-    assert decoded["dc_control"] is True
-
-
-def test_probe_emit_capabilities_no_home_data():
-    from voltkeeper.probe import _emit_capabilities
-
-    profile = {"blocks": {}}
-    _emit_capabilities(profile)
-    assert "capabilities" not in profile
-
-
-def test_probe_emit_capabilities_short_data():
-    from voltkeeper.probe import _emit_capabilities
-
-    profile = {"blocks": {"APP_HOME_DATA": {"raw_hex": "00" * 20}}}
-    _emit_capabilities(profile)
-    assert "capabilities" not in profile
-
-
 def test_device_registry_is_public():
     from voltkeeper.bluetooth import device_registry
 
