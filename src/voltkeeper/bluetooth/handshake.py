@@ -55,8 +55,7 @@ def sign_app_pubkey(app_pub_raw: bytes, random_md5_hex: str) -> bytes:
 
 
 def derive_shared_key(app_priv: ec.EllipticCurvePrivateKey, device_pub: ec.EllipticCurvePublicKey) -> bytes:
-    shared = app_priv.exchange(ec.ECDH(), device_pub)
-    return shared[:16]
+    return app_priv.exchange(ec.ECDH(), device_pub)
 
 
 def _checksum(data: bytes) -> bytes:

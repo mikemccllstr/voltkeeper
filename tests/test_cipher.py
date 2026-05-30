@@ -1,4 +1,4 @@
-# ABOUTME: Unit tests for bluetooth cipher — AES-128-CBC with chained IV, zero-padding, no PKCS.
+# ABOUTME: Unit tests for bluetooth cipher — AES-CBC with chained IV, zero-padding, no PKCS.
 
 import hashlib
 
@@ -15,6 +15,7 @@ from voltkeeper.bluetooth.cipher import (
 )
 
 _KEY = bytes.fromhex("459FC535808941F17091E0993EE3E93D")
+_KEY_32 = bytes(range(32))
 
 
 def test_roundtrip_aligned():
@@ -164,6 +165,23 @@ def test_share_session_fresh_iv_per_frame():
     f2 = session.encode_frame(pt, seed=seed)
     # Same seed → same ciphertext (IV is deterministic from seed, no chaining)
     assert f1 == f2
+
+
+def test_share_session_32byte_key_encode_decode_roundtrip():
+    """ShareSession accepts a 32-byte key and round-trips correctly (AES-256-CBC)."""
+    session = ShareSession(_KEY_32)
+    seed = bytes.fromhex("cafebabe")
+    pt = b"\x01\x03\x02\x12\x34\x56\x78\x9a"
+    encoded = session.encode_frame(pt, seed=seed)
+    assert session.decode_frame(encoded) == pt
+
+
+def test_share_session_32byte_key_random_seed_roundtrip():
+    """32-byte key with random seed: encode then decode recovers plaintext."""
+    session = ShareSession(_KEY_32)
+    pt = b"hello from modbus with aes256" + b"\x00\x01"
+    encoded = session.encode_frame(pt)
+    assert session.decode_frame(encoded) == pt
 
 
 # Task 4.2: malformed post-handshake frame is rejected

@@ -1,4 +1,4 @@
-# ABOUTME: AES-128-CBC cipher with chained IV and zero-padding (no PKCS) for Bluetti BLE encryption.
+# ABOUTME: AES-CBC cipher with chained IV and zero-padding (no PKCS) for Bluetti BLE encryption.
 # Framing note: encrypt() zero-pads to a 16-byte boundary. decrypt() returns
 # the full block-aligned plaintext including any padding bytes — it does NOT
 # strip trailing zeros, because the Bluetti protocol carries plaintext bytes
@@ -29,8 +29,8 @@ def _zero_pad(data: bytes, block: int = 16) -> bytes:
 
 
 def encrypt(plaintext: bytes, key: bytes, iv: bytes) -> bytes:
-    if len(key) != 16:
-        raise ValueError("AES-128 key must be 16 bytes")
+    if len(key) not in (16, 32):
+        raise ValueError("AES key must be 16 or 32 bytes")
     if len(iv) != 16:
         raise ValueError("IV must be 16 bytes")
     padded = _zero_pad(plaintext)
@@ -83,8 +83,8 @@ class ShareSession:
     """Post-handshake codec: [2B len][4B seed][ciphertext], IV = MD5(seed) per frame."""
 
     def __init__(self, key: bytes):
-        if len(key) != 16:
-            raise ValueError("AES-128 key must be 16 bytes")
+        if len(key) not in (16, 32):
+            raise ValueError("AES key must be 16 or 32 bytes")
         self._key = key
 
     def encode_frame(self, plaintext: bytes, seed: bytes | None = None) -> bytes:

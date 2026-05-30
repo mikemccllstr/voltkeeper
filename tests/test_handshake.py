@@ -62,6 +62,13 @@ def test_verify_device_pubkey_raises_on_garbage():
         verify_device_pubkey(garbage_pub, garbage_sig, "ABCDEF0123456789ABCDEF0123456789AB")
 
 
+def test_derive_shared_key_returns_32_bytes():
+    priv_a = ec.generate_private_key(ec.SECP256R1())
+    priv_b = ec.generate_private_key(ec.SECP256R1())
+    shared = derive_shared_key(priv_a, priv_b.public_key())
+    assert len(shared) == 32
+
+
 def test_ecdh_determinism():
     # Generate two fixed ephemeral keypairs
     priv_a = ec.generate_private_key(ec.SECP256R1())
@@ -74,7 +81,7 @@ def test_ecdh_determinism():
     shared_ba = derive_shared_key(priv_b, pub_a)
 
     assert shared_ab == shared_ba
-    assert len(shared_ab) == 16
+    assert len(shared_ab) == 32
 
 
 # Task 3.1: ECDSA signature message uses hex-decoded randomMd5 (80 bytes)
