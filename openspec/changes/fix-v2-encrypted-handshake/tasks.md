@@ -29,7 +29,7 @@
 ## 5. Full suite & regression
 
 - [x] 5.1 Run the entire test suite; confirm no plaintext-device handshake tests regressed and output is pristine (665 passed). Updated the existing `test_handshake.py`/`test_cipher.py`/`test_handshake_state_machine.py` vectors that encoded the old behavior
-- [ ] 5.2 (When hardware available) capture a fresh BLE trace of the Elite 100 V2 connect and confirm the device now emits the 144-byte ECDH block (no re-issued challenge, no premature disconnect)
+- [x] 5.2 Captured a live Elite 100 V2 trace: device challenge `2A2A0104 89CAE040 0278`, our reply `2A2A0204 B4BE4E8F 0255` — **device accepted it** (no re-issued challenge, no device-side disconnect) and sent a `2A 2A 03 01 00` status-ack followed by the 144-byte ECDH block. Stage 1 confirmed working on hardware. (Stage 2 then fails on a new, separate issue — see notes.)
 
 ## 6. Documentation
 
@@ -43,3 +43,4 @@
 
 - The "Service Discovery has not been performed yet" symptom was a red herring: bleak raised it during `stop_notify()` cleanup after the device disconnected us for the rejected reply. No bleak/service-discovery change was needed.
 - Stage 2 (ECDH) remains unvalidated against hardware. While fixing stage-1 framing, the stage-2 reply checksum was corrected to the same proven big-endian-over-body rule via `_frame()`, and the stage-2 device-pubkey parse offset (`[3:67]` vs APK `subList(4,68)`) is flagged in a code comment for the next hardware session.
+- NEW stage-2 finding from the live run (next change): after accepting the legacy reply the device sends a `2A 2A 03 01 <status>` ack frame (status `00` = OK; the "status 3" referenced in `client.py:80`) *before* the encrypted ECDH block. `HandshakeSession.run`'s `_collect(144)` swallows that 7-byte ack, so the collected ciphertext is misaligned (151 bytes) and decryption raises `Ciphertext length must be a multiple of 16`. Stage 2 needs to consume/skip the `2A 2A 03` ack before collecting the 144-byte block. Track in a follow-up change together with the parse-offset and signature/case items.
