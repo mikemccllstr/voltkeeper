@@ -38,9 +38,9 @@
 
 ## 7. Live hardware validation (device in range)
 
-- [ ] 7.1 Run `env BLEAK_LOGGING=1 uv run voltkeeper status DC:B4:D9:46:73:96 -v`; confirm the ECDH block decrypts and the `2A2A04` header is recognized
-- [ ] 7.2 Confirm the device ECDSA signature verifies against `PUBLIC_KEY_K2`
-- [ ] 7.3 Confirm the app `2A2A05` reply is accepted and a `2A2A06` confirmation arrives
+- [x] 7.1 Run `env BLEAK_LOGGING=1 uv run voltkeeper status DC:B4:D9:46:73:96 -v`; confirm the ECDH block decrypts and the `2A2A04` header is recognized
+- [x] 7.2 Confirm the device ECDSA signature verifies against `PUBLIC_KEY_K2`
+- [x] 7.3 Confirm the app `2A2A05` reply is accepted and a `2A2A06` confirmation arrives
 - [ ] 7.4 Confirm a Modbus read returns valid data via the post-handshake codec
 - [ ] 7.5 Confirm `voltkeeper status DC:B4:D9:46:73:96` prints real values (e.g. SOC)
 
@@ -57,4 +57,6 @@
 
 ## 10. Follow-up tracking
 
-- [ ] 10.1 If Modbus is gated by a per-SN key-binding step (clean `2A2A06` then Modbus timeout/exception), capture the behavior and open a separate change (do not expand this change's scope)
+- [x] 10.1 If Modbus is gated by a per-SN key-binding step (clean `2A2A06` then Modbus timeout/exception), capture the behavior and open a separate change (do not expand this change's scope)
+
+After `2A2A06` the device sends a NEW `2A2A01` challenge instead of responding to the first Modbus command, indicating a second authentication round is required (per-SN key-binding). Opened as a separate change `fix-v2-per-sn-key-binding` (TODO — open after archiving this change).

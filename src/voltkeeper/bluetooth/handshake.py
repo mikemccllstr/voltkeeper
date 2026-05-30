@@ -150,11 +150,11 @@ class HandshakeSession:
                 raise ValueError(f"device rejected handshake with status 0x{status:02x}")
 
             # Path 2 — ECDH key exchange
+            # Each handshake-stage frame uses the same IV (not CBC-chained across frames).
             initial_iv = derive_iv(random_md5_hex)
-            enc_session = CbcSession(ble_conn_aes_key, initial_iv)
 
             enc_frame = await self._collect_encrypted_frame()
-            plaintext = frame_decode(enc_frame, enc_session)
+            plaintext = frame_decode(enc_frame, CbcSession(ble_conn_aes_key, initial_iv))
 
             if plaintext[:3] != b"\x2a\x2a\x04":
                 raise ValueError(f"Expected ECDH start 0x2A2A04, got {plaintext[:3].hex()}")
@@ -171,11 +171,11 @@ class HandshakeSession:
             app_sig = sign_app_pubkey(app_pub_raw, random_md5_hex)
 
             ecdh_reply = _frame(0x05, 0x80, app_pub_raw + app_sig)
-            await self._send(client, frame_encode(ecdh_reply, enc_session))
+            await self._send(client, frame_encode(ecdh_reply, CbcSession(ble_conn_aes_key, initial_iv)))
 
             # Path 2 confirmation
             conf_frame = await self._collect_encrypted_frame()
-            conf_plaintext = frame_decode(conf_frame, enc_session)
+            conf_plaintext = frame_decode(conf_frame, CbcSession(ble_conn_aes_key, initial_iv))
             if conf_plaintext[:3] != b"\x2a\x2a\x06":
                 raise ValueError(f"Expected confirmation 0x2A2A06, got {conf_plaintext[:3].hex()}")
 
