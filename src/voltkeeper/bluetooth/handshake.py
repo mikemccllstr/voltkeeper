@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_der_public_key
 
-from .cipher import CbcSession, derive_iv
+from .cipher import CbcSession, ShareSession, derive_iv, frame_decode, frame_encode
 
 LOCAL_AES_KEY = bytes.fromhex("459FC535808941F17091E0993EE3E93D")
 PRIVATE_KEY_L1_HEX = "4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337"
@@ -38,7 +38,7 @@ def verify_device_pubkey(device_pub_raw: bytes, signature_rs: bytes, random_md5_
     r = int.from_bytes(signature_rs[:32], "big")
     s = int.from_bytes(signature_rs[32:], "big")
     der_sig = encode_dss_signature(r, s)
-    message = device_pub_raw + random_md5_hex.encode("ascii")
+    message = device_pub_raw + bytes.fromhex(random_md5_hex)
     try:
         k2.verify(der_sig, message, ec.ECDSA(hashes.SHA256()))
     except InvalidSignature as e:
@@ -49,7 +49,7 @@ def verify_device_pubkey(device_pub_raw: bytes, signature_rs: bytes, random_md5_
 def sign_app_pubkey(app_pub_raw: bytes, random_md5_hex: str) -> bytes:
     private_value = int(PRIVATE_KEY_L1_HEX, 16)
     priv = ec.derive_private_key(private_value, ec.SECP256R1())
-    der = priv.sign(app_pub_raw + random_md5_hex.encode("ascii"), ec.ECDSA(hashes.SHA256()))
+    der = priv.sign(app_pub_raw + bytes.fromhex(random_md5_hex), ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(der)
     return r.to_bytes(32, "big") + s.to_bytes(32, "big")
 
@@ -111,12 +111,23 @@ class HandshakeSession:
             buf.extend(await self._next_notification(timeout=timeout))
         return bytes(buf)
 
+    async def _collect_encrypted_frame(self, timeout: float = 5.0) -> bytes:
+        """Collect a complete [2B len][ciphertext] handshake-stage encrypted frame."""
+        buf = bytearray()
+        while len(buf) < 2:
+            buf.extend(await self._next_notification(timeout=timeout))
+        plaintext_len = int.from_bytes(buf[:2], "big")
+        needed = 2 + (plaintext_len + 15) // 16 * 16
+        while len(buf) < needed:
+            buf.extend(await self._next_notification(timeout=timeout))
+        return bytes(buf[:needed])
+
     async def _send(self, client, data: bytes) -> None:
         from . import WRITE_UUID
 
         await client.write_gatt_char(WRITE_UUID, data, response=False)
 
-    async def run(self, client) -> CbcSession:
+    async def run(self, client) -> ShareSession:
         from . import NOTIFY_UUID
 
         await client.start_notify(NOTIFY_UUID, self._notify_handler)
@@ -142,8 +153,8 @@ class HandshakeSession:
             initial_iv = derive_iv(random_md5_hex)
             enc_session = CbcSession(ble_conn_aes_key, initial_iv)
 
-            encrypted = await self._collect(144)
-            plaintext = enc_session.decrypt(encrypted)
+            enc_frame = await self._collect_encrypted_frame()
+            plaintext = frame_decode(enc_frame, enc_session)
 
             if plaintext[:3] != b"\x2a\x2a\x04":
                 raise ValueError(f"Expected ECDH start 0x2A2A04, got {plaintext[:3].hex()}")
@@ -160,23 +171,15 @@ class HandshakeSession:
             app_sig = sign_app_pubkey(app_pub_raw, random_md5_hex)
 
             ecdh_reply = _frame(0x05, 0x80, app_pub_raw + app_sig)
-            enc_reply = enc_session.encrypt(ecdh_reply)
-            await self._send(client, enc_reply)
+            await self._send(client, frame_encode(ecdh_reply, enc_session))
 
             # Path 2 confirmation
-            conf_encrypted = await self._collect(16)
-            conf_plaintext = enc_session.decrypt(conf_encrypted)
+            conf_frame = await self._collect_encrypted_frame()
+            conf_plaintext = frame_decode(conf_frame, enc_session)
             if conf_plaintext[:3] != b"\x2a\x2a\x06":
                 raise ValueError(f"Expected confirmation 0x2A2A06, got {conf_plaintext[:3].hex()}")
 
             shared_key = derive_shared_key(app_priv, device_pub)
-            # CAVEAT: FINDINGS §15.2 step 3c is ambiguous about whether the IV
-            # resets when the session key changes (bleConnAESKey → bleConnShareKey)
-            # or whether it continues chaining from the last handshake ciphertext
-            # block. We choose to RESET to derive_iv(randomMd5) since the key
-            # changed; this is plausible but unvalidated against a real device.
-            # If encrypted Modbus traffic decrypts to garbage post-handshake,
-            # suspect this first and try `enc_session.iv` instead of `initial_iv`.
-            return CbcSession(shared_key, initial_iv)
+            return ShareSession(shared_key)
         finally:
             await client.stop_notify(NOTIFY_UUID)

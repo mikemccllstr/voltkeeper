@@ -8,7 +8,7 @@ from bleak import BleakClient, BleakError
 
 from ..core.commands import DeviceCommand, TlvReadHoldingRegisters
 from . import NOTIFY_UUID, WRITE_UUID
-from .cipher import CbcSession
+from .cipher import ShareSession
 from .exc import BadConnectionError, ModbusError, ParseError
 from .handshake import HandshakeSession
 
@@ -21,7 +21,7 @@ class BluetoothClient:
         self.address = address
         self.encrypted = encrypted
         self.client: Optional[BleakClient] = None
-        self._session: Optional[CbcSession] = None
+        self._session: Optional[ShareSession] = None
         self._notify_response = bytearray()
         self._notify_future: Optional[asyncio.Future] = None
         self._current_cmd: Optional[Union[DeviceCommand, TlvReadHoldingRegisters]] = None
@@ -57,7 +57,7 @@ class BluetoothClient:
                 assert self.client is not None
                 outgoing = bytes(cmd)
                 if self._session:
-                    outgoing = self._session.encrypt(outgoing)
+                    outgoing = self._session.encode_frame(outgoing)
                 await self.client.write_gatt_char(WRITE_UUID, outgoing, response=False)
                 resp = await asyncio.wait_for(self._notify_future, timeout=RESPONSE_TIMEOUT)
             except ParseError:
@@ -72,8 +72,7 @@ class BluetoothClient:
                 continue
 
             if self._session:
-                resp = self._session.decrypt(resp)
-                resp = resp[: cmd.response_size()]
+                resp = self._session.decode_frame(resp)
                 if not cmd.is_valid_response(resp):
                     retries += 1
                     if retries >= MAX_RETRIES:
@@ -104,7 +103,7 @@ class BluetoothClient:
 
         assert self._current_cmd is not None
         response_size = self._current_cmd.response_size()
-        expected = ((response_size + 15) // 16) * 16 if self._session else response_size
+        expected = (6 + ((response_size + 15) // 16) * 16) if self._session else response_size
 
         if len(self._notify_response) >= expected:
             raw = bytes(self._notify_response[:expected])

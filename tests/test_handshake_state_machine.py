@@ -1,14 +1,14 @@
 # ABOUTME: Unit tests for BLE encryption handshake state machine — mock-driven BLE I/O.
 
 import asyncio
-from unittest.mock import patch
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from voltkeeper.bluetooth.cipher import CbcSession
+from voltkeeper.bluetooth.cipher import CbcSession, ShareSession, frame_decode, frame_encode
 from voltkeeper.bluetooth.handshake import (
+    PRIVATE_KEY_L1_HEX,
     HandshakeSession,
     _checksum,
     _frame,
@@ -18,6 +18,23 @@ from voltkeeper.bluetooth.handshake import (
     derive_shared_key,
     sign_app_pubkey,
 )
+
+# The simulator signs device ECDH messages with L1 (sign_app_pubkey). To allow
+# verify_device_pubkey to verify those signatures without a mock, we patch K2 to
+# be L1's public key for all tests in this file.
+_L1_PUB_DER = (
+    ec.derive_private_key(int(PRIVATE_KEY_L1_HEX, 16), ec.SECP256R1())
+    .public_key()
+    .public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    .hex()
+)
+
+
+@pytest.fixture(autouse=True)
+def patch_k2_to_l1_pub(monkeypatch):
+    import voltkeeper.bluetooth.handshake as hs_module
+
+    monkeypatch.setattr(hs_module, "PUBLIC_KEY_K2_DER_HEX", _L1_PUB_DER)
 
 
 class FakeClient:
@@ -42,7 +59,7 @@ class FakeClient:
             self._notify_callback(0, bytearray(data))
 
 
-async def build_device_side_handshake(client, app_client) -> CbcSession:
+async def build_device_side_handshake(client, app_client) -> ShareSession:
     random_bytes = b"\x01\x02\x03\x04"
     random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
 
@@ -60,7 +77,7 @@ async def build_device_side_handshake(client, app_client) -> CbcSession:
     # Device sends status-ack frame (2A 2A 03 01 00) before the ECDH block
     client.feed(_frame(0x03, 0x01, b"\x00"))
 
-    # Path 2: device sends ECDH payload
+    # Path 2: device sends ECDH payload — with length prefix and hex-decoded signature message
     initial_iv = derive_iv(random_md5_hex)
     enc_session = CbcSession(ble_conn_aes_key, initial_iv)
 
@@ -69,24 +86,23 @@ async def build_device_side_handshake(client, app_client) -> CbcSession:
     device_pub_raw = device_pub.public_bytes(encoding=Encoding.X962, format=PublicFormat.UncompressedPoint)[1:]
     device_sig = sign_app_pubkey(device_pub_raw, random_md5_hex)
 
-    enc_ecdh = enc_session.encrypt(_frame(0x04, 0x80, device_pub_raw + device_sig))
-    client.feed(enc_ecdh)
+    # Task 6.1: prepend the %04X length prefix on the encrypted ECDH frame
+    client.feed(frame_encode(_frame(0x04, 0x80, device_pub_raw + device_sig), enc_session))
 
-    # Device receives ECDH reply
+    # Device receives app ECDH reply (also length-prefixed)
     enc_reply = await _await_send(app_client)
-    plaintext = enc_session.decrypt(enc_reply)
+    plaintext = frame_decode(enc_reply, enc_session)
     shared = derive_shared_key(
         device_priv,
         ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + plaintext[4:68]),
     )
 
-    # Device sends confirmation
+    # Device sends confirmation (length-prefixed)
     conf_msg = b"\x2a\x2a\x06\x00" + b"\x00" * 10
     conf_msg += _checksum(conf_msg)
-    enc_conf = enc_session.encrypt(conf_msg)
-    client.feed(enc_conf)
+    client.feed(frame_encode(conf_msg, enc_session))
 
-    return CbcSession(shared, initial_iv)
+    return ShareSession(shared)
 
 
 async def _await_send(client, timeout: float = 2.0):
@@ -102,30 +118,26 @@ async def _await_send(client, timeout: float = 2.0):
 class TestHandshakeStateMachine:
     @pytest.mark.asyncio
     async def test_full_handshake_against_device_simulator(self):
+        # Task 6.2: drop the verify_device_pubkey mock — real signature verifies now
         app_client = FakeClient()
         h = HandshakeSession()
 
         async with asyncio.timeout(5):
-            with patch("voltkeeper.bluetooth.handshake.verify_device_pubkey") as mock_verify:
-                mock_verify.side_effect = lambda device_pub_raw, signature_rs, random_md5_hex: (
-                    ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + device_pub_raw)
-                )
+            session, dev_session = await asyncio.wait_for(
+                asyncio.gather(
+                    h.run(app_client),
+                    build_device_side_handshake(app_client, app_client),
+                ),
+                timeout=5,
+            )
 
-                session, dev_session = await asyncio.wait_for(
-                    asyncio.gather(
-                        h.run(app_client),
-                        build_device_side_handshake(app_client, app_client),
-                    ),
-                    timeout=5,
-                )
+        assert isinstance(session, ShareSession)
 
-        assert isinstance(session, CbcSession)
-
-        # Verify both sides have same session key (decrypt returns padded data per Unit 5)
+        # Task 6.3: post-handshake round-trip using [len][seed][ciphertext] layout
         test_msg = b"hello modbus test"
-        enc = session.encrypt(test_msg)
-        dec = dev_session.decrypt(enc)
-        assert dec[: len(test_msg)] == test_msg
+        enc = session.encode_frame(test_msg)
+        dec = dev_session.decode_frame(enc)
+        assert dec == test_msg
 
     @pytest.mark.asyncio
     async def test_rejects_invalid_device_signature(self):
@@ -138,10 +150,11 @@ class TestHandshakeStateMachine:
         initial_iv = derive_iv(random_md5_hex)
         enc_session = CbcSession(ble_conn_aes_key, initial_iv)
 
-        fake_pub_raw = b"\x04" * 64
+        fake_device_key = ec.generate_private_key(ec.SECP256R1())
+        fake_pub_raw = fake_device_key.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)[1:]
         bad_sig = b"\x00" * 64
 
-        enc_ecdh = enc_session.encrypt(_frame(0x04, 0x80, fake_pub_raw + bad_sig))
+        enc_ecdh = frame_encode(_frame(0x04, 0x80, fake_pub_raw + bad_sig), enc_session)
 
         # Start handshake, wait for start_notify, then feed data
         task = asyncio.create_task(h.run(client))
@@ -179,10 +192,9 @@ class TestHandshakeStateMachine:
         initial_iv = derive_iv(random_md5_hex)
         enc_session = CbcSession(ble_conn_aes_key, initial_iv)
 
-        # Build an ECDH frame with WRONG header (2A 2A 99 instead of 2A 2A 04),
-        # padded to 144 bytes so _collect(144) returns.
-        bad_ecdh = b"\x2a\x2a\x99" + b"\x00" * (144 - 3)
-        enc_bad = enc_session.encrypt(bad_ecdh)
+        # Build an ECDH frame with WRONG header (2A 2A 99 instead of 2A 2A 04)
+        bad_ecdh = b"\x2a\x2a\x99" + b"\x00" * (128 - 3)
+        enc_bad = frame_encode(bad_ecdh, enc_session)
 
         task = asyncio.create_task(h.run(client))
         while client._notify_callback is None:
@@ -211,42 +223,34 @@ class TestHandshakeStateMachine:
             encoding=Encoding.X962, format=PublicFormat.UncompressedPoint
         )[1:]
         device_sig = sign_app_pubkey(device_pub_raw, random_md5_hex)
-        enc_ecdh = enc_session.encrypt(_frame(0x04, 0x80, device_pub_raw + device_sig))
+        enc_ecdh = frame_encode(_frame(0x04, 0x80, device_pub_raw + device_sig), enc_session)
 
         # Build a confirmation with WRONG header (2A 2A 99 instead of 2A 2A 06)
         bad_conf = b"\x2a\x2a\x99\x00" + b"\x00" * 10
         bad_conf += _checksum(bad_conf)
 
-        with patch("voltkeeper.bluetooth.handshake.verify_device_pubkey") as mock_verify:
-            mock_verify.side_effect = lambda pub, sig, md5: ec.EllipticCurvePublicKey.from_encoded_point(
-                ec.SECP256R1(), b"\x04" + pub
-            )
+        task = asyncio.create_task(h.run(client))
+        while client._notify_callback is None:
+            await asyncio.sleep(0)
 
-            task = asyncio.create_task(h.run(client))
-            while client._notify_callback is None:
-                await asyncio.sleep(0)
+        # Feed challenge → capture legacy reply.
+        client.feed(_frame(0x01, 0x04, random_bytes))
+        legacy_reply = await _await_send(client)
+        assert legacy_reply[:3] == b"\x2a\x2a\x02"
 
-            # Feed challenge → capture legacy reply.
-            client.feed(_frame(0x01, 0x04, random_bytes))
-            legacy_reply = await _await_send(client)
-            assert legacy_reply[:3] == b"\x2a\x2a\x02"
+        # Ack consumed by handshake, then ECDH block arrives
+        client.feed(_frame(0x03, 0x01, b"\x00"))
 
-            # Ack consumed by handshake, then ECDH block arrives
-            client.feed(_frame(0x03, 0x01, b"\x00"))
+        # Feed encrypted ECDH frame → capture app's ECDH reply, decode to advance IV
+        client.feed(enc_ecdh)
+        ecdh_reply = await _await_send(client)
+        frame_decode(ecdh_reply, enc_session)  # advances CBC IV to match handshake state
 
-            # Feed encrypted ECDH frame → capture app's ECDH reply, mirror its
-            # decryption on our side to keep the CBC IV state in sync with the
-            # handshake's enc_session.
-            client.feed(enc_ecdh)
-            ecdh_reply = await _await_send(client)
-            enc_session.decrypt(ecdh_reply)
+        # Encrypt and feed the bad confirmation (length-prefixed)
+        client.feed(frame_encode(bad_conf, enc_session))
 
-            # Now encrypt and feed the bad confirmation.
-            enc_bad_conf = enc_session.encrypt(bad_conf)
-            client.feed(enc_bad_conf)
-
-            with pytest.raises(ValueError, match="Expected confirmation 0x2A2A06"):
-                await task
+        with pytest.raises(ValueError, match="Expected confirmation 0x2A2A06"):
+            await task
 
     @pytest.mark.asyncio
     async def test_ack_non_zero_status_aborts(self):
