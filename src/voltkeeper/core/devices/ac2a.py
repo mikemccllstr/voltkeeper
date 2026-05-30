@@ -4,7 +4,7 @@ from enum import Enum, unique
 from typing import List
 
 from ..commands import EmsCtrlMode, InvFrequency, LedColor, Pv2Type, PvType, ReadHoldingRegisters, WorkingMode
-from ..utils import _format_version, _s16, _u16
+from ..utils import _s16, _u16
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_INFO,
@@ -168,16 +168,46 @@ class AC2A(V2Base):
 
     # ── Custom array helpers ────────────────────────────────────────────
 
+    # MCU type codes from the APK's DeviceFirmware enum.
+    # Maps type code to key-name prefix (suffix ``_version`` is appended).
+    _MCU_TYPE_NAMES: dict[int, str] = {
+        0: "iot",
+        1: "arm",
+        2: "dsp",
+        3: "bms",
+        4: "ba",
+        5: "pack_bcu",
+        6: "pack_bmu",
+        7: "pack_bms",
+        8: "pack_m1",
+        9: "pack_safety",
+        10: "pack_high_voltage",
+        11: "hmi1",
+        12: "hmi2",
+        13: "rf",
+        14: "dc_hub",
+        15: "ac_hub",
+        16: "dc_dc",
+        17: "ats",
+        18: "panel",
+        19: "parallel_box",
+        20: "inv_dsp2",
+        253: "pps",
+        254: "boot",
+        255: "system",
+    }
+
     @staticmethod
     def _fill_software_versions(result: dict, data: bytes):
         for i in range(6):
             off = 26 + i * 6
             if len(data) < off + 6:
                 break
-            mcu_type = data[off]
-            version = (_u16(data, off + 2) << 16) | _u16(data, off + 4)
+            mcu_type = (data[off] << 8) | data[off + 1]
+            version = (_u16(data, off + 4) << 16) | _u16(data, off + 2)
             if mcu_type > 0 and version > 0:
-                result[f"software[{i}]"] = f"MCU={mcu_type}  ver={_format_version(version)}"
+                name = AC2A._MCU_TYPE_NAMES.get(mcu_type, f"mcu{mcu_type}")
+                result[f"{name}_version"] = version
 
     @staticmethod
     def _fill_pv_strings(result: dict, data: bytes):

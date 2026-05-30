@@ -380,13 +380,14 @@ def test_build_report_includes_firmware_fields(ac2a):
 
 
 def test_build_report_firmware_includes_v2_software_number(ac2a):
-    # V2 devices expose softwareNumber, not arm_version/dsp_version.
-    # The "software" substring must be in _FIRMWARE_FIELD_SUBSTRINGS.
+    # V2 devices expose softwareNumber (from struct) and named _version keys
+    # (from _fill_software_versions). Both must be captured by firmware matching.
     t1 = TierResult(tier=1, status="pass")
-    tier1_values = {"softwareNumber": 42, "packTotalSoc": 95}
+    tier1_values = {"softwareNumber": 42, "arm_version": 208409, "packTotalSoc": 95}
     report = build_report(ac2a, "x", "x", [t1], tier1_values)
     assert "firmware" in report["device"]
     assert "softwareNumber" in report["device"]["firmware"]
+    assert "arm_version" in report["device"]["firmware"]
     assert "packTotalSoc" not in report["device"]["firmware"]
 
 
