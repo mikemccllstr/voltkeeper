@@ -130,6 +130,14 @@ class HandshakeSession:
 
             await self._send(client, build_legacy_reply(random_md5_hex))
 
+            # Path 2 — status-ack frame (2A 2A 03 01 <status>) before ECDH block
+            ack = await self._next_notification()
+            if len(ack) < 5 or ack[:4] != b"\x2a\x2a\x03\x01":
+                raise ValueError(f"Expected status-ack 0x2A2A03, got {ack[:4].hex()}")
+            status = ack[4]
+            if status != 0:
+                raise ValueError(f"device rejected handshake with status 0x{status:02x}")
+
             # Path 2 — ECDH key exchange
             initial_iv = derive_iv(random_md5_hex)
             enc_session = CbcSession(ble_conn_aes_key, initial_iv)
@@ -140,14 +148,8 @@ class HandshakeSession:
             if plaintext[:3] != b"\x2a\x2a\x04":
                 raise ValueError(f"Expected ECDH start 0x2A2A04, got {plaintext[:3].hex()}")
 
-            # CAVEAT (stage 2, unvalidated): ConnectManager.bleEncryptedHandle reads the
-            # device pubkey from subList(4, 68) and the signature from subList(68, size-2),
-            # i.e. after a length byte at offset 3 — the same framing as the stage-1
-            # challenge. These offsets (3:67 / 67:131) omit that length byte and have not
-            # been confirmed against a real stage-2 transcript. Revisit once stage 1 is
-            # unblocked on hardware.
-            device_pub_raw = plaintext[3:67]
-            signature_rs = plaintext[67:131]
+            device_pub_raw = plaintext[4:68]
+            signature_rs = plaintext[68:132]
 
             device_pub = verify_device_pubkey(device_pub_raw, signature_rs, random_md5_hex)
 

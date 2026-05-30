@@ -196,7 +196,11 @@ For devices where `isESP32Encrypted == true` or `isBLEEncrypted == true`:
 1. App responds with a symmetric 10-byte frame `2A 2A 02 04` + 4 token bytes + 2-byte checksum, where the token is `hex_decode(randomMd5[16:24])` and the checksum is the big-endian sum of `02 04` + the 4 token bytes
 1. App derives temporary key: `bleConnAESKey = decode(randomMd5) XOR LOCAL_AES_KEY` (byte-wise, 16 bytes)
 
-**3b. ECDH Key Exchange (protocol v2+):**
+**3b. Status Ack (protocol v2+):**
+
+1. After the app sends the legacy challenge reply, the device responds with a plaintext status-ack frame `2A 2A 03 01 <status> <2-byte checksum>`. Status `0x00` accepts the reply; any non-zero status rejects the handshake. The app consumes this frame separately before collecting the encrypted ECDH block, preventing the ack bytes from misaligning the AES-CBC decrypt.
+
+**3c. ECDH Key Exchange (protocol v2+):**
 
 1. Device sends `2A 2A 04 ...` (AES-CBC encrypted with `bleConnAESKey`, IV=`decode(randomMd5)`)
    - Bytes 4-67: device's SECP-256R1 public key (64 bytes, raw X+Y, no 04 prefix)
@@ -210,7 +214,7 @@ For devices where `isESP32Encrypted == true` or `isBLEEncrypted == true`:
 1. App derives shared secret via ECDH: `bleConnShareKey = ECDH(appPrivKey, devicePubKey)`
 1. `bleConnAESKey` discarded; all subsequent traffic encrypted with `bleConnShareKey`
 
-**3c. Post-handshake encryption:**
+**3d. Post-handshake encryption:**
 All subsequent Modbus frames are AES-CBC encrypted using `bleConnShareKey` (or `bleConnAESKey` if ECDH not completed):
 
 - Written via `buildAESCBCCmd(cmd, aesKey, iv)`

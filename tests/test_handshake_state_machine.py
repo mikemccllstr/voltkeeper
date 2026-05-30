@@ -57,6 +57,9 @@ async def build_device_side_handshake(client, app_client) -> CbcSession:
     reply = await _await_send(app_client)
     assert reply == build_legacy_reply(random_md5_hex)
 
+    # Device sends status-ack frame (2A 2A 03 01 00) before the ECDH block
+    client.feed(_frame(0x03, 0x01, b"\x00"))
+
     # Path 2: device sends ECDH payload
     initial_iv = derive_iv(random_md5_hex)
     enc_session = CbcSession(ble_conn_aes_key, initial_iv)
@@ -66,15 +69,12 @@ async def build_device_side_handshake(client, app_client) -> CbcSession:
     device_pub_raw = device_pub.public_bytes(encoding=Encoding.X962, format=PublicFormat.UncompressedPoint)[1:]
     device_sig = sign_app_pubkey(device_pub_raw, random_md5_hex)
 
-    ecdh_msg = b"\x2a\x2a\x04" + device_pub_raw + device_sig
-    ecdh_msg += _checksum(ecdh_msg)
-    enc_ecdh = enc_session.encrypt(ecdh_msg)
+    enc_ecdh = enc_session.encrypt(_frame(0x04, 0x80, device_pub_raw + device_sig))
     client.feed(enc_ecdh)
 
     # Device receives ECDH reply
     enc_reply = await _await_send(app_client)
     plaintext = enc_session.decrypt(enc_reply)
-    # ECDH reply header is \x2a\x2a\x05\x80 (4 bytes), then 64-byte pubkey
     shared = derive_shared_key(
         device_priv,
         ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), b"\x04" + plaintext[4:68]),
@@ -141,15 +141,15 @@ class TestHandshakeStateMachine:
         fake_pub_raw = b"\x04" * 64
         bad_sig = b"\x00" * 64
 
-        ecdh_msg = b"\x2a\x2a\x04" + fake_pub_raw + bad_sig
-        ecdh_msg += _checksum(ecdh_msg)
-        enc_ecdh = enc_session.encrypt(ecdh_msg)
+        enc_ecdh = enc_session.encrypt(_frame(0x04, 0x80, fake_pub_raw + bad_sig))
 
         # Start handshake, wait for start_notify, then feed data
         task = asyncio.create_task(h.run(client))
         while client._notify_callback is None:
             await asyncio.sleep(0)
         client.feed(_frame(0x01, 0x04, random_bytes))
+        # Ack consumed by handshake, then ECDH block arrives
+        client.feed(_frame(0x03, 0x01, b"\x00"))
         client.feed(enc_ecdh)
 
         with pytest.raises(ValueError, match="device pubkey signature"):
@@ -189,6 +189,8 @@ class TestHandshakeStateMachine:
             await asyncio.sleep(0)
 
         client.feed(_frame(0x01, 0x04, random_bytes))
+        # Ack consumed by handshake, then bad ECDH block arrives
+        client.feed(_frame(0x03, 0x01, b"\x00"))
         client.feed(enc_bad)
 
         with pytest.raises(ValueError, match="Expected ECDH start 0x2A2A04"):
@@ -209,9 +211,7 @@ class TestHandshakeStateMachine:
             encoding=Encoding.X962, format=PublicFormat.UncompressedPoint
         )[1:]
         device_sig = sign_app_pubkey(device_pub_raw, random_md5_hex)
-        ecdh_msg = b"\x2a\x2a\x04" + device_pub_raw + device_sig
-        ecdh_msg += _checksum(ecdh_msg)
-        enc_ecdh = enc_session.encrypt(ecdh_msg)
+        enc_ecdh = enc_session.encrypt(_frame(0x04, 0x80, device_pub_raw + device_sig))
 
         # Build a confirmation with WRONG header (2A 2A 99 instead of 2A 2A 06)
         bad_conf = b"\x2a\x2a\x99\x00" + b"\x00" * 10
@@ -231,6 +231,9 @@ class TestHandshakeStateMachine:
             legacy_reply = await _await_send(client)
             assert legacy_reply[:3] == b"\x2a\x2a\x02"
 
+            # Ack consumed by handshake, then ECDH block arrives
+            client.feed(_frame(0x03, 0x01, b"\x00"))
+
             # Feed encrypted ECDH frame → capture app's ECDH reply, mirror its
             # decryption on our side to keep the CBC IV state in sync with the
             # handshake's enc_session.
@@ -244,3 +247,27 @@ class TestHandshakeStateMachine:
 
             with pytest.raises(ValueError, match="Expected confirmation 0x2A2A06"):
                 await task
+
+    @pytest.mark.asyncio
+    async def test_ack_non_zero_status_aborts(self):
+        client = FakeClient()
+        h = HandshakeSession()
+
+        random_bytes = b"\x01\x02\x03\x04"
+
+        task = asyncio.create_task(h.run(client))
+        while client._notify_callback is None:
+            await asyncio.sleep(0)
+
+        # Send challenge
+        client.feed(_frame(0x01, 0x04, random_bytes))
+
+        # Wait for legacy reply
+        reply = await _await_send(client)
+        assert reply[:3] == b"\x2a\x2a\x02"
+
+        # Send ack with non-zero status
+        client.feed(_frame(0x03, 0x01, b"\x01"))
+
+        with pytest.raises(ValueError, match="device rejected handshake"):
+            await task
