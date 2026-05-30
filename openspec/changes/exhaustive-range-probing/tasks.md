@@ -53,22 +53,22 @@
 
 ## 6. Documentation — verify.md updates
 
-- [ ] 6.1 Update tier 3 description to describe exhaustive sweep, state machine, and early termination
-- [ ] 6.2 Update report structure example to show new numeric field summary format
-- [ ] 6.3 Update result codes section: remove `probes` list description for numeric fields; add descriptions for new summary fields (`probes_count`, `probed_range`, `probe_cap_hit`, `declared_range`, `in_range_rejected`)
-- [ ] 6.4 Update output file section: replace `.gitignore` advice with `hardware-data/` folder description
-- [ ] 6.5 Add a note about expected runtime (approximately 2 min per numeric field at typical BLE throughput)
+- [x] 6.1 Update tier 3 description to describe exhaustive sweep, state machine, and early termination
+- [x] 6.2 Update report structure example to show new numeric field summary format
+- [x] 6.3 Update result codes section: remove `probes` list description for numeric fields; add descriptions for new summary fields (`probes_count`, `probed_range`, `probe_cap_hit`, `declared_range`, `in_range_rejected`)
+- [x] 6.4 Update output file section: replace `.gitignore` advice with `hardware-data/` folder description
+- [x] 6.5 Add a note about expected runtime (approximately 2 min per numeric field at typical BLE throughput)
 
 ## 7. Documentation — verify-interpretation.md (new)
 
-- [ ] 7.1 Write `docs/source/user-guide/verify-interpretation.md` with sections: Overview, Field Reference, How to Update a Device Model, Contiguous Range Assumption, Worked Examples
-- [ ] 7.2 Field reference section: define every tier 3 numeric output field and its implications
-- [ ] 7.3 Model update workflow: numbered steps for a Claude/agent instance — locate field, compare declared vs discovered, handle `probe_cap_hit`, handle `in_range_rejected`, commit message convention
-- [ ] 7.4 Worked example 1: field with no declared range, narrow discovered range (e.g., `dc_eco_auto_off_time: [3, 4]`) → add range to device model
-- [ ] 7.5 Worked example 2: field with declared range where device accepts wider range and `probe_cap_hit: true` → do NOT update range; add investigation comment
-- [ ] 7.6 Worked example 3: field with in_range_rejected values → narrow the declared range
-- [ ] 7.7 Contiguous assumption section: explain the pre/in/post-range model, what early termination means, and what happens if the assumption is violated
-- [ ] 7.8 Add link to `verify-interpretation.md` from `docs/source/user-guide/index.md`
+- [x] 7.1 Write `docs/source/user-guide/verify-interpretation.md` with sections: Overview, Field Reference, How to Update a Device Model, Contiguous Range Assumption, Worked Examples
+- [x] 7.2 Field reference section: define every tier 3 numeric output field and its implications
+- [x] 7.3 Model update workflow: numbered steps for a Claude/agent instance — locate field, compare declared vs discovered, handle `probe_cap_hit`, handle `in_range_rejected`, commit message convention
+- [x] 7.4 Worked example 1: field with no declared range, narrow discovered range (e.g., `dc_eco_auto_off_time: [3, 4]`) → add range to device model
+- [x] 7.5 Worked example 2: field with declared range where device accepts wider range and `probe_cap_hit: true` → do NOT update range; add investigation comment
+- [x] 7.6 Worked example 3: field with in_range_rejected values → narrow the declared range
+- [x] 7.7 Contiguous assumption section: explain the pre/in/post-range model, what early termination means, and what happens if the assumption is violated
+- [x] 7.8 Add link to `verify-interpretation.md` from `docs/source/user-guide/index.md`
 
 ## 8. OpenSpec spec update
 

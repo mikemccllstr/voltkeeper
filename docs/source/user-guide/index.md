@@ -8,6 +8,7 @@ scan
 status
 write
 verify
+verify-interpretation
 mqtt
 daemon
 load-test

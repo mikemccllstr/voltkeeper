@@ -9,7 +9,7 @@ voltkeeper verify AA:BB:CC:DD:EE:FF
 
 The command connects to the device, runs tiers 1–3 automatically, then prompts
 once per supervised tier (4–6) before continuing. When it finishes a YAML
-report is written to the current directory.
+report is written to the `hardware-data/` folder.
 
 ## Command syntax
 
@@ -52,13 +52,27 @@ the declared minimum or `0` for numeric fields.
 For each automatic field, exercises the full range of values:
 
 - **Boolean** — toggles the field and restores the original value.
+
 - **Enum** — cycles through every declared member, restoring after each.
-- **Numeric with declared range** — probes the sequence
-  `[current, low, high, low−1, high+1, high+2, 0, 65535]`, then infers the
-  actual hardware range from accepted values. Sets `range_discrepancy: true`
-  when the discovered range differs from the declared range.
-- **Numeric without declared range** — probes
-  `[current, 0, 255, 65535, current+1, current−1]`.
+
+- **Numeric** (`UintField`, `DecimalField`, `Uint8Field`) — performs an
+  exhaustive ascending sweep from 0 to 255.
+
+  The sweep uses a three-state machine to stop early once the accepted range
+  has been found:
+
+  | State        | Condition                                    | Early termination                                     |
+  | ------------ | -------------------------------------------- | ----------------------------------------------------- |
+  | `pre_range`  | No value accepted yet                        | Never — ranges that start above 0 are found correctly |
+  | `in_range`   | At least one value accepted                  | Never                                                 |
+  | `post_range` | At least one rejection after the last accept | After 2 consecutive rejections                        |
+
+  After each probe the original value is restored if needed. When the
+  device silently rejects a probe (readback equals the original value), the
+  restore write is skipped.
+
+  **Expected runtime**: approximately 2 minutes per numeric field at typical
+  BLE throughput (~150 ms per BLE operation).
 
 If restoring a field fails, `restore_failed: true` and the last known value are
 recorded for that field, and testing moves on to the next field.
@@ -153,17 +167,21 @@ tier_2:
 tier_3:
   status: pass
   fields:
-    sys_low_power:
+    alarm_sound:
       status: pass
       probes:
-        - wrote: 20
-          readback: 20
+        - wrote: 1
+          readback: 1
           result: accepted
-        - wrote: 0
-          readback: 0
-          result: accepted
-      discovered_range: [0, 100]
-      range_discrepancy: false
+    sys_low_power:
+      status: pass
+      current_value: 20
+      probes_count: 258
+      probed_range: [0, 255]
+      probe_cap_hit: true
+      declared_range: [0, 100]
+      discovered_range: [0, 255]
+      range_discrepancy: true
 
 tier_4:
   status: skipped
@@ -175,17 +193,40 @@ Skipped tiers are always present in the report — they are never omitted.
 
 ### Result codes
 
-Each tier-3 probe entry includes a `result` field:
+#### Bool and enum fields
+
+Each tier-3 probe entry for bool and enum fields includes a `result` field:
 
 - `accepted` — the value was written and the subsequent read returned the same value.
-- `no-readback` — the write command was accepted by the device but the read-back did not match what was written (the register silently ignored the value, or uses write-only/toggle semantics).
+- `no-readback` — the write was accepted but the read-back did not match (the register may use write-only or toggle semantics).
 - `rejected` — the write itself raised an error at the BLE/Modbus layer.
 
-The `range_discrepancy` flag is set to `true` on a field when the `discovered_range` (the outermost values the hardware actually accepted) differs from the range declared in the device model. A discrepancy is not necessarily a bug — it may indicate the device accepts a wider range than documented, or that observed-valid values depend on device state.
+#### Numeric field summary fields
+
+Numeric fields do not include a `probes` list. Instead they use summary fields:
+
+| Field               | Type                   | Meaning                                                                                                      |
+| ------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `current_value`     | `int`                  | Register value before probing                                                                                |
+| `probes_count`      | `int`                  | Total probe writes executed                                                                                  |
+| `probed_range`      | `[int, int]`           | Actual sweep extent `[0, N]`                                                                                 |
+| `probe_cap_hit`     | `bool`                 | `true` when the sweep ended at 255 with the device still accepting — upper bound is "≥ 255, possibly higher" |
+| `declared_range`    | `[int, int]` or absent | Range declared in the device model (omitted when none)                                                       |
+| `in_range_rejected` | `list[int]`            | Declared-in-range values the device rejected (omitted when absent or empty)                                  |
+| `discovered_range`  | `[int, int]` or absent | Min/max of all accepted values (omitted when no values were accepted)                                        |
+| `range_discrepancy` | `bool` or absent       | `true` when `discovered_range` differs from `declared_range` (omitted when either is absent)                 |
+
+A numeric field's `status` is `fail` only when `restore_failed: true`. Range
+discrepancies, in-range rejections, and out-of-range acceptances produce
+`status: pass` — they are findings, not test failures. See
+[Interpreting verify output](verify-interpretation.md) for guidance on how to
+act on these findings.
 
 ### Output file
 
-The report is written to the current working directory. If your project is a git repository you may want to add `verify-*.yaml` to your `.gitignore` to avoid accidentally committing test artifacts.
+The report is written to `hardware-data/verify-<MODEL>-<YYYY-MM-DD>.yaml`
+unless overridden with `--output`. The `hardware-data/` folder is tracked by
+git so that verify runs are kept alongside the code they inform.
 
 ## Submitting a report
 
