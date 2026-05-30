@@ -11,6 +11,8 @@ from voltkeeper.bluetooth.cipher import CbcSession
 from voltkeeper.bluetooth.handshake import (
     HandshakeSession,
     _checksum,
+    _frame,
+    build_legacy_reply,
     derive_iv,
     derive_legacy_session_key,
     derive_shared_key,
@@ -48,13 +50,12 @@ async def build_device_side_handshake(client, app_client) -> CbcSession:
     while client._notify_callback is None:
         await asyncio.sleep(0)
 
-    # Path 1: device sends challenge
-    client.feed(b"\x2a\x2a\x01" + random_bytes)
+    # Path 1: device sends challenge (10-byte frame: 2A 2A 01 04 <random> <checksum>)
+    client.feed(_frame(0x01, 0x04, random_bytes))
 
     # Device receives reply
     reply = await _await_send(app_client)
-    assert reply[:4] == b"\x2a\x2a\x02\x04"
-    assert reply[4:12] == random_md5_hex[16:24].encode("ascii")
+    assert reply == build_legacy_reply(random_md5_hex)
 
     # Path 2: device sends ECDH payload
     initial_iv = derive_iv(random_md5_hex)
@@ -148,7 +149,7 @@ class TestHandshakeStateMachine:
         task = asyncio.create_task(h.run(client))
         while client._notify_callback is None:
             await asyncio.sleep(0)
-        client.feed(b"\x2a\x2a\x01" + random_bytes)
+        client.feed(_frame(0x01, 0x04, random_bytes))
         client.feed(enc_ecdh)
 
         with pytest.raises(ValueError, match="device pubkey signature"):
@@ -187,7 +188,7 @@ class TestHandshakeStateMachine:
         while client._notify_callback is None:
             await asyncio.sleep(0)
 
-        client.feed(b"\x2a\x2a\x01" + random_bytes)
+        client.feed(_frame(0x01, 0x04, random_bytes))
         client.feed(enc_bad)
 
         with pytest.raises(ValueError, match="Expected ECDH start 0x2A2A04"):
@@ -226,7 +227,7 @@ class TestHandshakeStateMachine:
                 await asyncio.sleep(0)
 
             # Feed challenge → capture legacy reply.
-            client.feed(b"\x2a\x2a\x01" + random_bytes)
+            client.feed(_frame(0x01, 0x04, random_bytes))
             legacy_reply = await _await_send(client)
             assert legacy_reply[:3] == b"\x2a\x2a\x02"
 

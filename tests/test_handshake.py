@@ -15,32 +15,26 @@ from voltkeeper.bluetooth.handshake import (
 def test_derive_legacy_session_key_kat():
     """Known-answer test for the legacy challenge-response derivation.
 
-    CAVEAT: these expected values are SELF-CONSISTENT — they're what the
-    current Python implementation produces, hand-traced step by step
-    (reverse → MD5 → uppercase hex → ASCII-XOR against repeated
-    LOCAL_AES_KEY → take first 16 bytes). They have NOT been validated
-    against a real Bluetti device; FINDINGS §15.8 leaves the XOR
-    interpretation ambiguous. If a real encrypted-device handshake fails
-    in Unit 7 / production, suspect this test vector first and try the
-    alternative interpretation: XOR `bytes.fromhex(random_md5_hex)`
-    (16 bytes) against LOCAL_AES_KEY directly.
+    Matches ConnectManager.bleEncryptedHandle: randomMd5 = lowercase MD5 of the
+    reversed random bytes; bleConnAESKey = byte-wise XOR of the decoded digest
+    and the decoded LOCAL_AES_KEY (16 bytes). Cross-checked against the captured
+    Elite 100 V2 vector in test_handshake_framing.py.
 
-    The KAT still catches accidental algorithm drift (e.g., losing the
-    reverse, swapping endianness, dropping the .upper(), computing MD5
-    of the wrong thing).
+    The KAT catches accidental algorithm drift (losing the reverse, dropping the
+    hex-decode of the digest, computing MD5 of the wrong thing).
     """
     random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(b"\x01\x02\x03\x04")
 
-    assert random_md5_hex == "C73CABEB6558ABA030BBA9CA49DCDD75"
-    assert ble_conn_aes_key.hex() == "06a8f676c1cb04b346a4d5a17fa1a80d"
+    assert random_md5_hex == "c73cabeb6558aba030bba9ca49dcdd75"
+    assert ble_conn_aes_key.hex() == "82a36edee5d1ea51402a4953773f3448"
 
 
 def test_derive_legacy_session_key_shape_and_determinism():
     random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(b"\xde\xad\xbe\xef")
 
-    # 32 hex chars, uppercase
+    # 32 hex chars, lowercase (matches MD5.md5Encode in the APK)
     assert len(random_md5_hex) == 32
-    assert random_md5_hex == random_md5_hex.upper()
+    assert random_md5_hex == random_md5_hex.lower()
 
     # Session key is 16 bytes
     assert len(ble_conn_aes_key) == 16

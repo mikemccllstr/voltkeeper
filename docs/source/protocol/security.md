@@ -14,13 +14,13 @@ Applies to older devices where `protocolVer < 2000`.
 
 **Flow:**
 
-1. Device sends a BLE "hello" packet containing a 4-byte random value at bytes 4–7.
-1. App reverses the 4 random bytes, computes MD5 → stores as `randomMd5`.
-1. App responds with a challenge packet: `"2A2A0204" + randomMd5.substring(16, 24)` + 1-byte checksum.
-1. Session AES key is derived as:
+1. Device sends a 10-byte challenge frame `2A 2A 01 04 <4 random bytes> <2-byte checksum>`. The `0x04` is a length field; the random value is bytes 4–7.
+1. App reverses the 4 random bytes, computes MD5 → stores as `randomMd5` (lowercase hex).
+1. App responds with a symmetric 10-byte reply frame `2A 2A 02 04 <4 token bytes> <2-byte checksum>`, where the token is the 4 bytes obtained by **hex-decoding** `randomMd5[16:24]`, and the checksum is the big-endian sum of `02 04` + the 4 token bytes. See {doc}`encryption-details` for the worked vector.
+1. Session AES key is derived as the byte-wise XOR of the decoded digest and the decoded local key:
 
 ```
-bleConnAESKey = XOR(randomMd5, LOCAL_AES_KEY)
+bleConnAESKey = decode(randomMd5) XOR LOCAL_AES_KEY   # two 16-byte values
 ```
 
 **Hardcoded key** (`ConnConstantsV2.LOCAL_AES_KEY`):
@@ -191,17 +191,17 @@ For devices where `isESP32Encrypted == true` or `isBLEEncrypted == true`:
 
 **3a. Challenge-Response:**
 
-1. Device sends: `2A 2A 01` followed by 4 random bytes (position 4-7)
-1. App reverses the 4 random bytes, computes MD5 → `randomMd5`
-1. App responds: `2A 2A 02 04` + `randomMd5.substring(16, 24)` + 2-byte checksum
-1. App derives temporary key: `bleConnAESKey = XOR(randomMd5, LOCAL_AES_KEY)`
+1. Device sends a 10-byte frame `2A 2A 01 04` + 4 random bytes (position 4-7) + 2-byte checksum. The `04` at position 3 is a length field.
+1. App reverses the 4 random bytes, computes MD5 → `randomMd5` (lowercase hex)
+1. App responds with a symmetric 10-byte frame `2A 2A 02 04` + 4 token bytes + 2-byte checksum, where the token is `hex_decode(randomMd5[16:24])` and the checksum is the big-endian sum of `02 04` + the 4 token bytes
+1. App derives temporary key: `bleConnAESKey = decode(randomMd5) XOR LOCAL_AES_KEY` (byte-wise, 16 bytes)
 
 **3b. ECDH Key Exchange (protocol v2+):**
 
-1. Device sends `2A 2A 04 ...` (AES-CBC encrypted with `bleConnAESKey`, IV=MD5(randomMd5))
+1. Device sends `2A 2A 04 ...` (AES-CBC encrypted with `bleConnAESKey`, IV=`decode(randomMd5)`)
    - Bytes 4-67: device's SECP-256R1 public key (64 bytes, raw X+Y, no 04 prefix)
    - Bytes 68 to (end-2): raw ECDSA signature (r||s, 64 bytes) over `(devicePublicKey || randomMd5)`
-   - Last 2 bytes: checksum (little-endian sum of preceding bytes)
+   - Last 2 bytes: checksum (big-endian sum of the bytes after the `2A 2A` header)
 1. App verifies ECDSA signature using hardcoded `PUBLIC_KEY_K2`
 1. App generates ephemeral SECP-256R1 keypair
 1. App signs `(appPublicKey || randomMd5)` with hardcoded `PRIVATE_KEY_L1`
@@ -214,7 +214,7 @@ For devices where `isESP32Encrypted == true` or `isBLEEncrypted == true`:
 All subsequent Modbus frames are AES-CBC encrypted using `bleConnShareKey` (or `bleConnAESKey` if ECDH not completed):
 
 - Written via `buildAESCBCCmd(cmd, aesKey, iv)`
-- The IV for the first block is derived from MD5(randomMd5), then chained from previous ciphertext
+- The IV for the first block is `decode(randomMd5)` (the raw 16-byte digest), then chained from previous ciphertext
 - Each 16-byte block padded to exactly 16 bytes (no PKCS padding)
 
 #### Step 4: Modbus Data Protocol (post-handshake)
@@ -237,13 +237,14 @@ All keys are hardcoded in the APK and identical across all installations.
 
 ```
 # Legacy challenge-response:
-random_bytes = data[4:8]                           # from device hello packet
-randomMd5 = MD5(reverse(random_bytes))              # 32 hex chars
-bleConnAESKey = XOR(randomMd5, LOCAL_AES_KEY)       # 32 hex chars → 16 bytes
+random_bytes = challenge[4:8]                       # 4 bytes after the 0x04 length field
+randomMd5 = MD5(reverse(random_bytes))              # 32 LOWERCASE hex chars
+bleConnAESKey = decode(randomMd5) XOR LOCAL_AES_KEY  # byte-wise XOR of two 16-byte values
+IV           = decode(randomMd5)                    # raw 16-byte digest (NOT MD5(randomMd5))
 
 # ECDH (protocol v2+):
 ecdh_shared_secret = ECDH_secp256r1(app_ephemeral_privkey, device_iot_pubkey)
 bleConnShareKey = ecdh_shared_secret                # 32 hex chars → 16 bytes
 ```
 
-**Cipher:** AES-128-CBC, IV chained from MD5(randomMd5), 16-byte blocks, no padding.
+**Cipher:** AES-128-CBC, first-block IV = `decode(randomMd5)` (16 bytes), then chained from the previous ciphertext block, 16-byte blocks, zero-padding (no PKCS).

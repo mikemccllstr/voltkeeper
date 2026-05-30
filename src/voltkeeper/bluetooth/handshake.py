@@ -21,12 +21,14 @@ PUBLIC_KEY_K2_DER_HEX = (
 
 
 def derive_legacy_session_key(random_bytes: bytes) -> tuple[str, bytes]:
-    reversed_bytes = random_bytes[::-1]
-    digest = hashlib.md5(reversed_bytes).hexdigest().upper()
-    digest_ascii = digest.encode("ascii")
-    extended_local = (LOCAL_AES_KEY * 2)[: len(digest_ascii)]
-    aes_key_bytes = bytes(a ^ b for a, b in zip(digest_ascii, extended_local))
-    return digest, aes_key_bytes[:16]
+    """Return (randomMd5 hex, 16-byte legacy AES key) per ConnectManager.bleEncryptedHandle.
+
+    randomMd5 is the lowercase MD5 of the reversed random bytes. The legacy key is the
+    byte-wise XOR of the decoded digest and the decoded LOCAL_AES_KEY (both 16 bytes).
+    """
+    digest = hashlib.md5(random_bytes[::-1]).hexdigest()
+    aes_key_bytes = bytes(a ^ b for a, b in zip(bytes.fromhex(digest), LOCAL_AES_KEY))
+    return digest, aes_key_bytes
 
 
 def verify_device_pubkey(device_pub_raw: bytes, signature_rs: bytes, random_md5_hex: str) -> ec.EllipticCurvePublicKey:
@@ -58,7 +60,39 @@ def derive_shared_key(app_priv: ec.EllipticCurvePrivateKey, device_pub: ec.Ellip
 
 
 def _checksum(data: bytes) -> bytes:
-    return (sum(data) & 0xFFFF).to_bytes(2, "little")
+    """Big-endian 2-byte sum of the post-header frame body (type + length + payload).
+
+    Matches HexUtilKt.hexStrSum (intToHexStr %04X). The challenge frame proves it: the
+    device's own trailing bytes equal the BE sum of everything after the 2A 2A header.
+    """
+    return (sum(data) & 0xFFFF).to_bytes(2, "big")
+
+
+def _frame(type_byte: int, length_byte: int, payload: bytes) -> bytes:
+    """Build a 2A 2A <type> <length> <payload> <2-byte BE checksum> frame.
+
+    The length byte counts the payload bytes; the checksum covers type + length + payload.
+    """
+    body = bytes([type_byte, length_byte]) + payload
+    return b"\x2a\x2a" + body + _checksum(body)
+
+
+def parse_legacy_challenge(challenge: bytes) -> bytes:
+    """Return the 4 random bytes from a legacy challenge 2A 2A 01 04 <random> <checksum>.
+
+    The byte at offset 3 is a length field (0x04); the random value is challenge[4:8].
+    """
+    if challenge[:3] != b"\x2a\x2a\x01":
+        raise ValueError(f"Expected challenge 0x2A2A01, got {challenge[:3].hex()}")
+    return challenge[4:8]
+
+
+def build_legacy_reply(random_md5_hex: str) -> bytes:
+    """Build the 10-byte challenge reply 2A 2A 02 04 <4 token bytes> <BE checksum>.
+
+    The token is the 4 bytes obtained by hex-decoding randomMd5[16:24].
+    """
+    return _frame(0x02, 0x04, bytes.fromhex(random_md5_hex[16:24]))
 
 
 class HandshakeSession:
@@ -90,15 +124,11 @@ class HandshakeSession:
         try:
             # Path 1 — legacy challenge-response
             challenge = await self._collect(7)
-            if challenge[:3] != b"\x2a\x2a\x01":
-                raise ValueError(f"Expected challenge 0x2A2A01, got {challenge[:3].hex()}")
-            random_bytes = challenge[3:7]
+            random_bytes = parse_legacy_challenge(challenge)
 
             random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
 
-            reply = b"\x2a\x2a\x02\x04" + random_md5_hex[16:24].encode("ascii")
-            reply += _checksum(reply)
-            await self._send(client, reply)
+            await self._send(client, build_legacy_reply(random_md5_hex))
 
             # Path 2 — ECDH key exchange
             initial_iv = derive_iv(random_md5_hex)
@@ -110,6 +140,12 @@ class HandshakeSession:
             if plaintext[:3] != b"\x2a\x2a\x04":
                 raise ValueError(f"Expected ECDH start 0x2A2A04, got {plaintext[:3].hex()}")
 
+            # CAVEAT (stage 2, unvalidated): ConnectManager.bleEncryptedHandle reads the
+            # device pubkey from subList(4, 68) and the signature from subList(68, size-2),
+            # i.e. after a length byte at offset 3 — the same framing as the stage-1
+            # challenge. These offsets (3:67 / 67:131) omit that length byte and have not
+            # been confirmed against a real stage-2 transcript. Revisit once stage 1 is
+            # unblocked on hardware.
             device_pub_raw = plaintext[3:67]
             signature_rs = plaintext[67:131]
 
@@ -121,8 +157,7 @@ class HandshakeSession:
 
             app_sig = sign_app_pubkey(app_pub_raw, random_md5_hex)
 
-            ecdh_reply = b"\x2a\x2a\x05\x80" + app_pub_raw + app_sig
-            ecdh_reply += _checksum(ecdh_reply)
+            ecdh_reply = _frame(0x05, 0x80, app_pub_raw + app_sig)
             enc_reply = enc_session.encrypt(ecdh_reply)
             await self._send(client, enc_reply)
 

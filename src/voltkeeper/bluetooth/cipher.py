@@ -7,13 +7,16 @@
 # parser, handshake state machine) determines actual payload length from
 # protocol-level fields and ignores trailing pad bytes.
 
-import hashlib
-
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
 def derive_iv(random_md5_hex: str) -> bytes:
-    return hashlib.md5(random_md5_hex.encode("ascii")).digest()
+    """The legacy-stage CBC IV is the 16-byte decoded randomMd5 digest.
+
+    Per ConnectManager.bleEncryptedHandle, which passes hexStringToBytes(randomMd5) as the
+    IV — NOT a second MD5 of the hex string.
+    """
+    return bytes.fromhex(random_md5_hex)
 
 
 def _zero_pad(data: bytes, block: int = 16) -> bytes:

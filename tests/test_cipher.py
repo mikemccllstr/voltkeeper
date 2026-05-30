@@ -37,9 +37,9 @@ def test_padding_is_zero_extension_not_strip():
 
 
 def test_derive_iv():
-    result = derive_iv("abc")
-    expected = hashlib.md5(b"abc").digest()
-    assert result == expected
+    # IV is the decoded randomMd5 digest (16 bytes), not a second MD5 of the hex string.
+    random_md5_hex = "a0ce9adc2c5341f1d271d0518c4e7773"
+    assert derive_iv(random_md5_hex) == bytes.fromhex(random_md5_hex)
 
 
 def test_chained_iv():
