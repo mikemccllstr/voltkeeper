@@ -45,7 +45,7 @@ Applies to newer devices (protocol v2+, e.g., EPAD, PLP025, and other 2nd-gen Io
 
 1. **Challenge-response** (same as Path 1, establishes `bleConnAESKey` as a temporary transport key).
 1. **Device sends ECDH public key + ECDSA signature** (encrypted with `bleConnAESKey`):
-   - Response type `0x04`: payload contains `iotPkHexStr` (64-byte uncompressed SECP-256R1 public key) + `signature` (64-byte raw ECDSA-SHA256 signature over `iotPublicKey || randomMd5`).
+   - Response type `0x04`: payload contains `iotPkHexStr` (64-byte uncompressed SECP-256R1 public key) + `signature` (64-byte raw ECDSA-SHA256 signature over `iotPublicKey || hex_decode(randomMd5)`, 80 bytes total).
 1. **App verifies signature** using hardcoded ECDSA verification key `PUBLIC_KEY_K2`:
 
 ```
@@ -57,7 +57,7 @@ PUBLIC_KEY_K2 =
 
 This is an X.509-encoded SECP-256R1 (P-256) public key.
 
-4. **App generates ephemeral ECDH keypair** (SECP-256R1), then **signs** `(appPublicKey || randomMd5)` with hardcoded private key `PRIVATE_KEY_L1`:
+4. **App generates ephemeral ECDH keypair** (SECP-256R1), then **signs** `(appPublicKey || hex_decode(randomMd5))` (80 bytes) with hardcoded private key `PRIVATE_KEY_L1`:
 
 ```
 PRIVATE_KEY_L1 = "4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337"
@@ -204,22 +204,25 @@ For devices where `isESP32Encrypted == true` or `isBLEEncrypted == true`:
 
 1. Device sends `2A 2A 04 ...` (AES-CBC encrypted with `bleConnAESKey`, IV=`decode(randomMd5)`)
    - Bytes 4-67: device's SECP-256R1 public key (64 bytes, raw X+Y, no 04 prefix)
-   - Bytes 68 to (end-2): raw ECDSA signature (r||s, 64 bytes) over `(devicePublicKey || randomMd5)`
+   - Bytes 68 to (end-2): raw ECDSA signature (r||s, 64 bytes) over `(devicePublicKey || hex_decode(randomMd5))` — 80 bytes, NOT the 96-byte ASCII hex form
    - Last 2 bytes: checksum (big-endian sum of the bytes after the `2A 2A` header)
 1. App verifies ECDSA signature using hardcoded `PUBLIC_KEY_K2`
 1. App generates ephemeral SECP-256R1 keypair
-1. App signs `(appPublicKey || randomMd5)` with hardcoded `PRIVATE_KEY_L1`
+1. App signs `(appPublicKey || hex_decode(randomMd5))` (80 bytes) with hardcoded `PRIVATE_KEY_L1`
 1. App sends `2A 2A 05 80 ...` with app public key + signature
 1. Device responds `2A 2A 06 00 ...` confirming acceptance
 1. App derives shared secret via ECDH: `bleConnShareKey = ECDH(appPrivKey, devicePubKey)`
 1. `bleConnAESKey` discarded; all subsequent traffic encrypted with `bleConnShareKey`
 
-**3d. Post-handshake encryption:**
-All subsequent Modbus frames are AES-CBC encrypted using `bleConnShareKey` (or `bleConnAESKey` if ECDH not completed):
+**3d. Encrypted frame format:**
+Every AES-CBC frame carries a **2-byte big-endian plaintext-length prefix** before the ciphertext. The ciphertext is zero-padded to a 16-byte boundary; the receiver trims the decrypted output to the prefixed length. Two frame layouts exist depending on which session key is active:
 
-- Written via `buildAESCBCCmd(cmd, aesKey, iv)`
-- The IV for the first block is `decode(randomMd5)` (the raw 16-byte digest), then chained from previous ciphertext
-- Each 16-byte block padded to exactly 16 bytes (no PKCS padding)
+| Stage          | Key               | Frame layout                           | IV source                                      |
+| -------------- | ----------------- | -------------------------------------- | ---------------------------------------------- |
+| Handshake      | `bleConnAESKey`   | `[2B len][ciphertext]`                 | `decode(randomMd5)`, CBC-chained across blocks |
+| Post-handshake | `bleConnShareKey` | `[2B len][4B random seed][ciphertext]` | `MD5(seed)` — a fresh IV per frame             |
+
+The `buildAESCBCCmd`/`parseAESCBCData` APK methods encode the prefix as `String.format("%04X", plaintextLen)` prepended to the ciphertext. In the post-handshake layout, 4 random seed bytes are generated per frame and the IV is `MD5(those 4 bytes)` — each frame is independently decryptable. Each block is zero-padded to 16 bytes (no PKCS padding).
 
 #### Step 4: Modbus Data Protocol (post-handshake)
 
@@ -241,14 +244,17 @@ All keys are hardcoded in the APK and identical across all installations.
 
 ```
 # Legacy challenge-response:
-random_bytes = challenge[4:8]                       # 4 bytes after the 0x04 length field
-randomMd5 = MD5(reverse(random_bytes))              # 32 LOWERCASE hex chars
-bleConnAESKey = decode(randomMd5) XOR LOCAL_AES_KEY  # byte-wise XOR of two 16-byte values
-IV           = decode(randomMd5)                    # raw 16-byte digest (NOT MD5(randomMd5))
+random_bytes  = challenge[4:8]                        # 4 bytes after the 0x04 length field
+randomMd5     = MD5(reverse(random_bytes))             # 32 LOWERCASE hex chars
+bleConnAESKey = decode(randomMd5) XOR LOCAL_AES_KEY    # byte-wise XOR of two 16-byte values
+IV            = decode(randomMd5)                      # raw 16-byte digest (NOT MD5(randomMd5))
+
+# ECDSA signature message (both verify and sign):
+sig_message = devicePubKey(64 bytes) || hex_decode(randomMd5)(16 bytes)  # 80 bytes total
 
 # ECDH (protocol v2+):
 ecdh_shared_secret = ECDH_secp256r1(app_ephemeral_privkey, device_iot_pubkey)
-bleConnShareKey = ecdh_shared_secret                # 32 hex chars → 16 bytes
+bleConnShareKey    = ecdh_shared_secret                # 16 bytes (first 16 of shared point X)
 ```
 
-**Cipher:** AES-128-CBC, first-block IV = `decode(randomMd5)` (16 bytes), then chained from the previous ciphertext block, 16-byte blocks, zero-padding (no PKCS).
+**Cipher:** AES-128-CBC, zero-padding (no PKCS). Every encrypted frame is prefixed with a 2-byte big-endian plaintext length. Handshake-stage frames (`bleConnAESKey`): `[2B len][ciphertext]`, IV = `decode(randomMd5)`, CBC-chained. Post-handshake frames (`bleConnShareKey`): `[2B len][4B seed][ciphertext]`, IV = `MD5(seed)` per frame.

@@ -51,9 +51,9 @@
 
 ## 9. Documentation
 
-- [ ] 9.1 Update `security.md`: document the 2-byte length prefix and the two frame layouts (handshake `[len][ct]` vs post-handshake `[len][seed][ct]`, IV = `MD5(seed)`)
-- [ ] 9.2 Update `security.md`/`encryption-details.md`: correct the ECDSA signature message to `(pubkey || hex_decode(randomMd5))`, 80 bytes
-- [ ] 9.3 Confirm `mise run docs` still builds
+- [x] 9.1 Update `security.md`: document the 2-byte length prefix and the two frame layouts (handshake `[len][ct]` vs post-handshake `[len][seed][ct]`, IV = `MD5(seed)`)
+- [x] 9.2 Update `security.md`/`encryption-details.md`: correct the ECDSA signature message to `(pubkey || hex_decode(randomMd5))`, 80 bytes
+- [x] 9.3 Confirm `mise run docs` still builds
 
 ## 10. Follow-up tracking
 

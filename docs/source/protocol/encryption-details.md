@@ -30,8 +30,9 @@ bleConnShareKey = ecdh_shared_secret                # 32 hex chars → 16 bytes
 hex digest; `bleConnAESKey` and the IV are derived from its **decoded** 16 bytes —
 not from XOR-ing the ASCII characters of the hex string, and not from a second MD5.
 
-**Cipher:** AES-128-CBC, first-block IV = `decode(randomMd5)` (16 bytes), then chained
-from the previous ciphertext block, 16-byte blocks, zero-padding (no PKCS).
+**Cipher:** AES-128-CBC, zero-padding (no PKCS). Every encrypted frame is prefixed with a 2-byte big-endian plaintext length. Handshake-stage frames: `[2B len][ciphertext]`, IV = `decode(randomMd5)`, CBC-chained. Post-handshake frames: `[2B len][4B seed][ciphertext]`, IV = `MD5(seed)` per frame.
+
+**ECDSA signature message** (both device→app verify and app→device sign): `devicePubKey(64) || decode(randomMd5)(16)` — 80 bytes. The ASCII hex form of `randomMd5` (96 bytes) is NOT used.
 
 ## Legacy challenge-response frame format
 
