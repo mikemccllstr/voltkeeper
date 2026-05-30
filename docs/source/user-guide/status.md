@@ -13,7 +13,47 @@ voltkeeper status AA:BB:CC:DD:EE:FF  # connect directly
 - Pack voltage
 - Charging status
 - Time to full / time to empty (context-dependent)
-- DC load, AC load, and total load (watts)
+- Power readings (IN/OUT grouped layout — see below)
+
+## Power readings
+
+When V2 power registers are available, the output groups instantaneous power
+into **IN** (sources) and **OUT** (sinks), each with a total:
+
+```
+IN   PV:              500 W
+     Total:           500 W
+OUT  AC loads:        100 W
+     DC loads:         50 W
+     Grid export:     300 W
+     Battery:          50 W  (charging)
+     Total:           500 W
+```
+
+### Battery row
+
+The battery row is **derived** — it is not a directly measured register value.
+It is computed from the other four power registers using conservation of energy:
+
+```
+battery = ac + dc − pv − grid
+```
+
+A positive result means the battery is discharging (acting as a source); a
+negative result means it is charging (acting as a sink).
+
+### Discharging at 100% SOC
+
+When DC loads are active, the battery powers them directly — there is no
+separate DC bus. This means `Discharging` in the battery row is **expected and
+normal** even when SOC is at 100%, because the DC load demand must come from
+somewhere. It does not indicate a fault or a misconfigured state.
+
+### Compact vs verbose
+
+In `voltkeeper status` (compact), rows with a value of 0 W are hidden to keep
+the output tight. In `voltkeeper status --verbose`, all rows are shown even at
+0 W, which confirms the measurement is live.
 
 ## Alarms and faults
 

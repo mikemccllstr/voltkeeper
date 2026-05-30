@@ -248,6 +248,64 @@ def status(address, timeout, verbose, daemon):
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _print_power_section(home: dict, indent: str, show_zeros: bool) -> None:
+    pv_w = home.get("totalPVPower", 0)
+    ac_w = home.get("totalACPower", 0)
+    dc_w = home.get("totalDCPower", 0)
+    grid_w = home.get("totalGridPower", 0)
+
+    has_pv = "totalPVPower" in home
+    has_ac = "totalACPower" in home
+    has_dc = "totalDCPower" in home
+    has_grid = "totalGridPower" in home
+
+    # battery = ac + dc − pv − grid (positive = discharging, negative = charging)
+    battery_w = ac_w + dc_w - pv_w - grid_w
+    can_derive_battery = has_ac or has_dc or has_pv or has_grid
+
+    in_rows: list[tuple[str, float, str]] = []
+    out_rows: list[tuple[str, float, str]] = []
+
+    if has_pv and (show_zeros or pv_w != 0):
+        in_rows.append(("PV:", pv_w, ""))
+    if has_grid and grid_w > 0:
+        in_rows.append(("Grid import:", grid_w, ""))
+    if can_derive_battery and battery_w > 0:
+        in_rows.append(("Battery:", battery_w, "  (discharging)"))
+    elif can_derive_battery and show_zeros and battery_w == 0:
+        in_rows.append(("Battery:", 0, ""))
+
+    if has_ac and ac_w > 0:
+        out_rows.append(("AC loads:", ac_w, ""))
+    if has_dc and (show_zeros or dc_w != 0):
+        out_rows.append(("DC loads:", dc_w, ""))
+    if has_grid and grid_w < 0:
+        out_rows.append(("Grid export:", abs(grid_w), ""))
+    if has_ac and ac_w < 0:
+        out_rows.append(("AC export:", abs(ac_w), ""))
+    if can_derive_battery and battery_w < 0:
+        out_rows.append(("Battery:", abs(battery_w), "  (charging)"))
+
+    in_total = sum(v for _, v, _ in in_rows)
+    out_total = sum(v for _, v, _ in out_rows)
+    cont = indent + "     "
+
+    def _row(side_tag: str, label: str, value: float, hint: str) -> None:
+        click.echo(f"{indent}{side_tag}{label:<14}{value:>5.0f} W{hint}")
+
+    for i, (label, value, hint) in enumerate(in_rows):
+        _row("IN   " if i == 0 else "     ", label, value, hint)
+    if not in_rows:
+        click.echo(f"{indent}IN")
+    click.echo(f"{cont}Total:        {in_total:>5.0f} W")
+
+    for i, (label, value, hint) in enumerate(out_rows):
+        _row("OUT  " if i == 0 else "     ", label, value, hint)
+    if not out_rows:
+        click.echo(f"{indent}OUT")
+    click.echo(f"{cont}Total:        {out_total:>5.0f} W")
+
+
 def _print_status(home: dict) -> None:
     sep = "\u2500" * 44
     click.echo(sep)
@@ -260,13 +318,8 @@ def _print_status(home: dict) -> None:
         click.echo(f"  Time to Full:      {home.get('packChgFullTime', 0) * 6:>5.0f} min")
     else:
         click.echo(f"  Time to Empty:     {home.get('packDsgEmptyTime', 0) * 6:>5.0f} min")
-    dc_load = home.get("totalDCPower", 0)
-    ac_load = abs(home.get("totalACPower", 0))
-    total_load = dc_load + ac_load
-    if total_load > 0:
-        click.echo(f"  DC Load:           {dc_load:>5.0f} W")
-        click.echo(f"  AC Load:           {ac_load:>5.0f} W")
-        click.echo(f"  Total Load:        {total_load:>5.0f} W")
+    if any(k in home for k in ("totalPVPower", "totalACPower", "totalDCPower", "totalGridPower")):
+        _print_power_section(home, indent="  ", show_zeros=False)
     click.echo(sep)
 
 
@@ -331,19 +384,9 @@ def _print_verbose(
         click.echo(f"    Total Discharged:     {home['packDsgEnergyTotal']:>8.1f} Wh")
 
     # ── Power Meters ──
-    if any(k in home for k in ("totalPVPower", "totalACPower", "totalDCPower")):
+    if any(k in home for k in ("totalPVPower", "totalACPower", "totalDCPower", "totalGridPower")):
         click.echo(f"\n  {click.style('POWER (instantaneous)', bold=True, fg='cyan')}")
-        if "totalPVPower" in home:
-            click.echo(f"    PV Input:             {home['totalPVPower']:>5.0f} W")
-        if "totalACPower" in home:
-            ac = home["totalACPower"]
-            click.echo(f"    AC:                   {ac:>+6.0f} W  (neg=export)")
-        if "totalDCPower" in home:
-            click.echo(f"    DC Load:              {home['totalDCPower']:>5.0f} W")
-        if "totalGridPower" in home:
-            click.echo(f"    Grid:                 {home['totalGridPower']:>+6.0f} W")
-        if "pvToAcPower" in home:
-            click.echo(f"    PV\u2192AC:                {home['pvToAcPower']:>5.0f} W")
+        _print_power_section(home, indent="    ", show_zeros=True)
 
     # ── Energy Totals ──
     if any(k in home for k in ("totalPVChargingEnergy", "totalDCEnergy")):
