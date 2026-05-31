@@ -9,6 +9,7 @@ from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, WorkingMode
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
+    IOT_BASE_INFO,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
     WORKING_MODE,
@@ -126,8 +127,12 @@ class El100V2(V2Base):
         covering registers 2000–2066.  The EL100V2 BLE gateway rejects
         reads with response payloads above ~140 bytes and reads starting at
         mid-block addresses like 2060.
+
+        Includes IOT_BASE_INFO (11000) for IoT module data — hardware-probed
+        on EL100V2 (FW SW#3) to respond successfully.
         """
         return [
             ReadHoldingRegisters(INV_BASE_SETTINGS, 67),
             ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 18),
+            ReadHoldingRegisters(IOT_BASE_INFO, 70),
         ]

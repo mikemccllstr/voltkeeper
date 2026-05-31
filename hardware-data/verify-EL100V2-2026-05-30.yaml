@@ -1,5 +1,5 @@
 voltkeeper_version: 2026.5.post67+g1f462ff84
-verified_at: '2026-05-31T02:42:09.033536+00:00'
+verified_at: '2026-05-31T03:32:32.966613+00:00'
 device:
   model: EL100V2
   sn: VKTEST000000
@@ -69,15 +69,15 @@ tier_2:
       match: true
     sys_low_power:
       status: pass
-      read: 0
-      wrote: 0
-      readback: 0
+      read: 30
+      wrote: 30
+      readback: 30
       match: true
     sys_high_power:
       status: pass
-      read: 39
-      wrote: 39
-      readback: 39
+      read: 80
+      wrote: 80
+      readback: 80
       match: true
     alarm_sound:
       status: pass
@@ -194,20 +194,18 @@ tier_3:
       - 1
       - 4
     ac_eco_power:
-      status: fail
+      status: pass
       current_value: 10
-      probes_count: 37
+      probes_count: 43
       probed_range:
       - 0
-      - 36
+      - 42
       probe_cap_hit: false
       discovered_range:
       - 10
-      - 36
-      restore_failed: true
-      last_known_value: 36
+      - 40
     charging_mode:
-      status: fail
+      status: pass
       probes:
       - wrote: 0
         readback: 0
@@ -216,46 +214,42 @@ tier_3:
         readback: 1
         result: accepted
       - wrote: 2
-        readback: null
-        result: rejected
-      restore_failed: true
-      last_known_value: 0
+        readback: 2
+        result: accepted
     sys_low_power:
       status: fail
-      current_value: 0
-      probes_count: 4
+      current_value: 30
+      probes_count: 24
       probed_range:
       - 0
-      - 3
+      - 23
       probe_cap_hit: false
       declared_range:
       - 0
       - 100
       discovered_range:
       - 0
-      - 3
+      - 23
       range_discrepancy: true
       restore_failed: true
-      last_known_value: 3
+      last_known_value: 23
     sys_high_power:
       status: fail
-      current_value: 39
-      probes_count: 22
+      current_value: 80
+      probes_count: 78
       probed_range:
       - 0
-      - 21
+      - 77
       probe_cap_hit: false
       declared_range:
       - 0
       - 100
-      in_range_rejected:
-      - 21
       discovered_range:
       - 0
-      - 20
+      - 77
       range_discrepancy: true
       restore_failed: true
-      last_known_value: 21
+      last_known_value: 77
     alarm_sound:
       status: pass
       probes:
@@ -377,16 +371,18 @@ tier_3:
       - 0
       - 0
     grid_max_current:
-      status: pass
+      status: fail
       current_value: 4
-      probes_count: 18
+      probes_count: 3
       probed_range:
       - 0
-      - 17
+      - 2
       probe_cap_hit: false
       discovered_range:
       - 0
-      - 15
+      - 2
+      restore_failed: true
+      last_known_value: 2
     feed_max_power:
       status: pass
       current_value: 0
@@ -410,13 +406,55 @@ tier_3:
       - 0
       - 0
 tier_4:
-  status: skipped
-  reason: tier limit
-  fields: {}
+  status: pass
+  consent: user confirmed
+  fields:
+    ac_output:
+      status: pass
+      read: true
+      wrote: 1
+      readback: 1
+      match: true
+    dc_output:
+      status: pass
+      read: true
+      wrote: 1
+      readback: 1
+      match: true
+    dc_eco_mode:
+      status: pass
+      read: true
+      wrote: 1
+      readback: 1
+      match: true
+    ac_eco_mode:
+      status: pass
+      read: true
+      wrote: 1
+      readback: 1
+      match: true
+    ctrl_grid:
+      status: pass
+      read: true
+      wrote: 1
+      readback: 1
+      match: true
+    ctrl_feed:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
 tier_5:
-  status: skipped
-  reason: tier limit
-  fields: {}
+  status: pass
+  consent: user confirmed
+  fields:
+    working_mode:
+      status: pass
+      read: time_ctrl_ups
+      wrote: 4
+      readback: 4
+      match: true
 tier_6:
   status: skipped
   reason: tier limit

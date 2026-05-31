@@ -548,11 +548,51 @@ def _print_verbose(
         for k in sorted(current_fields):
             click.echo(f"    {k}: {inv_base[k] / 10.0:.1f}A")
 
+    # ── IoT Module ──
+    _iot_keys = {
+        "iot_model",
+        "iot_sn",
+        "iot_software_ver",
+        "iot_rf_ver",
+        "ble_status",
+        "mqtt_status",
+        "wifi_ip",
+        "wifi_gateway",
+        "wifi_mask",
+        "network_rssi",
+        "wifi_mac",
+        "ble_mac",
+        "network_conn_mode",
+    }
+    if controls and any(k in controls for k in _iot_keys):
+        click.echo(f"\n  {click.style('IoT MODULE', bold=True, fg='magenta')}")
+        if "iot_model" in controls:
+            click.echo(f"    Model:                {controls['iot_model']}")
+        if "iot_sn" in controls:
+            click.echo(f"    Serial:               {controls['iot_sn']}")
+        if "iot_software_ver" in controls:
+            click.echo(f"    Firmware:             {controls['iot_software_ver']}")
+        if "iot_rf_ver" in controls:
+            click.echo(f"    RF Firmware:          {controls['iot_rf_ver']}")
+        conn = controls.get("network_conn_mode", "none")
+        if conn and conn != "none":
+            click.echo(f"    Connection:           {conn}")
+            if "wifi_ip" in controls and controls["wifi_ip"] != "0.0.0.0":
+                click.echo(f"    WiFi IP:              {controls['wifi_ip']}")
+            if "network_rssi" in controls:
+                click.echo(f"    RSSI:                 {controls['network_rssi']} dBm")
+        elif "ble_status" in controls:
+            click.echo(f"    Connection:           BLE {'connected' if controls['ble_status'] else 'disconnected'}")
+        if "wifi_mac" in controls:
+            click.echo(f"    WiFi MAC:             {controls['wifi_mac']}")
+
     # ── Controls (writable fields) ──
     if controls:
         click.echo(f"\n  {click.style('CONTROLS (writable)', bold=True, fg='cyan')}")
         for name, val in sorted(controls.items()):
             if name == "ctrl_event":
+                continue
+            if name in _iot_keys:
                 continue
             if isinstance(val, bool):
                 display = "on" if val else "off"
