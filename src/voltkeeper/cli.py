@@ -20,7 +20,7 @@ from .bluetooth import (
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .config import load_config, write_config
-from .core.commands import ReadHoldingRegisters
+from .core.commands import ReadHoldingRegisters, TlvReadHoldingRegisters
 from .core.utils import _format_version
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
@@ -36,6 +36,24 @@ def _close_loop(loop: asyncio.AbstractEventLoop) -> None:
             loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
     finally:
         loop.close()
+
+
+def _device_from_scan(sr: ScanResult):
+    """Build a device from a scan result, with a friendly error when the
+    device advertises without its model prefix (e.g. when connected to
+    the Bluetti app).
+    """
+    try:
+        return build_device(sr.address, sr.name)
+    except ValueError:
+        click.secho(
+            f"\nDevice at {sr.address} is advertising without a recognized "
+            f"model name (received: {sr.name!r}).\n"
+            "This happens when the device is already connected to the Bluetti app.\n"
+            "Disconnect it from the app and try again.",
+            fg="red",
+        )
+        sys.exit(1)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -154,7 +172,6 @@ def status(address, timeout, verbose, daemon):
         finally:
             loop.close()
         address = sr.address
-        device_name = sr.name
         encrypted = sr.encrypted or False
         tip = click.style(f"voltkeeper status {address}", bold=True)
         click.echo(f"\nTip: next time, run directly with:\n  {tip}")
@@ -166,10 +183,9 @@ def status(address, timeout, verbose, daemon):
             sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
-        device_name = sr.name
         encrypted = sr.encrypted or False
 
-    device = build_device(address, device_name)
+    device = _device_from_scan(sr)
     client = BluetoothClient(address, encrypted=encrypted)
 
     loop = asyncio.new_event_loop()
@@ -204,13 +220,20 @@ def status(address, timeout, verbose, daemon):
             for cmd_obj in device.control_commands:
                 try:
                     raw = loop.run_until_complete(client.execute(cmd_obj))
-                    controls.update(device.parse(cmd_obj.starting_address, raw))
+                    if isinstance(cmd_obj, TlvReadHoldingRegisters):
+                        from .core.tlv import TlvParser
+
+                        for item in TlvParser.parse(raw):
+                            controls.update(device.parse(item.reg_addr, item.value))
+                    else:
+                        controls.update(device.parse(cmd_obj.starting_address, raw))
                 except ModbusError:
                     # Control registers (2000+) are write-only on some models;
                     # read attempts return Modbus exceptions — expected.
                     pass
                 except (ParseError, BadConnectionError) as exc:
-                    click.secho(f"  ⚠  control read at {cmd_obj.starting_address} failed: {exc}", fg="yellow")
+                    start = cmd_obj.starting_address if hasattr(cmd_obj, "starting_address") else "(tlv)"
+                    click.secho(f"  ⚠  control read at {start} failed: {exc}", fg="yellow")
         else:
             cmd = ReadHoldingRegisters(100, 6)
             raw = loop.run_until_complete(client.execute(cmd))
@@ -525,11 +548,51 @@ def _print_verbose(
         for k in sorted(current_fields):
             click.echo(f"    {k}: {inv_base[k] / 10.0:.1f}A")
 
+    # ── IoT Module ──
+    _iot_keys = {
+        "iot_model",
+        "iot_sn",
+        "iot_software_ver",
+        "iot_rf_ver",
+        "ble_status",
+        "mqtt_status",
+        "wifi_ip",
+        "wifi_gateway",
+        "wifi_mask",
+        "network_rssi",
+        "wifi_mac",
+        "ble_mac",
+        "network_conn_mode",
+    }
+    if controls and any(k in controls for k in _iot_keys):
+        click.echo(f"\n  {click.style('IoT MODULE', bold=True, fg='magenta')}")
+        if "iot_model" in controls:
+            click.echo(f"    Model:                {controls['iot_model']}")
+        if "iot_sn" in controls:
+            click.echo(f"    Serial:               {controls['iot_sn']}")
+        if "iot_software_ver" in controls:
+            click.echo(f"    Firmware:             {controls['iot_software_ver']}")
+        if "iot_rf_ver" in controls:
+            click.echo(f"    RF Firmware:          {controls['iot_rf_ver']}")
+        conn = controls.get("network_conn_mode", "none")
+        if conn and conn != "none":
+            click.echo(f"    Connection:           {conn}")
+            if "wifi_ip" in controls and controls["wifi_ip"] != "0.0.0.0":
+                click.echo(f"    WiFi IP:              {controls['wifi_ip']}")
+            if "network_rssi" in controls:
+                click.echo(f"    RSSI:                 {controls['network_rssi']} dBm")
+        elif "ble_status" in controls:
+            click.echo(f"    Connection:           BLE {'connected' if controls['ble_status'] else 'disconnected'}")
+        if "wifi_mac" in controls:
+            click.echo(f"    WiFi MAC:             {controls['wifi_mac']}")
+
     # ── Controls (writable fields) ──
     if controls:
         click.echo(f"\n  {click.style('CONTROLS (writable)', bold=True, fg='cyan')}")
         for name, val in sorted(controls.items()):
             if name == "ctrl_event":
+                continue
+            if name in _iot_keys:
                 continue
             if isinstance(val, bool):
                 display = "on" if val else "off"
@@ -588,7 +651,7 @@ def _show_field_help(field_name: str, address: str) -> None:
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
 
     if not device.has_field_setter(field_name):
         click.secho(f"Unknown writable field: {field_name}", fg="red")
@@ -659,7 +722,7 @@ def write(address, field, value, daemon, help_field):
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
 
     if not device.has_field_setter(field):
         click.secho(f"Unknown writable field: {field}", fg="red")
@@ -785,7 +848,7 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
             sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, sr.name)
+        device = _device_from_scan(sr)
     bus = EventBus()
     handler = DeviceHandler(address, device, interval, bus, encrypted=sr.encrypted or False)
     mqtt_client = MQTTClient(
@@ -882,7 +945,7 @@ def load_test_command(address, output, interval, expected_load, phase):
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
 
     if output is None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -948,7 +1011,7 @@ def mqtt_publish_service(
             sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, sr.name)
+        device = _device_from_scan(sr)
 
     # Executable path
     if exec_path:
@@ -1126,7 +1189,7 @@ def mqtt_listen(
             sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
-        _device = build_device(address, sr.name)
+        _device = _device_from_scan(sr)
         sn = _device.sn
         device_type_resolved = _device.type
     elif device_type:
@@ -1342,7 +1405,7 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
     tier_plan = build_tier_plan(device)
 
     if output is None:

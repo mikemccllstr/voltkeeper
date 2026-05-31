@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import logging
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -9,7 +10,9 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_der_public_key
 
-from .cipher import CbcSession, derive_iv
+from .cipher import CbcSession, ShareSession, derive_iv, frame_decode, frame_encode
+
+_log = logging.getLogger(__name__)
 
 LOCAL_AES_KEY = bytes.fromhex("459FC535808941F17091E0993EE3E93D")
 PRIVATE_KEY_L1_HEX = "4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337"
@@ -21,12 +24,14 @@ PUBLIC_KEY_K2_DER_HEX = (
 
 
 def derive_legacy_session_key(random_bytes: bytes) -> tuple[str, bytes]:
-    reversed_bytes = random_bytes[::-1]
-    digest = hashlib.md5(reversed_bytes).hexdigest().upper()
-    digest_ascii = digest.encode("ascii")
-    extended_local = (LOCAL_AES_KEY * 2)[: len(digest_ascii)]
-    aes_key_bytes = bytes(a ^ b for a, b in zip(digest_ascii, extended_local))
-    return digest, aes_key_bytes[:16]
+    """Return (randomMd5 hex, 16-byte legacy AES key) per ConnectManager.bleEncryptedHandle.
+
+    randomMd5 is the lowercase MD5 of the reversed random bytes. The legacy key is the
+    byte-wise XOR of the decoded digest and the decoded LOCAL_AES_KEY (both 16 bytes).
+    """
+    digest = hashlib.md5(random_bytes[::-1]).hexdigest()
+    aes_key_bytes = bytes(a ^ b for a, b in zip(bytes.fromhex(digest), LOCAL_AES_KEY))
+    return digest, aes_key_bytes
 
 
 def verify_device_pubkey(device_pub_raw: bytes, signature_rs: bytes, random_md5_hex: str) -> ec.EllipticCurvePublicKey:
@@ -36,7 +41,7 @@ def verify_device_pubkey(device_pub_raw: bytes, signature_rs: bytes, random_md5_
     r = int.from_bytes(signature_rs[:32], "big")
     s = int.from_bytes(signature_rs[32:], "big")
     der_sig = encode_dss_signature(r, s)
-    message = device_pub_raw + random_md5_hex.encode("ascii")
+    message = device_pub_raw + bytes.fromhex(random_md5_hex)
     try:
         k2.verify(der_sig, message, ec.ECDSA(hashes.SHA256()))
     except InvalidSignature as e:
@@ -47,23 +52,57 @@ def verify_device_pubkey(device_pub_raw: bytes, signature_rs: bytes, random_md5_
 def sign_app_pubkey(app_pub_raw: bytes, random_md5_hex: str) -> bytes:
     private_value = int(PRIVATE_KEY_L1_HEX, 16)
     priv = ec.derive_private_key(private_value, ec.SECP256R1())
-    der = priv.sign(app_pub_raw + random_md5_hex.encode("ascii"), ec.ECDSA(hashes.SHA256()))
+    der = priv.sign(app_pub_raw + bytes.fromhex(random_md5_hex), ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(der)
     return r.to_bytes(32, "big") + s.to_bytes(32, "big")
 
 
 def derive_shared_key(app_priv: ec.EllipticCurvePrivateKey, device_pub: ec.EllipticCurvePublicKey) -> bytes:
-    shared = app_priv.exchange(ec.ECDH(), device_pub)
-    return shared[:16]
+    return app_priv.exchange(ec.ECDH(), device_pub)
 
 
 def _checksum(data: bytes) -> bytes:
-    return (sum(data) & 0xFFFF).to_bytes(2, "little")
+    """Big-endian 2-byte sum of the post-header frame body (type + length + payload).
+
+    Matches HexUtilKt.hexStrSum (intToHexStr %04X). The challenge frame proves it: the
+    device's own trailing bytes equal the BE sum of everything after the 2A 2A header.
+    """
+    return (sum(data) & 0xFFFF).to_bytes(2, "big")
+
+
+def _frame(type_byte: int, length_byte: int, payload: bytes) -> bytes:
+    """Build a 2A 2A <type> <length> <payload> <2-byte BE checksum> frame.
+
+    The length byte counts the payload bytes; the checksum covers type + length + payload.
+    """
+    body = bytes([type_byte, length_byte]) + payload
+    return b"\x2a\x2a" + body + _checksum(body)
+
+
+def parse_legacy_challenge(challenge: bytes) -> bytes:
+    """Return the 4 random bytes from a legacy challenge 2A 2A 01 04 <random> <checksum>.
+
+    The byte at offset 3 is a length field (0x04); the random value is challenge[4:8].
+    """
+    if challenge[:3] != b"\x2a\x2a\x01":
+        raise ValueError(f"Expected challenge 0x2A2A01, got {challenge[:3].hex()}")
+    return challenge[4:8]
+
+
+def build_legacy_reply(random_md5_hex: str) -> bytes:
+    """Build the 10-byte challenge reply 2A 2A 02 04 <4 token bytes> <BE checksum>.
+
+    The token is the 4 bytes obtained by hex-decoding randomMd5[16:24].
+    """
+    return _frame(0x02, 0x04, bytes.fromhex(random_md5_hex[16:24]))
 
 
 class HandshakeSession:
-    def __init__(self):
-        self._queue: asyncio.Queue[bytes] = asyncio.Queue()
+    def __init__(self, notify_queue: asyncio.Queue[bytes] | None = None):
+        # When an external queue is supplied the caller owns the BLE subscription;
+        # run() must not call start_notify / stop_notify.
+        self._queue: asyncio.Queue[bytes] = notify_queue if notify_queue is not None else asyncio.Queue()
+        self._owns_subscription = notify_queue is None
 
     def _notify_handler(self, _sender: int, data: bytearray):
         self._queue.put_nowait(bytes(data))
@@ -77,69 +116,86 @@ class HandshakeSession:
             buf.extend(await self._next_notification(timeout=timeout))
         return bytes(buf)
 
+    async def _collect_encrypted_frame(self, timeout: float = 5.0) -> bytes:
+        """Collect a complete [2B len][ciphertext] handshake-stage encrypted frame."""
+        buf = bytearray()
+        while len(buf) < 2:
+            buf.extend(await self._next_notification(timeout=timeout))
+        plaintext_len = int.from_bytes(buf[:2], "big")
+        needed = 2 + (plaintext_len + 15) // 16 * 16
+        while len(buf) < needed:
+            buf.extend(await self._next_notification(timeout=timeout))
+        return bytes(buf[:needed])
+
     async def _send(self, client, data: bytes) -> None:
         from . import WRITE_UUID
 
         await client.write_gatt_char(WRITE_UUID, data, response=False)
 
-    async def run(self, client) -> CbcSession:
+    async def run(self, client) -> ShareSession:
         from . import NOTIFY_UUID
 
-        await client.start_notify(NOTIFY_UUID, self._notify_handler)
+        if self._owns_subscription:
+            await client.start_notify(NOTIFY_UUID, self._notify_handler)
 
         try:
             # Path 1 — legacy challenge-response
             challenge = await self._collect(7)
-            if challenge[:3] != b"\x2a\x2a\x01":
-                raise ValueError(f"Expected challenge 0x2A2A01, got {challenge[:3].hex()}")
-            random_bytes = challenge[3:7]
+            random_bytes = parse_legacy_challenge(challenge)
 
             random_md5_hex, ble_conn_aes_key = derive_legacy_session_key(random_bytes)
+            _log.debug("handshake: random_bytes=%s random_md5=%s", random_bytes.hex(), random_md5_hex)
+            _log.debug("handshake: ble_conn_aes_key=%s", ble_conn_aes_key.hex())
 
-            reply = b"\x2a\x2a\x02\x04" + random_md5_hex[16:24].encode("ascii")
-            reply += _checksum(reply)
-            await self._send(client, reply)
+            await self._send(client, build_legacy_reply(random_md5_hex))
+
+            # Path 2 — status-ack frame (2A 2A 03 01 <status>) before ECDH block
+            ack = await self._next_notification()
+            if len(ack) < 5 or ack[:4] != b"\x2a\x2a\x03\x01":
+                raise ValueError(f"Expected status-ack 0x2A2A03, got {ack[:4].hex()}")
+            status = ack[4]
+            if status != 0:
+                raise ValueError(f"device rejected handshake with status 0x{status:02x}")
 
             # Path 2 — ECDH key exchange
+            # Each handshake-stage frame uses the same IV (not CBC-chained across frames).
             initial_iv = derive_iv(random_md5_hex)
-            enc_session = CbcSession(ble_conn_aes_key, initial_iv)
 
-            encrypted = await self._collect(144)
-            plaintext = enc_session.decrypt(encrypted)
+            enc_frame = await self._collect_encrypted_frame()
+            plaintext = frame_decode(enc_frame, CbcSession(ble_conn_aes_key, initial_iv))
 
             if plaintext[:3] != b"\x2a\x2a\x04":
                 raise ValueError(f"Expected ECDH start 0x2A2A04, got {plaintext[:3].hex()}")
 
-            device_pub_raw = plaintext[3:67]
-            signature_rs = plaintext[67:131]
+            device_pub_raw = plaintext[4:68]
+            signature_rs = plaintext[68:132]
+            _log.debug("handshake: device_pub_raw=%s", device_pub_raw.hex())
 
             device_pub = verify_device_pubkey(device_pub_raw, signature_rs, random_md5_hex)
 
             app_priv = ec.generate_private_key(ec.SECP256R1())
             app_pub = app_priv.public_key()
             app_pub_raw = app_pub.public_bytes(encoding=Encoding.X962, format=PublicFormat.UncompressedPoint)[1:]
+            _log.debug("handshake: app_pub_raw=%s", app_pub_raw.hex())
 
             app_sig = sign_app_pubkey(app_pub_raw, random_md5_hex)
 
-            ecdh_reply = b"\x2a\x2a\x05\x80" + app_pub_raw + app_sig
-            ecdh_reply += _checksum(ecdh_reply)
-            enc_reply = enc_session.encrypt(ecdh_reply)
-            await self._send(client, enc_reply)
+            ecdh_reply = _frame(0x05, 0x80, app_pub_raw + app_sig)
+            await self._send(client, frame_encode(ecdh_reply, CbcSession(ble_conn_aes_key, initial_iv)))
 
             # Path 2 confirmation
-            conf_encrypted = await self._collect(16)
-            conf_plaintext = enc_session.decrypt(conf_encrypted)
+            conf_frame = await self._collect_encrypted_frame()
+            conf_plaintext = frame_decode(conf_frame, CbcSession(ble_conn_aes_key, initial_iv))
+            _log.debug("handshake: conf_plaintext=%s", conf_plaintext.hex())
             if conf_plaintext[:3] != b"\x2a\x2a\x06":
                 raise ValueError(f"Expected confirmation 0x2A2A06, got {conf_plaintext[:3].hex()}")
+            if len(conf_plaintext) < 5 or conf_plaintext[4] != 0:
+                status = conf_plaintext[4] if len(conf_plaintext) >= 5 else 0xFF
+                raise ValueError(f"ECDH confirmation failed with status 0x{status:02x}")
 
             shared_key = derive_shared_key(app_priv, device_pub)
-            # CAVEAT: FINDINGS §15.2 step 3c is ambiguous about whether the IV
-            # resets when the session key changes (bleConnAESKey → bleConnShareKey)
-            # or whether it continues chaining from the last handshake ciphertext
-            # block. We choose to RESET to derive_iv(randomMd5) since the key
-            # changed; this is plausible but unvalidated against a real device.
-            # If encrypted Modbus traffic decrypts to garbage post-handshake,
-            # suspect this first and try `enc_session.iv` instead of `initial_iv`.
-            return CbcSession(shared_key, initial_iv)
+            _log.debug("handshake: shared_key=%s", shared_key.hex())
+            return ShareSession(shared_key)
         finally:
-            await client.stop_notify(NOTIFY_UUID)
+            if self._owns_subscription:
+                await client.stop_notify(NOTIFY_UUID)

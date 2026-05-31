@@ -35,6 +35,8 @@ AUTO_SLEEP_DAYS = 2073
 REMOTE_STARTUP_SOC = 2074
 SLEEP_POWER_THRESHOLD = 2079
 NODE_INFO = 21000
+IOT_BASE_INFO = 11000
+IOT_ENABLE_INFO = 12161
 PACK_MAIN_INFO = 6000
 PACK_ITEM_INFO = 6100
 PACK_BMU_INFO = 7200
@@ -273,6 +275,8 @@ class V2Base(BluettiDevice):
             return self.control_struct.parse(address, data)
         elif address == V1_UPS_MODE:
             return self.control_struct.parse(address, data)
+        elif IOT_BASE_INFO <= address < IOT_BASE_INFO + 100:
+            return self._parse_iot_info(data)
         elif address == NODE_INFO:
             return self._parse_node_info(data)
         elif PACK_MAIN_INFO <= address < PACK_ITEM_INFO:
@@ -555,6 +559,92 @@ class V2Base(BluettiDevice):
     def logging_commands(self) -> List[ReadHoldingRegisters]:
         return self.polling_commands
 
+    def _parse_iot_info(self, data: bytes) -> dict:
+        """Parse IOT_BASE_INFO (11000) response per APK v3.0.9 parseIOTInfo."""
+        result: dict = {}
+        if len(data) < 36:
+            return result
+
+        result["iot_model"] = _iot_ascii_swapped(data, 0, 12)
+        result["iot_sn"] = _iot_device_sn(data, 12, 8)
+        result["iot_software_ver"] = _iot_bit32(data, 28)
+        result["iot_rf_ver"] = _iot_bit32(data, 32)
+
+        if len(data) >= 38:
+            status = _u16(data, 36)
+            result["ble_status"] = bool(status & 0x04)
+            result["mqtt_status"] = bool(status & 0x40)
+
+        if len(data) >= 56:
+            result["wifi_ip"] = _iot_ip(data, 40)
+            result["wifi_gateway"] = _iot_ip(data, 44)
+            result["wifi_mask"] = _iot_ip(data, 48)
+
+        if len(data) >= 70:
+            result["network_rssi"] = _iot_signed_rssi(data, 53)
+            result["wifi_mac"] = _iot_mac(data, 54)
+            result["ble_mac"] = _iot_mac(data, 60)
+            if len(data) >= 140:
+                mode = data[69]
+                MODES = {0: "none", 1: "WiFi", 2: "Ethernet", 3: "4G"}
+                result["network_conn_mode"] = MODES.get(mode, f"unknown({mode})")
+
+        return result
+
     @property
     def writable_ranges(self) -> List[range]:
         return [range(2000, 2087), range(2200, 2272), range(V1_UPS_MODE, V1_UPS_MODE + 1)]
+
+
+# ── IoT info parsing helpers (APK v3.0.9 parseIOTInfo conventions) ──────
+
+
+def _iot_ascii_swapped(data: bytes, offset: int, length: int) -> str:
+    """getASCIIStr(data, isSwap=true): swap byte pairs, skip nulls."""
+    chars = []
+    for i in range(0, length, 2):
+        if offset + i + 1 >= len(data):
+            break
+        hi = data[offset + i + 1]
+        lo = data[offset + i]
+        if hi:
+            chars.append(chr(hi))
+        if lo:
+            chars.append(chr(lo))
+    return "".join(chars).rstrip("\x00")
+
+
+def _iot_device_sn(data: bytes, offset: int, length: int) -> str:
+    """getDeviceSN: iterate backwards in pairs, parse as hex number."""
+    hex_str = ""
+    end = offset + length
+    for i in range(end - 1, offset - 1, -2):
+        hex_str += f"{data[i - 1]:02X}{data[i]:02X}"
+    return str(int(hex_str, 16)) if hex_str else ""
+
+
+def _iot_bit32(data: bytes, offset: int) -> int:
+    """bit32RegByteToNumber(unsigned): swap register halves, parse u32."""
+    a, b, c, d = data[offset], data[offset + 1], data[offset + 2], data[offset + 3]
+    hex_str = f"{c:02X}{d:02X}{a:02X}{b:02X}"
+    return int(hex_str, 16)
+
+
+def _iot_ip(data: bytes, offset: int) -> str:
+    """parseDeviceIp: bytes[1].bytes[0].bytes[3].bytes[2]."""
+    return f"{data[offset + 1]}.{data[offset]}.{data[offset + 3]}.{data[offset + 2]}"
+
+
+def _iot_mac(data: bytes, offset: int) -> str:
+    """parseDeviceMac: swap within each of 3 byte pairs."""
+    return (
+        f"{data[offset + 1]:02X}:{data[offset]:02X}:"
+        f"{data[offset + 3]:02X}:{data[offset + 2]:02X}:"
+        f"{data[offset + 5]:02X}:{data[offset + 4]:02X}"
+    )
+
+
+def _iot_signed_rssi(data: bytes, offset: int) -> int:
+    """parseShort('FF' + byte): signed 8-bit value."""
+    b = data[offset]
+    return b - 256 if b > 127 else b

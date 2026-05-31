@@ -25,7 +25,7 @@ The system SHALL provide a `voltkeeper verify <address>` command that connects t
 
 ### Requirement: tier 1 validates read and parse
 
-Tier 1 SHALL poll all blocks returned by the device's `control_commands` and `polling_commands`, parse each response, and verify that every field listed in the device's `WRITABLE_FIELD_NAMES` and expected status fields is present in the parsed result without raising an exception.
+Tier 1 SHALL poll all blocks returned by the device's `control_commands` and `polling_commands`, parse each response, and verify that every field listed in the device's `WRITABLE_FIELD_NAMES` and expected status fields is present in the parsed result without raising an exception. When the device's `control_commands` include a read of `IOT_BASE_INFO` (11000), tier 1 SHALL include that block in the report.
 
 #### Scenario: All blocks parse cleanly
 
@@ -38,6 +38,10 @@ Tier 1 SHALL poll all blocks returned by the device's `control_commands` and `po
 - **WHEN** tier 1 receives a response that triggers a parse exception for a block
 - **THEN** that block is recorded as `{status: fail, error: "<exception message>"}`
 - **THEN** tier 1 overall status is `fail`
+
+#### Scenario: IoT block is present and parsed
+- **WHEN** tier 1 runs on a device with IoT support and block 11000 responds
+- **THEN** a block keyed `"11000"` is recorded with `status: pass` and a positive `fields_parsed` count
 
 ### Requirement: tier 2 performs identity writes
 
