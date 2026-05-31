@@ -38,6 +38,24 @@ def _close_loop(loop: asyncio.AbstractEventLoop) -> None:
         loop.close()
 
 
+def _device_from_scan(sr: ScanResult):
+    """Build a device from a scan result, with a friendly error when the
+    device advertises without its model prefix (e.g. when connected to
+    the Bluetti app).
+    """
+    try:
+        return build_device(sr.address, sr.name)
+    except ValueError:
+        click.secho(
+            f"\nDevice at {sr.address} is advertising without a recognized "
+            f"model name (received: {sr.name!r}).\n"
+            "This happens when the device is already connected to the Bluetti app.\n"
+            "Disconnect it from the app and try again.",
+            fg="red",
+        )
+        sys.exit(1)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #  CLI Entry Point
 # ═══════════════════════════════════════════════════════════════════════
@@ -154,7 +172,6 @@ def status(address, timeout, verbose, daemon):
         finally:
             loop.close()
         address = sr.address
-        device_name = sr.name
         encrypted = sr.encrypted or False
         tip = click.style(f"voltkeeper status {address}", bold=True)
         click.echo(f"\nTip: next time, run directly with:\n  {tip}")
@@ -166,10 +183,9 @@ def status(address, timeout, verbose, daemon):
             sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
-        device_name = sr.name
         encrypted = sr.encrypted or False
 
-    device = build_device(address, device_name)
+    device = _device_from_scan(sr)
     client = BluetoothClient(address, encrypted=encrypted)
 
     loop = asyncio.new_event_loop()
@@ -595,7 +611,7 @@ def _show_field_help(field_name: str, address: str) -> None:
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
 
     if not device.has_field_setter(field_name):
         click.secho(f"Unknown writable field: {field_name}", fg="red")
@@ -666,7 +682,7 @@ def write(address, field, value, daemon, help_field):
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
 
     if not device.has_field_setter(field):
         click.secho(f"Unknown writable field: {field}", fg="red")
@@ -792,7 +808,7 @@ def mqtt_publish(address, serial, broker, port, username, password, interval, ha
             sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, sr.name)
+        device = _device_from_scan(sr)
     bus = EventBus()
     handler = DeviceHandler(address, device, interval, bus, encrypted=sr.encrypted or False)
     mqtt_client = MQTTClient(
@@ -889,7 +905,7 @@ def load_test_command(address, output, interval, expected_load, phase):
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
 
     if output is None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -955,7 +971,7 @@ def mqtt_publish_service(
             sr = ScanResult(address=address, name=address, encrypted=None)
         finally:
             loop.close()
-        device = build_device(address, sr.name)
+        device = _device_from_scan(sr)
 
     # Executable path
     if exec_path:
@@ -1133,7 +1149,7 @@ def mqtt_listen(
             sr = loop.run_until_complete(lookup_scan_result(address))
         finally:
             loop.close()
-        _device = build_device(address, sr.name)
+        _device = _device_from_scan(sr)
         sn = _device.sn
         device_type_resolved = _device.type
     elif device_type:
@@ -1349,7 +1365,7 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
     finally:
         loop.close()
 
-    device = build_device(address, sr.name)
+    device = _device_from_scan(sr)
     tier_plan = build_tier_plan(device)
 
     if output is None:
