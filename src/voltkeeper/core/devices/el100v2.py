@@ -1,6 +1,6 @@
 # ABOUTME: EL100V2 (Elite 100 V2) device definition — V2 protocol per APK v3.0.9 template chain
 # ABOUTME:   ELITE200_V2 → AC200PL. 56V portable power station, model ID 31.
-# ABOUTME: TODO(hardware): verify against physical device.
+# ABOUTME: Verified against physical device (FW SW#3, 2026-05-30).
 
 from enum import Enum, unique
 from typing import List
@@ -11,7 +11,6 @@ from .v2_base import (
     INV_BASE_SETTINGS,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
-    V1_UPS_MODE,
     WORKING_MODE,
     V2Base,
 )
@@ -68,8 +67,6 @@ class El100V2(V2Base):
         s.add_decimal_field("grid_max_current", 2214, 1)
         s.add_uint_field("feed_max_power", 2215)
         s.add_decimal_field("feed_max_current", 2216, 1)
-        # TODO(hardware): verify — V2 uses same V1 register per APK DeviceSettingsWorkingModeActivityV2
-        s.add_bool_field("ups_mode", V1_UPS_MODE)
 
     WRITABLE_FIELD_NAMES = [
         "ac_output",
@@ -104,7 +101,6 @@ class El100V2(V2Base):
         "system_time",
         "system_timezone",
         "ctrl_led",
-        "ups_mode",
     ]
 
     @property
@@ -119,10 +115,19 @@ class El100V2(V2Base):
         return decode_ctrl_event(ctrl_event)
 
     @property
+    def writable_ranges(self) -> List[range]:
+        return [range(2000, 2087), range(2200, 2218)]
+
+    @property
     def control_commands(self) -> List[ReadHoldingRegisters]:
+        """Base settings read count per APK v3.0.9 ProtocolParserV2.getReadRegLen.
+
+        protocol_version=2000 maps to count 67 (protocolVer < 2008),
+        covering registers 2000–2066.  The EL100V2 BLE gateway rejects
+        reads with response payloads above ~140 bytes and reads starting at
+        mid-block addresses like 2060.
+        """
         return [
-            ReadHoldingRegisters(INV_BASE_SETTINGS, 24),
-            ReadHoldingRegisters(INV_BASE_SETTINGS + 60, 27),
+            ReadHoldingRegisters(INV_BASE_SETTINGS, 67),
             ReadHoldingRegisters(INV_ADVANCE_SETTINGS, 18),
-            ReadHoldingRegisters(V1_UPS_MODE, 1),
         ]

@@ -20,7 +20,7 @@ from .bluetooth import (
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .config import load_config, write_config
-from .core.commands import ReadHoldingRegisters
+from .core.commands import ReadHoldingRegisters, TlvReadHoldingRegisters
 from .core.utils import _format_version
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
@@ -204,13 +204,20 @@ def status(address, timeout, verbose, daemon):
             for cmd_obj in device.control_commands:
                 try:
                     raw = loop.run_until_complete(client.execute(cmd_obj))
-                    controls.update(device.parse(cmd_obj.starting_address, raw))
+                    if isinstance(cmd_obj, TlvReadHoldingRegisters):
+                        from .core.tlv import TlvParser
+
+                        for item in TlvParser.parse(raw):
+                            controls.update(device.parse(item.reg_addr, item.value))
+                    else:
+                        controls.update(device.parse(cmd_obj.starting_address, raw))
                 except ModbusError:
                     # Control registers (2000+) are write-only on some models;
                     # read attempts return Modbus exceptions — expected.
                     pass
                 except (ParseError, BadConnectionError) as exc:
-                    click.secho(f"  ⚠  control read at {cmd_obj.starting_address} failed: {exc}", fg="yellow")
+                    start = cmd_obj.starting_address if hasattr(cmd_obj, "starting_address") else "(tlv)"
+                    click.secho(f"  ⚠  control read at {start} failed: {exc}", fg="yellow")
         else:
             cmd = ReadHoldingRegisters(100, 6)
             raw = loop.run_until_complete(client.execute(cmd))

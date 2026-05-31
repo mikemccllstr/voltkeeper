@@ -758,6 +758,30 @@ class TestEl100V2:
         assert len(bits) == 11
         assert bits[0] == ("power_control", "power")
 
+    def test_control_commands_merged_read(self, el100v2_device):
+        cmds = el100v2_device.control_commands
+        assert len(cmds) == 2
+        addrs = {cmd.starting_address for cmd in cmds}
+        assert 2060 not in addrs, "block 2060 read should be merged into 2000"
+        assert 3035 not in addrs, "UPS mode read should be removed"
+        read_2000 = [c for c in cmds if c.starting_address == 2000]
+        assert len(read_2000) == 1
+        assert read_2000[0].quantity == 67
+        read_2200 = [c for c in cmds if c.starting_address == 2200]
+        assert len(read_2200) == 1
+        assert read_2200[0].quantity == 18
+
+    def test_writable_ranges_excludes_ups(self, el100v2_device):
+        ranges = el100v2_device.writable_ranges
+        assert len(ranges) == 2
+        assert not any(3035 in r for r in ranges), "UPS register 3035 should not be in writable_ranges"
+
+    def test_no_ups_mode(self, el100v2_device):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        assert "ups_mode" not in El100V2.WRITABLE_FIELD_NAMES
+        assert not el100v2_device.has_field_setter("ups_mode")
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  New device model tests — AC180, EL10V2, EL30V2, EL400
@@ -3378,14 +3402,14 @@ class TestUpsMode:
             assert "ups_mode" in cls.WRITABLE_FIELD_NAMES, f"{cls.__name__} missing ups_mode"
 
     def test_v2_all_supporting_devices_expose_ups_mode(self):
-        """EL10V2, EL30V2, EL100V2, EL400, EP600 all have ups_mode in WRITABLE_FIELD_NAMES."""
+        """EL10V2, EL30V2, EL400, EP600 all have ups_mode in WRITABLE_FIELD_NAMES.
+        EL100V2 removed — APK never reads 3035 for V2, hardware returns exception 3."""
         from voltkeeper.core.devices.el10v2 import EL10V2
         from voltkeeper.core.devices.el30v2 import EL30V2
-        from voltkeeper.core.devices.el100v2 import El100V2
         from voltkeeper.core.devices.el400 import EL400
         from voltkeeper.core.devices.ep600 import EP600
 
-        for cls in (EL10V2, EL30V2, El100V2, EL400, EP600):
+        for cls in (EL10V2, EL30V2, EL400, EP600):
             assert "ups_mode" in cls.WRITABLE_FIELD_NAMES, f"{cls.__name__} missing ups_mode"
 
     def test_unsupported_devices_do_not_expose_ups_mode(self):

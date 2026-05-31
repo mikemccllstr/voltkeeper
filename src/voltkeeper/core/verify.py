@@ -10,9 +10,10 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Optional
 
-from .commands import ReadHoldingRegisters, WriteSingleRegister
+from .commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
 from .devices.bluetti_device import BluettiDevice
 from .struct import BoolField, DecimalField, EnumField, Uint8Field, UintField
+from .tlv import TlvParser
 
 # Global field risk classification.  Fields not listed default to tier 2/3 (automatic).
 FIELD_TIERS: dict[str, int] = {
@@ -203,15 +204,30 @@ async def run_tier1(client: Any, device: BluettiDevice) -> tuple[TierResult, dic
     all_cmds = list(device.polling_commands) + control_cmds
 
     for cmd in all_cmds:
-        addr_key = str(cmd.starting_address)
-        try:
-            raw = await client.execute(cmd)
-            parsed = device.parse(cmd.starting_address, raw)
-            merged.update(parsed)
-            result.blocks[addr_key] = BlockResult(status="pass", fields_parsed=len(parsed))
-        except Exception as exc:
-            result.blocks[addr_key] = BlockResult(status="fail", error=str(exc))
-            result.status = "fail"
+        if isinstance(cmd, TlvReadHoldingRegisters):
+            try:
+                raw = await client.execute(cmd)
+                items = TlvParser.parse(raw)
+                for item in items:
+                    addr_key = str(item.reg_addr)
+                    parsed = device.parse(item.reg_addr, item.value)
+                    merged.update(parsed)
+                    result.blocks[addr_key] = BlockResult(status="pass", fields_parsed=len(parsed))
+            except Exception as exc:
+                for start_addr, _ in cmd.sections:
+                    addr_key = str(start_addr)
+                    result.blocks[addr_key] = BlockResult(status="fail", error=str(exc))
+                result.status = "fail"
+        else:
+            addr_key = str(cmd.starting_address)
+            try:
+                raw = await client.execute(cmd)
+                parsed = device.parse(cmd.starting_address, raw)
+                merged.update(parsed)
+                result.blocks[addr_key] = BlockResult(status="pass", fields_parsed=len(parsed))
+            except Exception as exc:
+                result.blocks[addr_key] = BlockResult(status="fail", error=str(exc))
+                result.status = "fail"
 
     return result, merged
 
