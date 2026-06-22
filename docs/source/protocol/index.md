@@ -18,6 +18,7 @@ encryption-details
 polling-strategy
 backend-services
 firmware-updates
+apk-v3.0.9-vs-v3.0.10
 ```
 
 Static analysis of ~22,900 decompiled classes yielded the GATT service and
