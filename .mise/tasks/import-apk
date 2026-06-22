@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# ABOUTME: Stages an APK from an arbitrary path into bluetti-files/<filename>/bluetti.apk.
+# ABOUTME: The directory name matches the source filename so decompile tasks process it unchanged.
+#MISE description="Stage an APK into bluetti-files/<version>/bluetti.apk for decompilation"
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: import-apk <path-to-apk>" >&2
+    exit 1
+fi
+
+src="$1"
+
+if [[ ! -f "$src" || ! -r "$src" ]]; then
+    echo "Error: not a readable file: $src" >&2
+    exit 1
+fi
+
+version="$(basename "$src")"
+dest="bluetti-files/$version/bluetti.apk"
+
+if [[ -f "$dest" ]]; then
+    echo "Already staged: $dest (skipping)"
+    exit 0
+fi
+
+mkdir -p "$(dirname "$dest")"
+cp "$src" "$dest"
+echo "Staged $version → $dest"

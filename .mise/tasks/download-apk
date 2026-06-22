@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Download the latest bluetti APK"
+# ABOUTME: Downloads the latest Bluetti APK from Bluetti's CDN (latest build only).
+# ABOUTME: For historical versions, use 'mise run import-apk <path>' with bluetti-apk-archive/.
+#MISE description="Download the latest bluetti APK (latest build only; use import-apk for historical versions)"
 set -euo pipefail
+
+# Bluetti's CDN exposes only the latest build — there is no supported endpoint for
+# fetching a specific historical version. For older APKs, use:
+#   mise run import-apk <path-to-apk>
+# with a file from bluetti-apk-archive/ or another trusted source.
 
 node scripts/download-apk.mjs

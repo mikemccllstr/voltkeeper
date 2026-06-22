@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
-#MISE description="Remove all bluetti files"
+# ABOUTME: Removes derived decompilation and diff output under bluetti-files/ while preserving every bluetti.apk.
+# ABOUTME: APKs are precious — Bluetti only serves the latest build, so old versions cannot be re-fetched.
+#MISE description="Remove derived decompilation output under bluetti-files/, preserving every bluetti.apk"
 set -euo pipefail
 
-rm -rf bluetti-files
+if [[ ! -d bluetti-files ]]; then
+    exit 0
+fi
+
+# Pass 1: delete every non-directory file that is not named bluetti.apk
+find bluetti-files -not -type d -not -name "bluetti.apk" -delete
+
+# Pass 2: prune empty directories (directories still holding a bluetti.apk are non-empty and survive)
+find bluetti-files -type d -empty -delete

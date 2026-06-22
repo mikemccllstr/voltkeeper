@@ -60,7 +60,7 @@ voltkeeperd = "voltkeeper.daemon:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-pythonpath = ["src"]
+pythonpath = ["src", "scripts"]
 addopts = "-m 'not integration' --cov=src/voltkeeper --cov-report=term-missing:skip-covered --cov-report=html:htmlcov"
 markers = [
     "integration: tests that exercise real BLE operations (scan, connect)",

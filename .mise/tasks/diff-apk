@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# ABOUTME: Compares two decompiled APK versions across three lenses: protocol anchors, resource surface, and cloud API.
+# ABOUTME: Writes comparison artifacts under bluetti-files/diff/<verA>-vs-<verB>/ (gitignored, regenerable).
+#MISE description="Compare two decompiled APK versions and write protocol diff artifacts"
+set -euo pipefail
+
+if [[ $# -ne 2 ]]; then
+    echo "Usage: diff-apk <verA> <verB>" >&2
+    echo "  Example: mise run diff-apk 3.0.9 3.0.10" >&2
+    exit 1
+fi
+
+python3 "$(dirname "$(realpath "$0")")/../../scripts/diff_apk.py" "$1" "$2"
