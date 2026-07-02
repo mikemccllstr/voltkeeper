@@ -80,6 +80,7 @@ class DeviceHandler:
                         continue
 
                 try:
+                    cycle_start = time.monotonic()
                     await self._poll_once()
                 except (BleakError, BadConnectionError):
                     logging.warning("BLE connection lost, reconnecting...")
@@ -88,7 +89,8 @@ class DeviceHandler:
                     continue
 
                 if self.interval > 0:
-                    await asyncio.sleep(self.interval)
+                    elapsed = time.monotonic() - cycle_start
+                    await asyncio.sleep(max(0, self.interval - elapsed))
         except asyncio.CancelledError:
             logging.info("Device handler shutting down...")
             await self.client.disconnect()
@@ -115,8 +117,6 @@ class DeviceHandler:
             logging.debug("Topology discovery failed, using static configuration")
 
     async def _poll_once(self):
-        start_time = time.monotonic()
-
         if isinstance(self.device, V2Base) and self.device.use_tlv_polling:
             await self._poll_once_tlv()
         else:
@@ -124,10 +124,6 @@ class DeviceHandler:
 
         if isinstance(self.device, V2Base):
             self.device.tick_poll_counter()
-
-        elapsed = time.monotonic() - start_time
-        if self.interval > 0 and self.interval > elapsed:
-            await asyncio.sleep(self.interval - elapsed)
 
     async def _poll_once_tlv(self):
         assert isinstance(self.device, V2Base)

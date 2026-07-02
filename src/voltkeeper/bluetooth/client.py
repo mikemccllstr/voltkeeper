@@ -27,6 +27,7 @@ class BluetoothClient:
         self._current_cmd: Optional[Union[DeviceCommand, TlvReadHoldingRegisters]] = None
         self._handshake_mode: bool = False
         self._handshake_queue: asyncio.Queue[bytes] = asyncio.Queue()
+        self._lock = asyncio.Lock()
 
     async def connect(self, timeout: float = 15.0) -> None:
         self.client = BleakClient(self.address)
@@ -54,6 +55,10 @@ class BluetoothClient:
                 pass
 
     async def execute(self, cmd: Union[DeviceCommand, TlvReadHoldingRegisters]) -> bytes:
+        async with self._lock:
+            return await self._execute_locked(cmd)
+
+    async def _execute_locked(self, cmd: Union[DeviceCommand, TlvReadHoldingRegisters]) -> bytes:
         loop = asyncio.get_running_loop()
         retries = 0
 

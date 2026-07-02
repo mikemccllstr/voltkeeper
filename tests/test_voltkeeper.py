@@ -1736,6 +1736,183 @@ class TestDeviceHandler:
         assert 20 <= parsed["packTotalVoltage"] <= 40
         assert 0 <= parsed["packTotalCurrent"] <= 100
 
+    @pytest.mark.asyncio
+    async def test_command_handled_mid_poll_no_corruption(self, ac2a_device):
+        """A CommandMessage handled mid-poll does not corrupt the in-flight poll."""
+        import struct
+        from unittest.mock import AsyncMock, PropertyMock, patch
+
+        from voltkeeper.bluetooth.client import BluetoothClient
+        from voltkeeper.bus import CommandMessage, EventBus
+        from voltkeeper.core.commands import ReadHoldingRegisters, WriteSingleRegister
+        from voltkeeper.core.utils import crc16_modbus
+        from voltkeeper.device_handler import DeviceHandler
+
+        bus = EventBus()
+        handler = DeviceHandler("00:00:00:00:00:00", ac2a_device, 60, bus)
+        client = BluetoothClient("00:00:00:00:00:00", encrypted=False)
+        client.client = AsyncMock()
+        client.client.is_connected = True
+        handler.client = client
+
+        small_read = ReadHoldingRegisters(100, 6)
+        mock_prop = PropertyMock(return_value=[small_read])
+        with patch.object(type(ac2a_device), "polling_commands", mock_prop):
+            write_log = []
+            poll_read_parked = asyncio.Event()
+
+            async def controlled_write(uuid, data, response=False):
+                cmd = client._current_cmd
+                write_log.append(cmd)
+                if isinstance(cmd, ReadHoldingRegisters):
+                    await poll_read_parked.wait()
+
+            client.client.write_gatt_char = controlled_write
+
+            async def start_poll():
+                try:
+                    await handler._poll_once_individual()
+                except Exception:
+                    pass
+
+            poll_task = asyncio.create_task(start_poll())
+            await asyncio.sleep(0)
+
+            assert len(write_log) == 1
+            assert isinstance(write_log[0], ReadHoldingRegisters)
+
+            write_cmd = WriteSingleRegister(2015, 3)
+            msg = CommandMessage(ac2a_device, write_cmd)
+            cmd_task = asyncio.create_task(handler.handle_command(msg))
+            await asyncio.sleep(0)
+
+            assert len(write_log) == 1, "write command must not write mid-poll"
+
+            resp1_data = b"\x00\x01" * 6
+            resp1_msg = b"\x01\x03\x0c" + resp1_data
+            resp1 = resp1_msg + crc16_modbus(resp1_msg)
+            client._on_notification(0, bytearray(resp1))
+            poll_read_parked.set()
+
+            await poll_task
+            await asyncio.sleep(0)
+
+            assert len(write_log) >= 2, "write command should have written after poll"
+
+            resp2 = struct.pack("!BBHH", 1, 6, 2015, 3)
+            resp2 += crc16_modbus(resp2)
+            client._on_notification(0, bytearray(resp2))
+            await cmd_task
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Poll interval pacing — run() owns the single sleep per cycle
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestPollIntervalPacing:
+    @pytest.mark.asyncio
+    async def test_period_equals_configured_interval(self, ac2a_device):
+        """Start-to-start period equals interval when a cycle finishes early."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from voltkeeper.device_handler import DeviceHandler
+
+        bus = MagicMock()
+        handler = DeviceHandler("AA:BB:CC:DD:EE:FF", ac2a_device, 10, bus)
+        mock_client = MagicMock()
+        mock_client.is_connected = True
+        mock_client.connect = AsyncMock()
+        mock_client.disconnect = AsyncMock()
+        handler.client = mock_client
+        handler._discover_topology = AsyncMock()
+        handler._poll_once = AsyncMock()
+
+        sleep_calls = []
+
+        async def fake_sleep(duration):
+            sleep_calls.append(duration)
+            raise asyncio.CancelledError()
+
+        time_values = [0.0, 3.0]
+
+        with patch("voltkeeper.device_handler.asyncio.sleep", fake_sleep):
+            with patch("voltkeeper.device_handler.time.monotonic", side_effect=time_values):
+                try:
+                    await handler.run()
+                except asyncio.CancelledError:
+                    pass
+
+        assert len(sleep_calls) == 1, f"Expected 1 sleep, got {len(sleep_calls)}"
+        assert sleep_calls[0] == 7.0, f"Expected sleep({10 - 3}) = 7.0, got {sleep_calls[0]}"
+
+    @pytest.mark.asyncio
+    async def test_slow_cycle_starts_next_immediately(self, ac2a_device):
+        """A cycle longer than the interval starts the next cycle immediately."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from voltkeeper.device_handler import DeviceHandler
+
+        bus = MagicMock()
+        handler = DeviceHandler("AA:BB:CC:DD:EE:FF", ac2a_device, 10, bus)
+        mock_client = MagicMock()
+        mock_client.is_connected = True
+        mock_client.connect = AsyncMock()
+        mock_client.disconnect = AsyncMock()
+        handler.client = mock_client
+        handler._discover_topology = AsyncMock()
+        handler._poll_once = AsyncMock()
+
+        sleep_calls = []
+
+        async def fake_sleep(duration):
+            sleep_calls.append(duration)
+            raise asyncio.CancelledError()
+
+        time_values = [0.0, 12.0]
+
+        with patch("voltkeeper.device_handler.asyncio.sleep", fake_sleep):
+            with patch("voltkeeper.device_handler.time.monotonic", side_effect=time_values):
+                try:
+                    await handler.run()
+                except asyncio.CancelledError:
+                    pass
+
+        assert len(sleep_calls) == 1, f"Expected 1 sleep, got {len(sleep_calls)}"
+        assert sleep_calls[0] == 0.0, f"Expected sleep(0.0) when elapsed > interval, got {sleep_calls[0]}"
+
+    @pytest.mark.asyncio
+    async def test_interval_zero_polls_back_to_back(self, ac2a_device):
+        """Interval 0 polls back-to-back with no sleep between cycles."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from voltkeeper.device_handler import DeviceHandler
+
+        bus = MagicMock()
+        handler = DeviceHandler("AA:BB:CC:DD:EE:FF", ac2a_device, 0, bus)
+        mock_client = MagicMock()
+        mock_client.is_connected = True
+        mock_client.connect = AsyncMock()
+        mock_client.disconnect = AsyncMock()
+        handler.client = mock_client
+        handler._discover_topology = AsyncMock()
+        handler._poll_once = AsyncMock()
+
+        sleep_calls = []
+
+        async def fake_sleep(duration):
+            sleep_calls.append(duration)
+
+        with patch("voltkeeper.device_handler.asyncio.sleep", fake_sleep):
+            run_task = asyncio.create_task(handler.run())
+            await asyncio.sleep(0)
+            run_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await run_task
+
+        positive_sleeps = [d for d in sleep_calls if d > 0]
+        assert len(positive_sleeps) == 0, f"Expected no positive sleep for interval=0, got {positive_sleeps}"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  CLI unit tests (Click CliRunner)
@@ -3646,3 +3823,215 @@ class TestPrintPowerSection:
         output = self._capture(home, indent="  ", show_zeros=False)
         # Both totals should show 54
         assert output.count("54") >= 2
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  BluetoothClient.execute() serialization
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBluetoothClientExecuteSerialization:
+    @staticmethod
+    def _build_read_response(values):
+        import struct
+
+        from voltkeeper.core.utils import crc16_modbus
+
+        data = struct.pack(f"!{len(values)}H", *values)
+        msg = b"\x01\x03" + struct.pack("!B", len(data)) + data
+        return msg + crc16_modbus(msg)
+
+    @staticmethod
+    def _make_client():
+        from unittest.mock import AsyncMock
+
+        from voltkeeper.bluetooth.client import BluetoothClient
+
+        c = BluetoothClient("AA:BB:CC:DD:EE:FF", encrypted=False)
+        c.client = AsyncMock()
+        c.client.write_gatt_char = AsyncMock()
+        return c
+
+    @pytest.mark.asyncio
+    async def test_two_concurrent_calls_each_receive_own_response(self):
+        """Two concurrent execute() calls each get their own response — no cross-matching."""
+        from voltkeeper.core.commands import ReadHoldingRegisters
+
+        client = self._make_client()
+
+        cmd1 = ReadHoldingRegisters(100, 6)
+        cmd2 = ReadHoldingRegisters(200, 6)
+
+        write_log = []
+
+        async def tracked_write(uuid, data, response=False):
+            write_log.append(client._current_cmd)
+
+        client.client.write_gatt_char = tracked_write
+
+        task1 = asyncio.create_task(client.execute(cmd1))
+        await asyncio.sleep(0)
+
+        task2 = asyncio.create_task(client.execute(cmd2))
+        await asyncio.sleep(0)
+
+        # Without serialization, task2 would have entered the loop and
+        # overwritten _current_cmd / _notify_response, and its write would
+        # appear in the log.
+        assert client._current_cmd is cmd1, "cmd2 must not overwrite in-flight state while cmd1 is pending"
+        assert len(write_log) == 1, "cmd2 must not write while cmd1 is in flight"
+        assert write_log[0] is cmd1
+
+        resp1 = self._build_read_response([1, 2, 3, 4, 5, 6])
+        client._on_notification(0, bytearray(resp1))
+        result1 = await task1
+        assert result1 == resp1[3:-2], "cmd1 got its own parsed body"
+
+        await asyncio.sleep(0)
+        assert len(write_log) == 2, "cmd2 must write after cmd1 completes"
+        assert write_log[1] is cmd2
+
+        resp2 = self._build_read_response([10, 20, 30, 40, 50, 60])
+        client._on_notification(0, bytearray(resp2))
+        result2 = await task2
+        assert result2 == resp2[3:-2], "cmd2 got its own parsed body"
+
+        assert result1 != result2, "responses must not be identical"
+
+    @pytest.mark.asyncio
+    async def test_second_not_written_until_first_completes(self):
+        """A second execute() call is not written until the first exits."""
+        from voltkeeper.core.commands import ReadHoldingRegisters
+
+        client = self._make_client()
+
+        cmd1 = ReadHoldingRegisters(100, 6)
+        cmd2 = ReadHoldingRegisters(200, 6)
+
+        write_count = 0
+
+        async def counted_write(uuid, data, response=False):
+            nonlocal write_count
+            write_count += 1
+
+        client.client.write_gatt_char = counted_write
+
+        task1 = asyncio.create_task(client.execute(cmd1))
+        await asyncio.sleep(0)
+
+        task2 = asyncio.create_task(client.execute(cmd2))
+        await asyncio.sleep(0)
+
+        assert write_count == 1, "only one write before first command completes"
+
+        resp1 = self._build_read_response([100, 200, 300, 400, 500, 600])
+        client._on_notification(0, bytearray(resp1))
+        await task1
+
+        await asyncio.sleep(0)
+        assert write_count == 2, "second write must happen after first completes"
+
+        resp2 = self._build_read_response([1, 2, 3, 4, 5, 6])
+        client._on_notification(0, bytearray(resp2))
+        await task2
+
+    @pytest.mark.asyncio
+    async def test_queued_call_runs_after_first_exhausts_retries(self):
+        """A queued call runs cleanly after the first call exhausts all retries."""
+        from voltkeeper.bluetooth.client import MAX_RETRIES
+        from voltkeeper.core.commands import ReadHoldingRegisters
+
+        client = self._make_client()
+
+        cmd1 = ReadHoldingRegisters(100, 6)
+        cmd2 = ReadHoldingRegisters(200, 6)
+
+        writes_by_cmd = {cmd1: 0, cmd2: 0}
+
+        async def fail_n_times(uuid, data, response=False):
+            writes_by_cmd[client._current_cmd] += 1
+
+            if client._current_cmd is cmd1:
+                client._notify_future.set_exception(asyncio.TimeoutError())
+
+        client.client.write_gatt_char = fail_n_times
+
+        task1 = asyncio.create_task(client.execute(cmd1))
+        await asyncio.sleep(0)
+
+        task2 = asyncio.create_task(client.execute(cmd2))
+        await asyncio.sleep(0)
+
+        with pytest.raises(Exception) as exc_info:
+            await task1
+
+        assert "retries" in str(exc_info.value) or "Timeout" in str(exc_info.value)
+
+        # Now cmd2 must complete successfully with its own response.
+        # With serialization: cmd2 has NOT written yet (blocked by lock until
+        # cmd1 gives up).  Without serialization: cmd2 may have already
+        # written while cmd1 was still retrying.
+        resp2 = self._build_read_response([7, 8, 9, 10, 11, 12])
+        client._on_notification(0, bytearray(resp2))
+        result2 = await task2
+        assert result2 == resp2[3:-2], "cmd2 must complete after cmd1's failure"
+
+        # Verify cmd1 exhausted exactly MAX_RETRIES without cmd2 interleaving.
+        assert writes_by_cmd[cmd1] == MAX_RETRIES, (
+            f"cmd1 should have retried {MAX_RETRIES} times, got {writes_by_cmd[cmd1]}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_interleaving_between_retries(self):
+        """No other command writes between a failed attempt and its retry."""
+        from voltkeeper.core.commands import ReadHoldingRegisters
+
+        client = self._make_client()
+
+        cmd1 = ReadHoldingRegisters(100, 6)
+        cmd2 = ReadHoldingRegisters(200, 6)
+
+        write_log = []
+        first_attempt = True
+
+        async def interleave_check_write(uuid, data, response=False):
+            write_log.append(client._current_cmd)
+
+            if client._current_cmd is cmd1:
+                nonlocal first_attempt
+                if first_attempt:
+                    first_attempt = False
+                    # Deliver bad notification (CRC-mismatched) via the real
+                    # handler so ParseError is raised inside _on_notification.
+                    bad_data = bytearray(b"\x00" * cmd1.response_size())
+                    client._on_notification(0, bad_data)
+
+        client.client.write_gatt_char = interleave_check_write
+
+        task1 = asyncio.create_task(client.execute(cmd1))
+        await asyncio.sleep(0)
+        # cmd1 has written its first attempt; the bad notification triggers
+        # ParseError and it loops back to retry (still holding the lock).
+
+        task2 = asyncio.create_task(client.execute(cmd2))
+        await asyncio.sleep(0)
+
+        # With serialization: every write so far belongs to cmd1; cmd2 is
+        # blocked by the lock.
+        for idx, cmd in enumerate(write_log):
+            assert cmd is cmd1, f"write {idx} should be cmd1, got {cmd}"
+
+        assert len(write_log) >= 2, "cmd1 should have initial write + at least one retry"
+
+        # Resolve cmd1's retry so it completes and releases the lock.
+        resp1 = self._build_read_response([50, 51, 52, 53, 54, 55])
+        client._on_notification(0, bytearray(resp1))
+        result1 = await task1
+        assert result1 == resp1[3:-2]
+
+        # cmd2 proceeds now.
+        await asyncio.sleep(0)
+        resp2 = self._build_read_response([60, 61, 62, 63, 64, 65])
+        client._on_notification(0, bytearray(resp2))
+        result2 = await task2
+        assert result2 == resp2[3:-2]
