@@ -60,8 +60,9 @@ The daemon SHALL expose `POST /api/reload` (protected by API key) that re-reads 
 - **THEN** the daemon responds with `{"reloaded": false, "restart_required": true, "reason": "server.port changed"}` and does not apply the new port
 
 #### Scenario: Config file not found or invalid on reload
-- **WHEN** `POST /api/reload` is called but the config file has a parse error
-- **THEN** the daemon responds with 400 Bad Request, describes the error, and continues running with its current config
+- **WHEN** `POST /api/reload` is called but the config file has a parse error or fails validation
+- **THEN** the daemon responds with 400 Bad Request and continues running with its current config
+- **THEN** the response error message includes the specific failure — the config file path and the field or parse problem — not a generic "could not be loaded"
 
 ### Requirement: Config write preserves existing formatting
 All config write operations (`config set`, `config add-device`, `config remove-device`) SHALL use `ruamel.yaml` for write-back to preserve user-added comments, blank lines, and formatting in the config file.
