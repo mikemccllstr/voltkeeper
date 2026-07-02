@@ -6,6 +6,7 @@ import pytest
 
 from voltkeeper.config import (
     Config,
+    ConfigError,
     DeviceEntry,
     ScanConfig,
     ServerConfig,
@@ -93,28 +94,38 @@ shutdown_watchdog:
   host: "0.0.0.0"
 """,
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "server.api_key is required" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_missing_file_explicit_path(self, tmp_path):
         nonexistent = tmp_path / "nonexistent.yaml"
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(nonexistent)
+        assert "config file not found" in str(exc.value)
+        assert exc.value.path == nonexistent
 
     def test_invalid_yaml(self, tmp_path):
         config_path = _write_config(tmp_path, "not: valid: yaml: [")
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "error parsing config file" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_empty_file(self, tmp_path):
         config_path = _write_config(tmp_path, "")
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "is empty" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_config_not_a_mapping(self, tmp_path):
         config_path = _write_config(tmp_path, "- list item\n- another")
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "must be a YAML mapping" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_invalid_port(self, tmp_path):
         config_path = _write_config(
@@ -124,8 +135,10 @@ shutdown_watchdog:
   port: 99999
 """,
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "server.port must be an integer between 1 and 65535" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_invalid_cidr(self, tmp_path):
         config_path = _write_config(
@@ -135,8 +148,10 @@ shutdown_watchdog:
   allowed_networks: ["not-a-cidr"]
 """,
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "invalid CIDR" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_devices_not_a_list(self, tmp_path):
         config_path = _write_config(
@@ -146,8 +161,10 @@ shutdown_watchdog:
 devices: "not-a-list"
 """,
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "devices must be a list" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_device_missing_address(self, tmp_path):
         config_path = _write_config(
@@ -158,8 +175,10 @@ devices:
   - name: "No Address Device"
 """,
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "devices[0].address is required" in str(exc.value)
+        assert exc.value.path == config_path
 
     def test_empty_devices_ok(self, tmp_path):
         config_path = _write_config(
@@ -307,5 +326,7 @@ class TestMdnsConfig:
             tmp_path,
             'server:\n  api_key: "key"\n  mdns: "yes"\n',
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(ConfigError) as exc:
             load_config(config_path)
+        assert "server.mdns must be a boolean" in str(exc.value)
+        assert exc.value.path == config_path

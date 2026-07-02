@@ -18,7 +18,7 @@ from typing import Any
 from aiohttp import web
 
 from .bus import CommandMessage, EventBus
-from .config import Config, load_config
+from .config import Config, ConfigError, load_config
 from .core.commands import WriteSingleRegister
 from .core.struct import BoolField, DecimalField, EnumField, UintField
 from .device_manager import DeviceManager
@@ -299,8 +299,8 @@ async def _handle_reload(request: web.Request) -> web.Response:
 
     try:
         new_config = load_config(Path(config_path))
-    except SystemExit:
-        return web.json_response({"error": "Config file could not be loaded"}, status=400)
+    except ConfigError as e:
+        return web.json_response({"error": str(e)}, status=400)
 
     old_config: Config = request.app[CONFIG_KEY]
     restart_reasons = []

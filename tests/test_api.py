@@ -598,6 +598,7 @@ class TestReloadEndpoint:
 
     def test_bad_config_returns_400(self, config, bus, store, device_manager, tmp_path, unused_tcp_port):
         config.server.port = unused_tcp_port
+        config.scan.interval = 60
         config_file = tmp_path / "config.yaml"
         config_file.write_text("not: valid: yaml: [\n")
 
@@ -609,6 +610,11 @@ class TestReloadEndpoint:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, headers=_auth_headers(config)) as resp:
                         assert resp.status == 400
+                        data = await resp.json()
+                        assert "error" in data
+                        assert "config.yaml" in data["error"]
+                        assert "error parsing" in data["error"]
+                assert config.scan.interval == 60
             finally:
                 await runner.cleanup()
 

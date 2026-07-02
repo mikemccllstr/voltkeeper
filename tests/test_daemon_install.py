@@ -1,11 +1,13 @@
 # ABOUTME: Unit tests for `daemon install` and `daemon uninstall` CLI subcommands.
 # ABOUTME: Tests install idempotency, --lan flag config, unit file generation, and uninstall cleanup.
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
 from voltkeeper.cli import cli
+from voltkeeper.config import ConfigError
 
 
 def _make_subprocess_ok():
@@ -32,7 +34,7 @@ class TestDaemonInstall:
             patch("pathlib.Path.home", return_value=tmp_path),
             patch("shutil.which", return_value="/usr/local/bin/voltkeeperd"),
             patch("subprocess.run", return_value=_make_subprocess_ok()),
-            patch("voltkeeper.cli.load_config", side_effect=SystemExit(1)),
+            patch("voltkeeper.cli.load_config", side_effect=ConfigError("no config", Path("."))),
             patch(
                 "voltkeeper.config.find_writable_config_path",
                 return_value=tmp_path / ".config" / "voltkeeper" / "config.yaml",
@@ -54,7 +56,7 @@ class TestDaemonInstall:
             patch("pathlib.Path.home", return_value=tmp_path),
             patch("shutil.which", return_value="/usr/local/bin/voltkeeperd"),
             patch("subprocess.run", return_value=_make_subprocess_ok()),
-            patch("voltkeeper.cli.load_config", side_effect=SystemExit(1)),
+            patch("voltkeeper.cli.load_config", side_effect=ConfigError("no config", Path("."))),
             patch(
                 "voltkeeper.config.find_writable_config_path",
                 return_value=tmp_path / ".config" / "voltkeeper" / "config.yaml",
@@ -80,7 +82,7 @@ class TestDaemonInstall:
             patch("pathlib.Path.home", return_value=tmp_path),
             patch("shutil.which", return_value="/usr/local/bin/voltkeeperd"),
             patch("subprocess.run", mock_run),
-            patch("voltkeeper.cli.load_config", side_effect=SystemExit(1)),
+            patch("voltkeeper.cli.load_config", side_effect=ConfigError("no config", Path("."))),
             patch(
                 "voltkeeper.config.find_writable_config_path",
                 return_value=tmp_path / ".config" / "voltkeeper" / "config.yaml",
@@ -105,7 +107,7 @@ class TestDaemonInstall:
             patch("pathlib.Path.home", return_value=tmp_path),
             patch("shutil.which", return_value="/usr/local/bin/voltkeeperd"),
             patch("subprocess.run", return_value=_make_subprocess_ok()),
-            patch("voltkeeper.cli.load_config", side_effect=SystemExit(1)),
+            patch("voltkeeper.cli.load_config", side_effect=ConfigError("no config", Path("."))),
             patch(
                 "voltkeeper.config.find_writable_config_path",
                 return_value=tmp_path / ".config" / "voltkeeper" / "config.yaml",
@@ -171,7 +173,7 @@ class TestDaemonInstall:
             patch("pathlib.Path.home", return_value=tmp_path),
             patch("shutil.which", return_value="/usr/local/bin/voltkeeperd"),
             patch("subprocess.run", return_value=_make_subprocess_ok()),
-            patch("voltkeeper.cli.load_config", side_effect=SystemExit(1)),
+            patch("voltkeeper.cli.load_config", side_effect=ConfigError("no config", Path("."))),
             patch(
                 "voltkeeper.config.find_writable_config_path",
                 return_value=tmp_path / ".config" / "voltkeeper" / "config.yaml",
@@ -195,7 +197,7 @@ class TestDaemonInstall:
             patch("pathlib.Path.home", return_value=tmp_path),
             patch("shutil.which", return_value="/usr/local/bin/voltkeeperd"),
             patch("subprocess.run", return_value=_make_subprocess_ok()),
-            patch("voltkeeper.cli.load_config", side_effect=SystemExit(1)),
+            patch("voltkeeper.cli.load_config", side_effect=ConfigError("no config", Path("."))),
             patch(
                 "voltkeeper.config.find_writable_config_path",
                 return_value=tmp_path / ".config" / "voltkeeper" / "config.yaml",

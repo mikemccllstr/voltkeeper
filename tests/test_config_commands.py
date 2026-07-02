@@ -1,13 +1,14 @@
 # ABOUTME: Unit tests for voltkeeper config CLI subcommands — show, set, add-device, remove-device.
 # ABOUTME: Tests config file read/write and daemon reload behavior without requiring a running daemon.
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
 
 from voltkeeper.cli import cli
-from voltkeeper.config import Config, DeviceEntry, ServerConfig, write_config
+from voltkeeper.config import Config, ConfigError, DeviceEntry, ServerConfig, write_config
 
 
 @pytest.fixture
@@ -80,7 +81,7 @@ class TestConfigShow:
 
     def test_exits_nonzero_when_no_config(self, tmp_path):
         runner = CliRunner()
-        with patch("voltkeeper.config._find_config", side_effect=SystemExit(1)):
+        with patch("voltkeeper.config._find_config", side_effect=ConfigError("no config found", Path("."))):
             result = runner.invoke(cli, ["config", "show"])
         assert result.exit_code != 0
 
@@ -199,3 +200,63 @@ class TestConfigRemoveDevice:
 
         assert result.exit_code == 0
         assert "not found" in result.output
+
+
+class TestConfigCommandsParseError:
+    @pytest.fixture
+    def bad_config_file(self, tmp_path):
+        p = tmp_path / "bad.yaml"
+        p.write_text("not: valid: yaml: [\n")
+        return p
+
+    def test_show_prints_error_on_parse_failure(self, bad_config_file):
+        runner = CliRunner()
+        with (
+            patch("voltkeeper.config._find_config", return_value=bad_config_file),
+        ):
+            result = runner.invoke(cli, ["config", "show"])
+
+        assert result.exit_code == 1
+        assert "voltkeeperd:" not in result.output
+        assert str(bad_config_file) in result.output
+        assert "Error reading config" in result.output
+        assert "error parsing" in result.output
+
+    def test_set_prints_error_on_parse_failure(self, bad_config_file):
+        runner = CliRunner()
+        with (
+            patch("voltkeeper.config.find_writable_config_path", return_value=bad_config_file),
+        ):
+            result = runner.invoke(cli, ["config", "set", "scan.interval", "90"])
+
+        assert result.exit_code == 1
+        assert "voltkeeperd:" not in result.output
+        assert str(bad_config_file) in result.output
+        assert "Error reading config" in result.output
+        assert "error parsing" in result.output
+
+    def test_add_device_prints_error_on_parse_failure(self, bad_config_file):
+        runner = CliRunner()
+        with (
+            patch("voltkeeper.config.find_writable_config_path", return_value=bad_config_file),
+        ):
+            result = runner.invoke(cli, ["config", "add-device", "AA:BB:CC:DD:EE:FF"])
+
+        assert result.exit_code == 1
+        assert "voltkeeperd:" not in result.output
+        assert str(bad_config_file) in result.output
+        assert "Error reading config" in result.output
+        assert "error parsing" in result.output
+
+    def test_remove_device_prints_error_on_parse_failure(self, bad_config_file):
+        runner = CliRunner()
+        with (
+            patch("voltkeeper.config.find_writable_config_path", return_value=bad_config_file),
+        ):
+            result = runner.invoke(cli, ["config", "remove-device", "AA:BB:CC:DD:EE:FF"])
+
+        assert result.exit_code == 1
+        assert "voltkeeperd:" not in result.output
+        assert str(bad_config_file) in result.output
+        assert "Error reading config" in result.output
+        assert "error parsing" in result.output

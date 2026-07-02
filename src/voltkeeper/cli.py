@@ -19,7 +19,7 @@ from .bluetooth import (
 )
 from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
-from .config import load_config, write_config
+from .config import ConfigError, load_config, write_config
 from .core.commands import ReadHoldingRegisters, TlvReadHoldingRegisters
 from .core.utils import _format_version
 
@@ -1753,7 +1753,7 @@ def daemon_install(lan):
 
     try:
         cfg = load_config()
-    except SystemExit:
+    except ConfigError:
         api_key = secrets.token_urlsafe(32)
         host = "0.0.0.0" if lan else "127.0.0.1"
         cfg = Config(server=ServerConfig(api_key=api_key, host=host, port=8080, mdns=lan), devices=[])
@@ -1871,7 +1871,7 @@ def _discover_api_key() -> str | None:
     try:
         config = load_config()
         return config.server.api_key
-    except SystemExit:
+    except ConfigError:
         return None
 
 
@@ -2036,13 +2036,17 @@ def config_show():
 
     try:
         config_path = _find_config()
-    except SystemExit:
+    except ConfigError:
         click.secho("No config file found. Searched:", fg="red")
         for p in CONFIG_SEARCH_PATHS:
             click.echo(f"  {p}")
         sys.exit(1)
 
-    cfg = load_config(config_path)
+    try:
+        cfg = load_config(config_path)
+    except ConfigError as e:
+        click.secho(f"Error reading config: {e.message}", fg="red")
+        sys.exit(1)
     masked_key = cfg.server.api_key[:4] + "..." if len(cfg.server.api_key) > 4 else "***"
 
     click.echo(f"Config file: {config_path}\n")
@@ -2083,7 +2087,11 @@ def config_set(key, value, daemon_url):
 
     config_path = find_writable_config_path()
     if config_path.exists():
-        cfg = load_config(config_path)
+        try:
+            cfg = load_config(config_path)
+        except ConfigError as e:
+            click.secho(f"Error reading config: {e.message}", fg="red")
+            sys.exit(1)
     else:
         click.secho(f"No config file found; creating {config_path}", fg="yellow")
         from .config import Config, ServerConfig
@@ -2130,7 +2138,11 @@ def config_add_device(address, name, daemon_url):
     address = address.upper()
     config_path = find_writable_config_path()
     if config_path.exists():
-        cfg = load_config(config_path)
+        try:
+            cfg = load_config(config_path)
+        except ConfigError as e:
+            click.secho(f"Error reading config: {e.message}", fg="red")
+            sys.exit(1)
     else:
         from .config import Config, ServerConfig
 
@@ -2160,7 +2172,11 @@ def config_remove_device(address, daemon_url):
         click.echo(f"Device {address} not found in config (no config file).")
         return
 
-    cfg = load_config(config_path)
+    try:
+        cfg = load_config(config_path)
+    except ConfigError as e:
+        click.secho(f"Error reading config: {e.message}", fg="red")
+        sys.exit(1)
     before = len(cfg.devices)
     cfg.devices = [d for d in cfg.devices if d.address != address]
     if len(cfg.devices) == before:

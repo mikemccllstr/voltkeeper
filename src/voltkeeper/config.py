@@ -5,11 +5,24 @@ from __future__ import annotations
 
 import ipaddress
 import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+
+class ConfigError(Exception):
+    """Raised by config loading functions when a file is missing, unparseable, or invalid.
+
+    Attributes:
+        message: Human-readable description of the failure.
+        path: The filesystem path of the config file that caused the error.
+    """
+
+    def __init__(self, message: str, path: Path) -> None:
+        super().__init__(message)
+        self.message = message
+        self.path = path
 
 
 def _xdg_config_path() -> Path:
@@ -76,16 +89,13 @@ def load_config(path: Path | None = None) -> Config:
     try:
         raw = yaml.safe_load(config_path.read_text())
     except yaml.YAMLError as e:
-        print(f"voltkeeperd: error parsing config file {config_path}: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise ConfigError(f"error parsing config file {config_path}: {e}", config_path)
 
     if raw is None:
-        print(f"voltkeeperd: config file {config_path} is empty", file=sys.stderr)
-        sys.exit(1)
+        raise ConfigError(f"config file {config_path} is empty", config_path)
 
     if not isinstance(raw, dict):
-        print(f"voltkeeperd: config file {config_path} must be a YAML mapping", file=sys.stderr)
-        sys.exit(1)
+        raise ConfigError(f"config file {config_path} must be a YAML mapping", config_path)
 
     return _parse_config(raw, config_path)
 
@@ -94,16 +104,14 @@ def _find_config(explicit_path: Path | None = None) -> Path:
     if explicit_path is not None:
         if explicit_path.exists():
             return explicit_path
-        print(f"voltkeeperd: config file not found: {explicit_path}", file=sys.stderr)
-        sys.exit(1)
+        raise ConfigError(f"config file not found: {explicit_path}", explicit_path)
 
     for p in CONFIG_SEARCH_PATHS:
         if p.exists():
             return p
 
     paths = "\n  ".join(str(p) for p in CONFIG_SEARCH_PATHS)
-    print(f"voltkeeperd: no config file found. Searched:\n  {paths}", file=sys.stderr)
-    sys.exit(1)
+    raise ConfigError(f"no config file found. Searched:\n  {paths}", Path("voltkeeper.yaml"))
 
 
 def _parse_config(raw: dict, config_path: Path) -> Config:
@@ -260,5 +268,4 @@ def write_config(config: Config, path: Path) -> None:
 
 
 def _fail(field: str, message: str, config_path: Path) -> None:
-    print(f"voltkeeperd: {field} {message} (in {config_path})", file=sys.stderr)
-    sys.exit(1)
+    raise ConfigError(f"{field} {message} (in {config_path})", config_path)

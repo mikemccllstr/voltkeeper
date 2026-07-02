@@ -8,7 +8,7 @@ from aiohttp import web
 
 from voltkeeper.api import CONFIG_KEY
 from voltkeeper.bus import EventBus
-from voltkeeper.config import Config, DeviceEntry, ScanConfig, ServerConfig
+from voltkeeper.config import Config, ConfigError, DeviceEntry, ScanConfig, ServerConfig
 from voltkeeper.daemon import Daemon
 
 
@@ -154,3 +154,21 @@ class TestInterfaceResolution:
 
         with pytest.raises(RuntimeError, match="nonexistent_nic_xyz"):
             _get_interface_ip("nonexistent_nic_xyz")
+
+
+class TestDaemonMainConfigError:
+    def test_main_prints_voltkeeperd_prefix_and_exits_1(self, capsys):
+        from pathlib import Path
+
+        from voltkeeper.daemon import main
+
+        with patch(
+            "voltkeeper.daemon.load_config",
+            side_effect=ConfigError("no config file found", Path("/nonexistent")),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main()
+
+        assert exc.value.code == 1
+        captured = capsys.readouterr()
+        assert "voltkeeperd: no config file found" in captured.err

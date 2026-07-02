@@ -14,7 +14,7 @@ from aiohttp import web
 from . import state_store
 from .api import create_app
 from .bus import EventBus
-from .config import Config, load_config
+from .config import Config, ConfigError, load_config
 from .device_manager import DeviceManager
 from .mdns import MdnsAdvertiser
 
@@ -141,7 +141,11 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         stream=sys.stderr,
     )
-    daemon = Daemon()
+    try:
+        daemon = Daemon()
+    except ConfigError as e:
+        print(f"voltkeeperd: {e.message}", file=sys.stderr)
+        sys.exit(1)
     daemon.run()
 
 
