@@ -5,15 +5,15 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 
-from voltkeeper.core.devices.ac2a import (
-    AC2A,
+from voltkeeper.core.devices.ac2a import AC2A
+from voltkeeper.core.devices.v2_base import (
+    APP_HOME_DATA,
     INV_BASE_INFO,
     INV_GRID_INFO,
     INV_INV_INFO,
     INV_LOAD_INFO,
     INV_PV_INFO,
 )
-from voltkeeper.core.devices.v2_base import APP_HOME_DATA
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "ac2a_baseline.json"
 

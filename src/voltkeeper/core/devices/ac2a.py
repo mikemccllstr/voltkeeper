@@ -4,16 +4,10 @@ from enum import Enum, unique
 from typing import List
 
 from ..commands import EmsCtrlMode, InvFrequency, LedColor, Pv2Type, PvType, ReadHoldingRegisters, WorkingMode
-from ..utils import _s16, _u16
 from .bluetti_device import SupportTier
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
-    INV_BASE_INFO,
     INV_BASE_SETTINGS,
-    INV_GRID_INFO,
-    INV_INV_INFO,
-    INV_LOAD_INFO,
-    INV_PV_INFO,
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
     WORKING_MODE,
@@ -151,118 +145,6 @@ class AC2A(V2Base):
         from .v2_base import decode_ctrl_event
 
         return decode_ctrl_event(ctrl_event)
-
-    # ── Parse dispatch (adds array helpers on top of V2Base) ────────────
-
-    def parse(self, address: int, data: bytes) -> dict:
-        result = super().parse(address, data)
-        if INV_BASE_INFO <= address < INV_PV_INFO:
-            self._fill_software_versions(result, data)
-        elif INV_PV_INFO <= address < INV_GRID_INFO:
-            self._fill_pv_strings(result, data)
-        elif INV_GRID_INFO <= address < INV_LOAD_INFO:
-            self._fill_grid_phases(result, data)
-        elif INV_LOAD_INFO <= address < INV_INV_INFO:
-            self._fill_load_phases(result, data)
-        elif INV_INV_INFO <= address < INV_BASE_SETTINGS:
-            self._fill_inv_phases(result, data)
-        return result
-
-    # ── Custom array helpers ────────────────────────────────────────────
-
-    # MCU type codes from the APK's DeviceFirmware enum.
-    # Maps type code to key-name prefix (suffix ``_version`` is appended).
-    _MCU_TYPE_NAMES: dict[int, str] = {
-        0: "iot",
-        1: "arm",
-        2: "dsp",
-        3: "bms",
-        4: "ba",
-        5: "pack_bcu",
-        6: "pack_bmu",
-        7: "pack_bms",
-        8: "pack_m1",
-        9: "pack_safety",
-        10: "pack_high_voltage",
-        11: "hmi1",
-        12: "hmi2",
-        13: "rf",
-        14: "dc_hub",
-        15: "ac_hub",
-        16: "dc_dc",
-        17: "ats",
-        18: "panel",
-        19: "parallel_box",
-        20: "inv_dsp2",
-        253: "pps",
-        254: "boot",
-        255: "system",
-    }
-
-    @staticmethod
-    def _fill_software_versions(result: dict, data: bytes):
-        for i in range(6):
-            off = 26 + i * 6
-            if len(data) < off + 6:
-                break
-            mcu_type = (data[off] << 8) | data[off + 1]
-            version = (_u16(data, off + 4) << 16) | _u16(data, off + 2)
-            if mcu_type > 0 and version > 0:
-                name = AC2A._MCU_TYPE_NAMES.get(mcu_type, f"mcu{mcu_type}")
-                result[f"{name}_version"] = version
-
-    @staticmethod
-    def _fill_pv_strings(result: dict, data: bytes):
-        pv_count = max(result.get("acPvNumber", 0) + result.get("dcPvNumber", 0), 0)
-        pv_count = min(pv_count, 5)
-
-        for i in range(pv_count):
-            off = 20 + i * 16
-            if len(data) < off + 10:
-                break
-            prefix = f"pv[{i}]"
-            result[f"{prefix}.workingStatus"] = data[off + 1]
-            result[f"{prefix}.type"] = data[off + 3]
-            result[f"{prefix}.inputPower"] = _u16(data, off + 4)
-            result[f"{prefix}.inputVoltage"] = _u16(data, off + 6) / 10.0
-            result[f"{prefix}.inputCurrent"] = _u16(data, off + 8) / 10.0
-
-    @staticmethod
-    def _fill_grid_phases(result: dict, data: bytes):
-        phases = min(result.get("sysPhaseNumber", 3), 3)
-        for i in range(phases):
-            off = 26 + i * 12
-            if len(data) < off + 10:
-                break
-            prefix = f"gridPhase[{i}]"
-            result[f"{prefix}.power"] = abs(_s16(data, off))
-            result[f"{prefix}.voltage"] = _u16(data, off + 2) / 10.0
-            result[f"{prefix}.current"] = abs(_s16(data, off + 4)) / 10.0
-
-    @staticmethod
-    def _fill_load_phases(result: dict, data: bytes):
-        phases = min(result.get("sysPhaseNumber", 3), 3)
-        for i in range(phases):
-            off = 60 + i * 12
-            if len(data) < off + 8:
-                break
-            prefix = f"acPhase[{i}]"
-            result[f"{prefix}.power"] = _u16(data, off)
-            result[f"{prefix}.voltage"] = _u16(data, off + 2) / 10.0
-            result[f"{prefix}.current"] = _u16(data, off + 4) / 10.0
-
-    @staticmethod
-    def _fill_inv_phases(result: dict, data: bytes):
-        phases = min(result.get("sysPhaseNumber", 3), 3)
-        for i in range(phases):
-            off = 18 + i * 12
-            if len(data) < off + 8:
-                break
-            prefix = f"invPhase[{i}]"
-            result[f"{prefix}.workStatus"] = data[off + 1]
-            result[f"{prefix}.power"] = _u16(data, off + 2)
-            result[f"{prefix}.voltage"] = _u16(data, off + 4) / 10.0
-            result[f"{prefix}.current"] = _u16(data, off + 6) / 10.0
 
     # ── Device properties ──────────────────────────────────────────────
 

@@ -23,7 +23,7 @@ Values are `on` or `off`:
 
 ## Enum fields
 
-- `charging_mode` — `standard`, `turbo`, or `silent`
+- `charging_mode` — `standard`, `turbo`, `silent`; also `custom` on EL100V2
 - `system_power` *(EL400)* — `normal`, `shutdown`, `power_down_v1`, `power_down_v2`, or `sleep`. Replaces the older `power_off` / `sleep_mode` toggles, which collided on register 2013. Use `system_power sleep` to enter sleep mode and `system_power shutdown` to power down.
 
 ## Numeric fields
@@ -39,6 +39,9 @@ Values are `on` or `off`:
 | `inv_voltage`      | Output voltage setting (volts, e.g. 120 or 230) | device-dependent |
 | `inv_freq`         | Output frequency setting (Hz, e.g. 50 or 60)    | device-dependent |
 | `working_mode`     | Operating mode index                            | device-dependent |
+
+`sys_low_power`, `sys_high_power`, and `led_color` are not available on the
+EL100V2 — the device does not honor those registers.
 
 ## Online vs Standby UPS (`ups_mode`)
 

@@ -36,6 +36,29 @@ For the AC2A, the minimum protocol version is defined in `DeviceConnUtil.getDevi
 - **Supports:** AC output, DC output, PV input, grid charging, ECO mode, UPS mode, power lifting
 - **Device function flags:** Defined in `DeviceConnUtil.getDeviceFunc("AC2A", protocolVer, ...)` which returns a `DeviceFunction` with ~135 boolean capability flags
 
+## EL100V2-Specific Notes
+
+- **Model code:** `"EL100V2"`, number 31 in `DeviceModel` enum
+- **Protocol:** V2 (≥2000)
+- **Charging modes:** register 2020 — `STANDARD` (0), `CUSTOM` (4). Values 1 and 2 are turbo and silent, but the exact mapping is unresolved: voltkeeper's enum has turbo=1/silent=2 while APK v3.0.10's `DeviceSettingsChgModeActivity` writes silent=1/turbo=2. Hardware confirmation is tracked as a separate change.
+- **Removed fields:** `sys_low_power` (2022), `sys_high_power` (2023), `led_color` (2078) — APK v3.0.10 sets `sysPowerConditions(null)` and does not opt into `ledColor` for EL100V2; hardware verification confirms these registers are not honored on this device. **(breaking)**
+- **grid_max_current:** Range `(1, 15)` per APK `maxGridChgCurrent` for non-high-volt EL100V2
+- **IoT:** EL100V2 responds on block 11000; firmware version array in INV_BASE_INFO reports ARM, DSP, BMS, and IOT versions
+- **Has battery:** Yes (built-in 56V LiFePO4)
+- **Supports:** AC output, DC output, grid charging, feed-in, ECO mode, Online UPS, working mode selection
+
+## V2 Array Parsing
+
+All V2 devices inherit array-shaped payload parsing from `V2Base.parse()`. This is protocol-generic behavior (matching APK v3.0.10 `ProtocolParserV2`) available to every V2 model:
+
+- **Firmware versions:** INV_BASE_INFO bytes 26–61 — up to 6 MCU firmware entries producing `*_version` keys
+- **PV strings:** INV_PV_INFO bytes 20+ — per-string working status, type, power, voltage (÷10), current (÷10)
+- **Grid phases:** INV_GRID_INFO bytes 26+ — per-phase power, voltage (÷10), current (÷10)
+- **Load phases:** INV_LOAD_INFO bytes 60+ — per-phase power, voltage (÷10), current (÷10)
+- **Inverter phases:** INV_INV_INFO bytes 18+ — per-phase work status, power, voltage (÷10), current (÷10)
+
+Keys appear only when the device reports non-zero counts and the entry data is non-zero.
+
 ## Device Model Changes in v3.0.9
 
 APK v3.0.8 had 115 device models; v3.0.9 adds 5 new models for a total of 120.

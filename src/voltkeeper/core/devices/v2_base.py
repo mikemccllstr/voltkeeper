@@ -5,7 +5,7 @@ from typing import Any, List
 from ..commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
 from ..struct import BoolField, DeviceStruct, EnumField
 from ..tlv import TlvParser
-from ..utils import _u16
+from ..utils import _s16, _u16
 from ._v2_alarm_tables import (
     HIGH_POWER_FAULT_NAMES,
     HIGH_POWER_WARN_NAMES,
@@ -64,6 +64,36 @@ V2_CTRL_EVENT_BITS: list[tuple[str, str]] = [
 def decode_ctrl_event(ctrl_event: int) -> dict[str, bool]:
     """Decode a ctrl_event bitmask into named capability flags."""
     return {name: bool(ctrl_event & (1 << i)) for i, (name, _) in enumerate(V2_CTRL_EVENT_BITS)}
+
+
+# MCU type codes from the APK's DeviceFirmware enum.
+# Maps type code to key-name prefix (suffix ``_version`` is appended).
+_MCU_TYPE_NAMES: dict[int, str] = {
+    0: "iot",
+    1: "arm",
+    2: "dsp",
+    3: "bms",
+    4: "ba",
+    5: "pack_bcu",
+    6: "pack_bmu",
+    7: "pack_bms",
+    8: "pack_m1",
+    9: "pack_safety",
+    10: "pack_high_voltage",
+    11: "hmi1",
+    12: "hmi2",
+    13: "rf",
+    14: "dc_hub",
+    15: "ac_hub",
+    16: "dc_dc",
+    17: "ats",
+    18: "panel",
+    19: "parallel_box",
+    20: "inv_dsp2",
+    253: "pps",
+    254: "boot",
+    255: "system",
+}
 
 
 class V2Base(BluettiDevice):
@@ -262,15 +292,25 @@ class V2Base(BluettiDevice):
             self._fill_v2_alarms(result, data)
             return result
         elif INV_BASE_INFO <= address < INV_PV_INFO:
-            return self.inv_base_struct.parse(address, data)
+            result = self.inv_base_struct.parse(address, data)
+            self._fill_software_versions(result, data)
+            return result
         elif INV_PV_INFO <= address < INV_GRID_INFO:
-            return self.inv_pv_struct.parse(address, data)
+            result = self.inv_pv_struct.parse(address, data)
+            self._fill_pv_strings(result, data)
+            return result
         elif INV_GRID_INFO <= address < INV_LOAD_INFO:
-            return self.inv_grid_struct.parse(address, data)
+            result = self.inv_grid_struct.parse(address, data)
+            self._fill_grid_phases(result, data)
+            return result
         elif INV_LOAD_INFO <= address < INV_INV_INFO:
-            return self.inv_load_struct.parse(address, data)
+            result = self.inv_load_struct.parse(address, data)
+            self._fill_load_phases(result, data)
+            return result
         elif INV_INV_INFO <= address < INV_BASE_SETTINGS:
-            return self.inv_inv_struct.parse(address, data)
+            result = self.inv_inv_struct.parse(address, data)
+            self._fill_inv_phases(result, data)
+            return result
         elif INV_BASE_SETTINGS <= address < 2300:
             return self.control_struct.parse(address, data)
         elif address == V1_UPS_MODE:
@@ -590,6 +630,71 @@ class V2Base(BluettiDevice):
                 result["network_conn_mode"] = MODES.get(mode, f"unknown({mode})")
 
         return result
+
+    @staticmethod
+    def _fill_software_versions(result: dict, data: bytes):
+        for i in range(6):
+            off = 26 + i * 6
+            if len(data) < off + 6:
+                break
+            mcu_type = (data[off] << 8) | data[off + 1]
+            version = (_u16(data, off + 4) << 16) | _u16(data, off + 2)
+            if mcu_type > 0 and version > 0:
+                name = _MCU_TYPE_NAMES.get(mcu_type, f"mcu{mcu_type}")
+                result[f"{name}_version"] = version
+
+    @staticmethod
+    def _fill_pv_strings(result: dict, data: bytes):
+        pv_count = max(result.get("acPvNumber", 0) + result.get("dcPvNumber", 0), 0)
+        pv_count = min(pv_count, 5)
+
+        for i in range(pv_count):
+            off = 20 + i * 16
+            if len(data) < off + 10:
+                break
+            prefix = f"pv[{i}]"
+            result[f"{prefix}.workingStatus"] = data[off + 1]
+            result[f"{prefix}.type"] = data[off + 3]
+            result[f"{prefix}.inputPower"] = _u16(data, off + 4)
+            result[f"{prefix}.inputVoltage"] = _u16(data, off + 6) / 10.0
+            result[f"{prefix}.inputCurrent"] = _u16(data, off + 8) / 10.0
+
+    @staticmethod
+    def _fill_grid_phases(result: dict, data: bytes):
+        phases = min(result.get("sysPhaseNumber", 3), 3)
+        for i in range(phases):
+            off = 26 + i * 12
+            if len(data) < off + 10:
+                break
+            prefix = f"gridPhase[{i}]"
+            result[f"{prefix}.power"] = abs(_s16(data, off))
+            result[f"{prefix}.voltage"] = _u16(data, off + 2) / 10.0
+            result[f"{prefix}.current"] = abs(_s16(data, off + 4)) / 10.0
+
+    @staticmethod
+    def _fill_load_phases(result: dict, data: bytes):
+        phases = min(result.get("sysPhaseNumber", 3), 3)
+        for i in range(phases):
+            off = 60 + i * 12
+            if len(data) < off + 8:
+                break
+            prefix = f"acPhase[{i}]"
+            result[f"{prefix}.power"] = _u16(data, off)
+            result[f"{prefix}.voltage"] = _u16(data, off + 2) / 10.0
+            result[f"{prefix}.current"] = _u16(data, off + 4) / 10.0
+
+    @staticmethod
+    def _fill_inv_phases(result: dict, data: bytes):
+        phases = min(result.get("sysPhaseNumber", 3), 3)
+        for i in range(phases):
+            off = 18 + i * 12
+            if len(data) < off + 8:
+                break
+            prefix = f"invPhase[{i}]"
+            result[f"{prefix}.workStatus"] = data[off + 1]
+            result[f"{prefix}.power"] = _u16(data, off + 2)
+            result[f"{prefix}.voltage"] = _u16(data, off + 4) / 10.0
+            result[f"{prefix}.current"] = _u16(data, off + 6) / 10.0
 
     @property
     def writable_ranges(self) -> List[range]:
