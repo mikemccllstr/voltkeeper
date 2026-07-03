@@ -12,7 +12,8 @@ from typing import Any, Optional
 
 from .commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
 from .devices.bluetti_device import BluettiDevice
-from .struct import BoolField, DecimalField, EnumField, Uint8Field, UintField
+from .devices.v2_base import IOT_BASE_INFO
+from .struct import BcdSerialField, BoolField, DecimalField, DeviceStruct, EnumField, Uint8Field, UintField
 from .tlv import TlvParser
 
 # Global field risk classification.  Fields not listed default to tier 2/3 (automatic).
@@ -74,6 +75,11 @@ class BlockResult:
     status: str  # "pass" | "fail"
     fields_parsed: int = 0
     error: Optional[str] = None
+    raw: Optional[str] = None
+    # True when raw holds an unsplittable TLV bundle rather than this block's
+    # own payload: block offsets don't apply, so scrubbing drops it and the
+    # report keys it as raw_bundle.
+    raw_is_bundle: bool = False
 
 
 @dataclass
@@ -207,26 +213,46 @@ async def run_tier1(client: Any, device: BluettiDevice) -> tuple[TierResult, dic
         if isinstance(cmd, TlvReadHoldingRegisters):
             try:
                 raw = await client.execute(cmd)
-                items = TlvParser.parse(raw)
-                for item in items:
-                    addr_key = str(item.reg_addr)
-                    parsed = device.parse(item.reg_addr, item.value)
-                    merged.update(parsed)
-                    result.blocks[addr_key] = BlockResult(status="pass", fields_parsed=len(parsed))
             except Exception as exc:
                 for start_addr, _ in cmd.sections:
-                    addr_key = str(start_addr)
-                    result.blocks[addr_key] = BlockResult(status="fail", error=str(exc))
+                    result.blocks[str(start_addr)] = BlockResult(status="fail", error=str(exc))
                 result.status = "fail"
+                continue
+            try:
+                items = TlvParser.parse(raw)
+            except Exception as exc:
+                # Bundle bytes can't be split into blocks, so they can't be
+                # offset-scrubbed; raw_is_bundle tells the scrubber to drop
+                # them and the report to key them as raw_bundle.
+                for start_addr, _ in cmd.sections:
+                    result.blocks[str(start_addr)] = BlockResult(
+                        status="fail", error=str(exc), raw=raw.hex(), raw_is_bundle=True
+                    )
+                result.status = "fail"
+                continue
+            for item in items:
+                addr_key = str(item.reg_addr)
+                try:
+                    parsed = device.parse(item.reg_addr, item.value)
+                    merged.update(parsed)
+                    result.blocks[addr_key] = BlockResult(
+                        status="pass", fields_parsed=len(parsed), raw=item.value.hex()
+                    )
+                except Exception as exc:
+                    result.blocks[addr_key] = BlockResult(status="fail", error=str(exc), raw=item.value.hex())
+                    result.status = "fail"
         else:
             addr_key = str(cmd.starting_address)
+            payload: Optional[bytes] = None
             try:
-                raw = await client.execute(cmd)
-                parsed = device.parse(cmd.starting_address, raw)
+                payload = await client.execute(cmd)
+                parsed = device.parse(cmd.starting_address, payload)
                 merged.update(parsed)
-                result.blocks[addr_key] = BlockResult(status="pass", fields_parsed=len(parsed))
+                result.blocks[addr_key] = BlockResult(status="pass", fields_parsed=len(parsed), raw=payload.hex())
             except Exception as exc:
-                result.blocks[addr_key] = BlockResult(status="fail", error=str(exc))
+                result.blocks[addr_key] = BlockResult(
+                    status="fail", error=str(exc), raw=payload.hex() if payload is not None else None
+                )
                 result.status = "fail"
 
     return result, merged
@@ -574,6 +600,70 @@ async def run_tier_supervised(
 
 _FIRMWARE_FIELD_SUBSTRINGS = ("ver", "version", "firmware", "software")
 
+# Fixed byte offsets of identifying data in the IOT_BASE_INFO block, per
+# _parse_iot_info. These are not struct fields, so they can't be derived
+# the way SN fields are.
+# NODE_INFO (21000) payloads nest pack blocks (with pack serials) inside a
+# TLV structure and are NOT scrubbed here; no current device polls it
+# (has_sub_devices is False everywhere). Revisit when pack devices land.
+_IOT_SCRUB_RANGES: list[tuple[int, int]] = [
+    (12, 8),  # iot_sn
+    (40, 4),  # wifi_ip
+    (44, 4),  # wifi_gateway
+    (48, 4),  # wifi_mask
+    (54, 6),  # wifi_mac
+    (60, 6),  # ble_mac
+]
+
+
+def _device_bcd_sn_fields(device: BluettiDevice) -> list[BcdSerialField]:
+    """Collect BCD serial-number fields from all of the device's structs."""
+    fields: list[BcdSerialField] = []
+    for attr in vars(device).values():
+        if isinstance(attr, DeviceStruct):
+            fields.extend(f for f in attr.fields if isinstance(f, BcdSerialField))
+    return fields
+
+
+def _scrub_block_raw(hex_str: str, block_addr: int, sn_fields: list[BcdSerialField]) -> str:
+    """Zero sensitive bytes in one block's raw hex.
+
+    Any BCD SN field whose registers fall inside the block's read window
+    [block_addr, block_addr + payload_regs) is zeroed at its offset within
+    the payload; IOT_BASE_INFO additionally gets its fixed MAC/IP/SN ranges.
+    """
+    data = bytearray(bytes.fromhex(hex_str))
+    reg_count = len(data) // 2
+    for field in sn_fields:
+        if block_addr <= field.address < block_addr + reg_count:
+            offset = 2 * (field.address - block_addr)
+            end = min(offset + 2 * field.size, len(data))
+            data[offset:end] = b"\x00" * (end - offset)
+    if block_addr == IOT_BASE_INFO:
+        for offset, size in _IOT_SCRUB_RANGES:
+            end = min(offset + size, len(data))
+            if offset < end:
+                data[offset:end] = b"\x00" * (end - offset)
+    return bytes(data).hex()
+
+
+def _scrub_tier_results_raw(device: BluettiDevice, tier_results: list[TierResult]) -> None:
+    """Mutate tier_results in-place: zero sensitive bytes in block raw hex strings."""
+    sn_fields = _device_bcd_sn_fields(device)
+    for tr in tier_results:
+        for addr_key, block in tr.blocks.items():
+            if block.raw is None:
+                continue
+            if block.raw_is_bundle:
+                # Bundle-shaped bytes can't be offset-scrubbed safely; drop.
+                block.raw = None
+                continue
+            try:
+                block_addr = int(addr_key)
+            except ValueError:
+                continue
+            block.raw = _scrub_block_raw(block.raw, block_addr, sn_fields)
+
 
 def _tier_result_to_dict(tr: TierResult) -> dict:
     d: dict = {"status": tr.status}
@@ -587,6 +677,8 @@ def _tier_result_to_dict(tr: TierResult) -> dict:
             bd: dict = {"status": b.status, "fields_parsed": b.fields_parsed}
             if b.error:
                 bd["error"] = b.error
+            if b.raw is not None:
+                bd["raw_bundle" if b.raw_is_bundle else "raw"] = b.raw
             d["blocks"][k] = bd
     if tr.fields is not None:
         d["fields"] = {}
@@ -642,6 +734,9 @@ def build_report(
 
     display_sn = "VKTEST000000" if scrub else sn
     display_address = "AA:BB:CC:DD:EE:FF" if scrub else address.upper()
+
+    if scrub:
+        _scrub_tier_results_raw(device, tier_results)
 
     firmware = {k: v for k, v in tier1_values.items() if any(sub in k.lower() for sub in _FIRMWARE_FIELD_SUBSTRINGS)}
 

@@ -4,7 +4,7 @@
 
 Tier 1 SHALL poll all blocks returned by the device's `control_commands` and `polling_commands`, parse each response, and verify that every field listed in the device's `WRITABLE_FIELD_NAMES` and expected status fields is present in the parsed result without raising an exception. When the device's `control_commands` include a read of `IOT_BASE_INFO` (11000), tier 1 SHALL include that block in the report.
 
-Tier 1 SHALL record the raw payload of every block it reads as a hex string in that block's report entry, for both plain reads and TLV-bundled reads (TLV items recorded per `reg_addr`, matching the parse dispatch). Raw payloads SHALL be recorded even when parsing the block fails.
+Tier 1 SHALL record the raw payload of every block it reads as a hex string in that block's report entry, for both plain reads and TLV-bundled reads (TLV items recorded per `reg_addr`, matching the parse dispatch). Raw payloads SHALL be recorded even when parsing the block fails. Within a TLV bundle, one item's parse failure SHALL NOT discard other items' results or raw payloads. When a TLV bundle itself cannot be split into items, the bundle bytes SHALL be recorded flagged as bundle-shaped (reported under `raw_bundle`, not `raw`) since they are not any single block's payload.
 
 #### Scenario: All blocks parse cleanly
 
@@ -26,11 +26,20 @@ Tier 1 SHALL record the raw payload of every block it reads as a hex string in t
 - **WHEN** tier 1 executes a TLV-bundled read returning items for multiple register addresses
 - **THEN** each item's block entry records that item's own payload hex under `raw`
 
+#### Scenario: TLV item parse failure is isolated
+- **WHEN** one item in a TLV bundle raises during parsing
+- **THEN** that item's block is recorded as `fail` with its own payload hex
+- **THEN** the other items in the bundle keep their `pass` results and raw payloads
+
+#### Scenario: Unparseable TLV bundle recorded as bundle-shaped
+- **WHEN** a TLV response cannot be split into items
+- **THEN** each section's block is recorded as `fail` with the bundle hex flagged as bundle-shaped
+
 ### Requirement: output report is a scrubbed YAML file
 
 The system SHALL write a YAML report to `hardware-data/verify-<MODEL>-<YYYY-MM-DD>.yaml` by default (overridable with `--output`). The report SHALL replace the device serial number with `VKTEST000000` and the BLE MAC address with `AA:BB:CC:DD:EE:FF` unless `--no-scrub` is passed. The report SHALL contain a top-level section per tier. Tier 3 numeric fields SHALL use the summary output format defined in the tier 3 requirement (no `probes` list; summary fields instead). Tier 3 bool and enum fields retain their existing `probes` list format.
 
-Raw block payloads recorded by tier 1 SHALL also be scrubbed unless `--no-scrub` is passed: bytes belonging to serial-number fields (located via the device's struct field definitions, e.g. BCD SN fields in the HOME, INV_BASE_INFO, and PACK_MAIN_INFO blocks) and the IOT block's MAC and IP bytes SHALL be zeroed in the recorded hex.
+Raw block payloads recorded by tier 1 SHALL also be scrubbed unless `--no-scrub` is passed: bytes of any BCD serial-number field falling within a block's read window SHALL be zeroed, with SN fields collected from all of the device's struct definitions so V1 and V2 devices are covered alike; the IOT block's module SN, MAC, and IP bytes SHALL be zeroed at their fixed offsets. Bundle-shaped raw payloads (unsplittable TLV bundles) cannot be offset-scrubbed and SHALL be omitted from scrubbed reports; `--no-scrub` retains them under `raw_bundle`.
 
 #### Scenario: Report written to hardware-data by default
 
@@ -53,13 +62,25 @@ Raw block payloads recorded by tier 1 SHALL also be scrubbed unless `--no-scrub`
 
 - **WHEN** a verify run completes without `--no-scrub` on a device whose HOME block contains a BCD-encoded serial number
 - **THEN** the recorded HOME block hex has the SN register bytes zeroed
-- **THEN** the recorded IOT block hex (if present) has MAC and IP bytes zeroed
+- **THEN** the recorded IOT block hex (if present) has module SN, MAC, and IP bytes zeroed
 - **THEN** parsing the scrubbed HOME hex succeeds and yields SN `0`
+
+#### Scenario: V1 device serial numbers are scrubbed
+
+- **WHEN** a verify run completes without `--no-scrub` on a V1 device whose real-data block (base register 10) contains the BCD SN at register 21
+- **THEN** the recorded block hex has those SN bytes zeroed
 
 #### Scenario: --no-scrub preserves raw payloads
 
 - **WHEN** a verify run completes with `--no-scrub`
 - **THEN** recorded block hex is byte-identical to what the device returned
+
+#### Scenario: Bundle-shaped raw dropped from scrubbed reports
+
+- **WHEN** a verify run records an unsplittable TLV bundle and scrubbing is enabled
+- **THEN** the report contains neither `raw` nor `raw_bundle` for the affected blocks
+- **WHEN** the same run uses `--no-scrub`
+- **THEN** the bundle hex appears under `raw_bundle`
 
 #### Scenario: Skipped tiers are documented
 

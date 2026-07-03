@@ -125,8 +125,8 @@ Tier 2  ████░░░░  16/19  ✗
 
 ## Output report
 
-The report is written to `verify-<MODEL>-<YYYY-MM-DD>.yaml` in the current
-directory unless overridden with `--output`.
+The report is written to `hardware-data/verify-<MODEL>-<YYYY-MM-DD>.yaml`
+unless overridden with `--output`.
 
 ### Scrubbing
 
@@ -134,6 +134,53 @@ By default the real serial number is replaced with `VKTEST000000` and the BLE
 MAC address with `AA:BB:CC:DD:EE:FF` before the report is written. Use
 `--no-scrub` to disable scrubbing if you are comfortable sharing your device
 identifiers.
+
+Raw block payloads in tier 1 are also scrubbed: bytes belonging to
+serial-number fields (located via the device's struct field definitions, for
+both V1 and V2 register layouts) and the IoT block's module serial, MAC, and
+IP bytes are zeroed in the recorded hex. `--no-scrub` bypasses raw scrubbing
+along with the text scrubbing.
+
+### Raw payload capture
+
+Every tier-1 block entry records the raw hex payload returned by the device in
+a `raw` field. This is interpretation-free ground truth — the bytes the device
+sent, before any parsing. Raw payloads are recorded for:
+
+- Plain reads (`ReadHoldingRegisters`): one `raw` field per block.
+- TLV-bundled reads (`TlvReadHoldingRegisters`): one `raw` field per register
+  address in the bundle, recorded from each TLV item's payload. One item's
+  parse failure does not discard the other items' results.
+- Parse failures: the raw hex is recorded alongside the error so the bytes that
+  caused the failure are preserved.
+
+Raw scrubbing (see above) is applied to these payloads before the report is
+written so that captured bytes are safe to commit.
+
+One exception: if a TLV response is so malformed it cannot be split into
+items, its bytes are not any single block's payload and cannot be scrubbed
+byte-precisely. Scrubbed reports omit such bundles (the error is still
+recorded); with `--no-scrub` the bundle hex appears under `raw_bundle`
+instead of `raw`.
+
+### Promoting a capture to a test fixture
+
+Captured raw hex can be promoted into a conftest fixture for parse tests:
+
+1. Run `voltkeeper verify <address>` on the target device.
+1. Open the report in `hardware-data/` and find the block you need under
+   `tier_1.blocks`.
+1. Copy the `raw` hex string into a `_HEX` constant in `tests/conftest.py`,
+   following the existing AC2A fixtures as a pattern.
+1. Document the capture-time device state in a comment: battery level, AC load,
+   PV input, charging status, and any relevant operating mode. See the
+   `tests/conftest.py` AC2A fixture comments for the convention.
+1. Write a `pytest.fixture` that returns `bytes.fromhex(_HEX)` and use it in
+   your parse tests.
+
+Because verify runs scrub by default, captured bytes have serial numbers and
+MAC/IP already zeroed, so fixtures created this way carry no identifiable
+information.
 
 ### Report structure
 
@@ -153,6 +200,7 @@ tier_1:
     "100":
       status: pass
       fields_parsed: 23
+      raw: "0aaa00130064000201000100000000000000000000434..."
 
 tier_2:
   status: pass

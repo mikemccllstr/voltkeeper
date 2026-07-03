@@ -28,11 +28,17 @@ Each tier-1 `BlockResult` gains a `raw` field: the payload as a hex string, keye
 
 *Alternative considered:* sidecar file per run. Rejected — two artifacts to keep paired, and the report already carries the device/firmware metadata that gives the bytes meaning.
 
-### 2. Raw scrubbing zeroes sensitive bytes at struct-known offsets
+### 2. Raw scrubbing zeroes sensitive bytes at struct-derived offsets
 
-The existing scrub replaces parsed SN/MAC strings in the YAML text; raw payloads need byte-level treatment. Sensitive fields are locatable from the device's own struct definitions: BCD SN fields (home 116–119, inv_base 1107–1110, pack_main 6004–6007) and the IOT block's MAC/IP bytes (fixed offsets per `_parse_iot_info`). Those byte ranges are zeroed in the recorded hex. Zeroed SN parses as `0`, which the report's `device` section already presents scrubbed, so parsed and raw stay consistent. `--no-scrub` bypasses raw scrubbing along with the existing text scrubbing.
+The existing scrub replaces parsed SN/MAC strings in the YAML text; raw payloads need byte-level treatment. BCD SN fields are collected from *all* of the device's struct definitions (not a fixed list of struct names — V1 devices keep their SN in `real_data_struct`, V2 in `home_struct`/`inv_base_struct`/`pack_main_struct`), and any SN field whose registers fall inside a block's read window `[block_addr, block_addr + payload_regs)` is zeroed at its offset within that payload. The IOT block additionally gets fixed-offset ranges per `_parse_iot_info`: module SN, MAC, and IP bytes. Zeroed SN parses as `0`, which the report's `device` section already presents scrubbed, so parsed and raw stay consistent. `--no-scrub` bypasses raw scrubbing along with the existing text scrubbing.
 
 *Alternative considered:* encode a fake SN (`VKTEST000000`) into the bytes. Rejected — BCD SN fields are numeric and can't hold that string; zeroing is honest about what was removed and round-trips through the parsers safely.
+
+Known deferral: NODE_INFO (21000) payloads nest pack blocks (with pack serials) inside a TLV structure and are not offset-scrubbed. No current device polls NODE_INFO (`has_sub_devices` is False everywhere); a code comment marks the spot to revisit when pack devices land.
+
+### 2a. Unsplittable TLV bundles are dropped from scrubbed reports
+
+Within a bundle, one item's parse failure is isolated: other items keep their results and per-item raw. But when the bundle itself can't be split into items, its bytes are not any single block's payload, so block-relative scrub offsets don't apply. Rather than risk committing an unscrubbed serial, scrubbed reports drop bundle-shaped raw entirely (the error is still recorded); `--no-scrub` retains the bytes under a distinct `raw_bundle` key so the shape is never mistaken for a block payload.
 
 ### 3. Fixture promotion is documented, not automated
 

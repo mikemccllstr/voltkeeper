@@ -7,16 +7,18 @@ import struct
 
 import pytest
 
-from voltkeeper.core.commands import ReadHoldingRegisters, WriteSingleRegister
+from voltkeeper.core.commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
 from voltkeeper.core.devices.ac2a import AC2A, ChargingMode
 from voltkeeper.core.struct import BoolField, DecimalField, EnumField, Uint8Field, UintField
 from voltkeeper.core.verify import (
     FIELD_TIERS,
     SKIP_AUTO,
+    BlockResult,
     FieldResult,
     TierResult,
     build_report,
     build_tier_plan,
+    run_tier1,
     run_tier2,
     run_tier3,
     run_tier3_bool,
@@ -88,7 +90,29 @@ class FakeBluetoothClient:
                 val = self.read_overrides.get(addr, self.state.get(addr, 0))
                 parts.append(struct.pack("!H", val))
             return b"".join(parts)
+        if isinstance(cmd, TlvReadHoldingRegisters):
+            return self._build_tlv_response(cmd)
         raise ValueError(f"Unsupported command type: {type(cmd).__name__}")
+
+    def _build_tlv_response(self, cmd: TlvReadHoldingRegisters) -> bytes:
+        """Build TLV-encoded response data from current state.
+        TLV format: magic(3) + per-item [slave(1) reg_addr(2BE) length(2BE) value(N) crc16(2)]
+        """
+        from voltkeeper.core.tlv import TLV_MAGIC
+
+        items = bytearray()
+        for addr, count in cmd.sections:
+            item_value = bytearray()
+            for i in range(count):
+                reg_addr = addr + i
+                val = self.read_overrides.get(reg_addr, self.state.get(reg_addr, 0))
+                item_value.extend(struct.pack("!H", val))
+            items.append(cmd.slave_addr & 0xFF)
+            items.extend(struct.pack("!HH", addr, len(item_value)))
+            items.extend(item_value)
+            items.append(0x00)
+            items.append(0x00)
+        return TLV_MAGIC + bytes(items)
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -656,3 +680,242 @@ async def test_declared_range_and_discrepancy_when_discovered_differs():
     assert result.declared_range == [10, 20]
     assert result.discovered_range == [5, 25]
     assert result.range_discrepancy is True
+
+
+# ── 7. Raw payload recording in tier 1 ─────────────────────────────────────────
+
+
+async def test_run_tier1_plain_read_records_raw_hex(ac2a):
+    ac2a._force_full_poll = True
+    client = FakeBluetoothClient({})
+    result, _ = await run_tier1(client, ac2a)
+
+    for addr_key, block in result.blocks.items():
+        assert block.raw is not None, f"Block {addr_key} missing raw hex"
+        assert isinstance(block.raw, str), f"Block {addr_key} raw is not a str"
+        assert len(block.raw) > 0, f"Block {addr_key} raw is empty"
+        raw_bytes = bytes.fromhex(block.raw)
+        assert len(raw_bytes) > 0, f"Block {addr_key} raw bytes are empty"
+
+
+async def test_run_tier1_parse_failure_records_raw_hex(ac2a):
+    ac2a._force_full_poll = True
+    client = FakeBluetoothClient({})
+    original_parse = ac2a.parse
+    home_addr = 100
+
+    def failing_parse(address, data):
+        if address == home_addr:
+            raise RuntimeError("simulated parse failure")
+        return original_parse(address, data)
+
+    ac2a.parse = failing_parse
+    try:
+        result, _ = await run_tier1(client, ac2a)
+        home_block = result.blocks[str(home_addr)]
+        assert home_block.status == "fail"
+        assert home_block.raw is not None, "Failed block missing raw hex"
+        assert len(home_block.raw) > 0, "Failed block raw is empty"
+        assert home_block.error == "simulated parse failure"
+    finally:
+        ac2a.parse = original_parse
+
+
+async def test_run_tier1_tlv_records_raw_per_item(ac2a):
+    from unittest.mock import patch
+
+    ac2a._force_full_poll = True
+    tlv_cmds = ac2a.tlv_polling_commands
+    client = FakeBluetoothClient({})
+    with patch.object(type(ac2a), "polling_commands", tlv_cmds):
+        result, _ = await run_tier1(client, ac2a)
+        assert len(result.blocks) > 0, "No TLV blocks recorded"
+        for addr_key, block in result.blocks.items():
+            assert block.raw is not None, f"TLV block {addr_key} missing raw hex"
+            assert isinstance(block.raw, str), f"TLV block {addr_key} raw is not a str"
+            raw_bytes = bytes.fromhex(block.raw)
+            assert len(raw_bytes) > 0, f"TLV block {addr_key} raw bytes are empty"
+
+
+async def test_run_tier1_tlv_item_parse_failure_isolated(ac2a):
+    """One item's parse failure must not discard other items' results or raw."""
+    from unittest.mock import patch
+
+    ac2a._force_full_poll = True
+    tlv_cmds = ac2a.tlv_polling_commands
+    client = FakeBluetoothClient({})
+    original_parse = ac2a.parse
+
+    def failing_parse(address, data):
+        if address == 1100:
+            raise RuntimeError("simulated item parse failure")
+        return original_parse(address, data)
+
+    ac2a.parse = failing_parse
+    try:
+        with patch.object(type(ac2a), "polling_commands", tlv_cmds):
+            result, _ = await run_tier1(client, ac2a)
+    finally:
+        ac2a.parse = original_parse
+
+    failed = result.blocks["1100"]
+    assert failed.status == "fail"
+    assert failed.error == "simulated item parse failure"
+    assert failed.raw is not None, "Failed item should keep its own raw hex"
+    assert failed.raw_is_bundle is False
+    home = result.blocks["100"]
+    assert home.status == "pass", "Other items must survive one item's parse failure"
+    assert home.raw is not None
+
+
+async def test_run_tier1_unparseable_tlv_bundle_records_bundle_raw(ac2a):
+    """A bundle TlvParser can't parse is recorded as bundle-shaped raw, not per-block raw."""
+    from unittest.mock import patch
+
+    from voltkeeper.core.tlv import TLV_MAGIC
+
+    ac2a._force_full_poll = True
+    tlv_cmds = ac2a.tlv_polling_commands
+    # Item header declaring a length far beyond the data => ParseError
+    garbage = TLV_MAGIC + bytes([0x01, 0x00, 0x64, 0xFF, 0xFF]) + b"\x00" * 4
+
+    class GarbageTlvClient(FakeBluetoothClient):
+        def _build_tlv_response(self, cmd):
+            return garbage
+
+    client = GarbageTlvClient({})
+    with patch.object(type(ac2a), "polling_commands", tlv_cmds):
+        result, _ = await run_tier1(client, ac2a)
+
+    section_addrs = [str(addr) for addr, _ in tlv_cmds[0].sections]
+    for addr_key in section_addrs:
+        block = result.blocks[addr_key]
+        assert block.status == "fail"
+        assert block.raw == garbage.hex()
+        assert block.raw_is_bundle is True, "Bundle hex must be flagged as bundle-shaped"
+
+
+def test_scrub_drops_unparseable_bundle_raw(ac2a):
+    """Bundle-shaped raw can't be offset-scrubbed, so scrubbed reports must drop it."""
+    br = BlockResult(status="fail", error="boom", raw="deadbeef", raw_is_bundle=True)
+    t1 = TierResult(tier=1, status="fail", blocks={"100": br})
+    report = build_report(ac2a, "REAL-SN", "AA:BB:CC:DD:EE:FF", [t1], {})
+    block_100 = report["tier_1"]["blocks"]["100"]
+    assert "raw" not in block_100
+    assert "raw_bundle" not in block_100
+
+
+def test_no_scrub_keeps_bundle_raw_under_distinct_key(ac2a):
+    br = BlockResult(status="fail", error="boom", raw="deadbeef", raw_is_bundle=True)
+    t1 = TierResult(tier=1, status="fail", blocks={"100": br})
+    report = build_report(ac2a, "SN", "AA:BB:CC:DD:EE:FF", [t1], {}, scrub=False)
+    block_100 = report["tier_1"]["blocks"]["100"]
+    assert block_100["raw_bundle"] == "deadbeef"
+    assert "raw" not in block_100
+
+
+def test_tier_result_to_dict_includes_raw_in_blocks(ac2a):
+    br = BlockResult(status="pass", fields_parsed=5, raw="deadbeef")
+    t1 = TierResult(tier=1, status="pass", blocks={"100": br})
+    report = build_report(ac2a, "x", "x", [t1], {})
+    block_100 = report["tier_1"]["blocks"]["100"]
+    assert block_100["status"] == "pass"
+    assert block_100["fields_parsed"] == 5
+    assert block_100["raw"] == "deadbeef"
+
+
+def test_tier_result_to_dict_omits_raw_when_none(ac2a):
+    br = BlockResult(status="fail", fields_parsed=0, error="boom")
+    t1 = TierResult(tier=1, status="fail", blocks={"100": br})
+    report = build_report(ac2a, "x", "x", [t1], {})
+    block_100 = report["tier_1"]["blocks"]["100"]
+    assert "raw" not in block_100
+
+
+# ── 8. Raw payload scrubbing ──────────────────────────────────────────────────
+
+
+def test_scrub_zeroes_v1_real_data_sn_bytes():
+    """V1 devices keep deviceSN in real_data_struct (reg 21 of block 10) — must be scrubbed too."""
+    from voltkeeper.core.devices.eb3a import EB3A
+
+    eb3a = EB3A("00:00:00:00:00:00", "TEST")
+    raw_bytes = bytes([0xAB] * 220)  # BASE_REAL_DATA block: 110 regs
+    br = BlockResult(status="pass", fields_parsed=10, raw=raw_bytes.hex())
+    t1 = TierResult(tier=1, status="pass", blocks={"10": br})
+    report = build_report(eb3a, "REAL-SN", "AA:BB:CC:DD:EE:FF", [t1], {})
+    scrubbed_bytes = bytes.fromhex(report["tier_1"]["blocks"]["10"]["raw"])
+    # deviceSN: reg 21, 4 regs -> byte offset 2*(21-10)=22, 8 bytes
+    assert scrubbed_bytes[22:30] == b"\x00" * 8, f"V1 SN bytes not zeroed: {scrubbed_bytes[22:30].hex()}"
+    assert scrubbed_bytes[:22] == raw_bytes[:22]
+    assert scrubbed_bytes[30:] == raw_bytes[30:]
+
+
+def test_scrub_zeroes_home_sn_bytes(ac2a, ac2a_home_bytes):
+    raw_hex = ac2a_home_bytes.hex()
+    br = BlockResult(status="pass", fields_parsed=23, raw=raw_hex)
+    t1 = TierResult(tier=1, status="pass", blocks={"100": br})
+    report = build_report(ac2a, "REAL-SN", "AA:BB:CC:DD:EE:FF", [t1], {})
+    scrubbed = report["tier_1"]["blocks"]["100"]["raw"]
+    scrubbed_bytes = bytes.fromhex(scrubbed)
+    original_bytes = ac2a_home_bytes
+    assert len(scrubbed_bytes) == len(original_bytes)
+    # SN is at byte offset 32 (reg 116), 8 bytes; verify zeroed
+    assert scrubbed_bytes[32:40] == b"\x00" * 8, f"SN bytes not zeroed: {scrubbed_bytes[32:40].hex()}"
+    # Non-SN bytes preserved
+    assert scrubbed_bytes[:32] == original_bytes[:32], "Bytes before SN should be preserved"
+    assert scrubbed_bytes[40:124] == original_bytes[40:124], "Bytes after SN should be preserved"
+
+
+def test_scrub_zeroes_inv_base_sn_bytes(ac2a, ac2a_inv_base_bytes):
+    raw_hex = ac2a_inv_base_bytes.hex()
+    br = BlockResult(status="pass", fields_parsed=10, raw=raw_hex)
+    t1 = TierResult(tier=1, status="pass", blocks={"1100": br})
+    report = build_report(ac2a, "REAL-SN", "AA:BB:CC:DD:EE:FF", [t1], {})
+    scrubbed = report["tier_1"]["blocks"]["1100"]["raw"]
+    scrubbed_bytes = bytes.fromhex(scrubbed)
+    original_bytes = ac2a_inv_base_bytes
+    # invSN is at byte offset 14 (reg 1107), 8 bytes
+    assert scrubbed_bytes[14:22] == b"\x00" * 8, f"invSN bytes not zeroed: {scrubbed_bytes[14:22].hex()}"
+    assert scrubbed_bytes[:14] == original_bytes[:14]
+
+
+def test_scrub_no_scrub_flag_preserves_raw_bytes(ac2a, ac2a_home_bytes):
+    raw_hex = ac2a_home_bytes.hex()
+    br = BlockResult(status="pass", fields_parsed=23, raw=raw_hex)
+    t1 = TierResult(tier=1, status="pass", blocks={"100": br})
+    report = build_report(ac2a, "REAL-SN", "AA:BB:CC:DD:EE:FF", [t1], {}, scrub=False)
+    preserved = report["tier_1"]["blocks"]["100"]["raw"]
+    assert preserved == raw_hex
+
+
+def test_scrubbed_home_hex_still_parses(ac2a, ac2a_home_bytes):
+    raw_hex = ac2a_home_bytes.hex()
+    br = BlockResult(status="pass", fields_parsed=23, raw=raw_hex)
+    t1 = TierResult(tier=1, status="pass", blocks={"100": br})
+    report = build_report(ac2a, "REAL-SN", "AA:BB:CC:DD:EE:FF", [t1], {})
+    scrubbed_hex = report["tier_1"]["blocks"]["100"]["raw"]
+    scrubbed_bytes = bytes.fromhex(scrubbed_hex)
+    parsed = ac2a.parse(100, scrubbed_bytes)
+    assert parsed.get("deviceSN") == "0", f"Parsed SN should be '0', got {parsed.get('deviceSN')}"
+
+
+def test_scrub_iot_block_zeros_mac_ip(ac2a):
+    iot_bytes = bytes([0xAB] * 70)
+    raw_hex = iot_bytes.hex()
+    br = BlockResult(status="pass", fields_parsed=10, raw=raw_hex)
+    t1 = TierResult(tier=1, status="pass", blocks={"11000": br})
+    report = build_report(ac2a, "SN", "AA:BB:CC:DD:EE:FF", [t1], {})
+    scrubbed = report["tier_1"]["blocks"]["11000"]["raw"]
+    scrubbed_bytes = bytes.fromhex(scrubbed)
+    # iot_sn: 12-19
+    assert scrubbed_bytes[12:20] == b"\x00" * 8, "IoT module SN bytes must be zeroed"
+    # wifi_ip: 40-43, wifi_gateway: 44-47, wifi_mask: 48-51
+    assert scrubbed_bytes[40:52] == b"\x00" * 12
+    # wifi_mac: 54-59, ble_mac: 60-65
+    assert scrubbed_bytes[54:66] == b"\x00" * 12
+    # Non-sensitive bytes preserved
+    assert scrubbed_bytes[:12] == iot_bytes[:12]
+    assert scrubbed_bytes[20:40] == iot_bytes[20:40]
+    assert scrubbed_bytes[52:54] == iot_bytes[52:54]
+    assert scrubbed_bytes[66:70] == iot_bytes[66:70]
