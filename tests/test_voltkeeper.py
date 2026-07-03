@@ -4035,3 +4035,88 @@ class TestBluetoothClientExecuteSerialization:
         client._on_notification(0, bytearray(resp2))
         result2 = await task2
         assert result2 == resp2[3:-2]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  BluetoothClient disconnect cleanup
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBluetoothClientDisconnect:
+    @staticmethod
+    def _make_client():
+        from unittest.mock import AsyncMock
+
+        from voltkeeper.bluetooth.client import BluetoothClient
+
+        c = BluetoothClient("AA:BB:CC:DD:EE:FF", encrypted=False)
+        c.client = AsyncMock()
+        c.client.is_connected = True
+        c.client.stop_notify = AsyncMock()
+        c.client.disconnect = AsyncMock()
+        return c
+
+    @pytest.mark.asyncio
+    async def test_disconnect_calls_stop_notify_before_disconnect(self):
+        from unittest.mock import call
+
+        from voltkeeper.bluetooth import NOTIFY_UUID
+
+        client = self._make_client()
+        await client.disconnect()
+
+        assert client.client.stop_notify.called
+        assert client.client.disconnect.called
+        assert client.client.method_calls.index(call.stop_notify(NOTIFY_UUID)) < client.client.method_calls.index(
+            call.disconnect()
+        ), "stop_notify must be called before disconnect"
+
+    @pytest.mark.asyncio
+    async def test_disconnect_cancels_pending_future(self):
+        client = self._make_client()
+        client._notify_future = asyncio.get_running_loop().create_future()
+
+        await client.disconnect()
+
+        assert client._notify_future.cancelled(), "pending notify future must be cancelled"
+
+    @pytest.mark.asyncio
+    async def test_disconnect_skips_already_done_future(self):
+        client = self._make_client()
+        client._notify_future = asyncio.get_running_loop().create_future()
+        client._notify_future.set_result(b"done")
+
+        await client.disconnect()
+
+        assert not client._notify_future.cancelled(), "resolved future must not be cancelled"
+
+    @pytest.mark.asyncio
+    async def test_disconnect_noop_when_not_connected(self):
+        client = self._make_client()
+        client.client.is_connected = False
+
+        await client.disconnect()
+
+        client.client.stop_notify.assert_not_called()
+        client.client.disconnect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stop_notify_failure_still_disconnects(self):
+        from bleak import BleakError
+
+        client = self._make_client()
+        client.client.stop_notify.side_effect = BleakError("stop failed")
+
+        await client.disconnect()
+
+        assert client.client.stop_notify.called
+        assert client.client.disconnect.called, "disconnect must still be called after stop_notify failure"
+
+    @pytest.mark.asyncio
+    async def test_disconnect_failure_is_suppressed(self):
+        from bleak import BleakError
+
+        client = self._make_client()
+        client.client.disconnect.side_effect = BleakError("disconnect failed")
+
+        await client.disconnect()

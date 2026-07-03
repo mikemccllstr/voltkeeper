@@ -48,7 +48,13 @@ class BluetoothClient:
         return self.client is not None and self.client.is_connected
 
     async def disconnect(self) -> None:
+        if self._notify_future and not self._notify_future.done():
+            self._notify_future.cancel()
         if self.client and self.client.is_connected:
+            try:
+                await self.client.stop_notify(NOTIFY_UUID)
+            except BleakError:
+                pass
             try:
                 await self.client.disconnect()
             except BleakError:
