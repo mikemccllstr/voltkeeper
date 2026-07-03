@@ -113,7 +113,7 @@ class TestDaemonStopCommand:
 
         with (
             patch("pathlib.Path.home", return_value=tmp_path),
-            patch("voltkeeper.cli._discover_api_key", return_value="testkey"),
+            patch("voltkeeper.cli._helpers._discover_api_key", return_value="testkey"),
             patch("urllib.request.urlopen", return_value=fake_response),
         ):
             cli_runner = CliRunner()

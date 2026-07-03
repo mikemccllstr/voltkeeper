@@ -26,7 +26,7 @@ def _run(args, config_path=None, home=None):
     runner = CliRunner()
     patches = []
     if config_path is not None:
-        patches.append(patch("voltkeeper.cli.load_config", return_value=_load(config_path)))
+        patches.append(patch("voltkeeper.cli.config.load_config", return_value=_load(config_path)))
         patches.append(patch("voltkeeper.config.load_config", return_value=_load(config_path)))
     if home is not None:
         patches.append(
@@ -34,14 +34,14 @@ def _run(args, config_path=None, home=None):
         )
         patches.append(
             patch(
-                "voltkeeper.cli.find_writable_config_path",
+                "voltkeeper.cli.config.find_writable_config_path",
                 return_value=home / ".config" / "voltkeeper" / "config.yaml",
                 create=True,
             )
         )
 
     # Always suppress daemon reload to avoid network calls
-    patches.append(patch("voltkeeper.cli._try_reload_daemon"))
+    patches.append(patch("voltkeeper.cli.config._try_reload_daemon"))
 
     [p.start() for p in patches]
     try:
@@ -92,10 +92,10 @@ class TestConfigSet:
 
         runner = CliRunner()
         with (
-            patch("voltkeeper.cli.load_config", return_value=_load(config_file)),
-            patch("voltkeeper.cli.find_writable_config_path", return_value=config_file, create=True),
+            patch("voltkeeper.cli.config.load_config", return_value=_load(config_file)),
+            patch("voltkeeper.cli.config.find_writable_config_path", return_value=config_file, create=True),
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon"),
+            patch("voltkeeper.cli.config._try_reload_daemon"),
         ):
             result = runner.invoke(cli, ["config", "set", "scan.interval", "90"])
 
@@ -106,9 +106,9 @@ class TestConfigSet:
     def test_set_invalid_key_exits_nonzero(self, config_file):
         runner = CliRunner()
         with (
-            patch("voltkeeper.cli.load_config", return_value=_load(config_file)),
+            patch("voltkeeper.cli.config.load_config", return_value=_load(config_file)),
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon"),
+            patch("voltkeeper.cli.config._try_reload_daemon"),
         ):
             result = runner.invoke(cli, ["config", "set", "unknown.key", "val"])
         assert result.exit_code != 0
@@ -117,9 +117,9 @@ class TestConfigSet:
     def test_set_restart_required_key_prints_notice(self, config_file):
         runner = CliRunner()
         with (
-            patch("voltkeeper.cli.load_config", return_value=_load(config_file)),
+            patch("voltkeeper.cli.config.load_config", return_value=_load(config_file)),
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon", wraps=lambda url, req, key: None) as mock_reload,
+            patch("voltkeeper.cli.config._try_reload_daemon", wraps=lambda url, req, key: None) as mock_reload,
         ):
             result = runner.invoke(cli, ["config", "set", "server.port", "9090"])
 
@@ -136,7 +136,7 @@ class TestConfigAddDevice:
         runner = CliRunner()
         with (
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon"),
+            patch("voltkeeper.cli.config._try_reload_daemon"),
         ):
             result = runner.invoke(cli, ["config", "add-device", "11:22:33:44:55:66", "--name", "Garage"])
 
@@ -151,7 +151,7 @@ class TestConfigAddDevice:
         runner = CliRunner()
         with (
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon"),
+            patch("voltkeeper.cli.config._try_reload_daemon"),
         ):
             result = runner.invoke(cli, ["config", "add-device", "aa:bb:cc:dd:ee:01"])
 
@@ -165,7 +165,7 @@ class TestConfigAddDevice:
         runner = CliRunner()
         with (
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon"),
+            patch("voltkeeper.cli.config._try_reload_daemon"),
         ):
             result = runner.invoke(cli, ["config", "add-device", "AA:BB:CC:DD:EE:FF"])
 
@@ -182,7 +182,7 @@ class TestConfigRemoveDevice:
         runner = CliRunner()
         with (
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon"),
+            patch("voltkeeper.cli.config._try_reload_daemon"),
         ):
             result = runner.invoke(cli, ["config", "remove-device", "AA:BB:CC:DD:EE:FF"])
 
@@ -194,7 +194,7 @@ class TestConfigRemoveDevice:
         runner = CliRunner()
         with (
             patch("voltkeeper.config.find_writable_config_path", return_value=config_file),
-            patch("voltkeeper.cli._try_reload_daemon"),
+            patch("voltkeeper.cli.config._try_reload_daemon"),
         ):
             result = runner.invoke(cli, ["config", "remove-device", "99:88:77:66:55:44"])
 

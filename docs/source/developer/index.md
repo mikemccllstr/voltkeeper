@@ -38,7 +38,7 @@ voltkeeper is organized into three main packages under `src/voltkeeper/`:
 | `core/`         | Modbus commands, field struct definitions, device model hierarchy |
 | `core/devices/` | Per-model device classes (V1 and V2 protocol)                     |
 
-Top-level modules handle CLI commands (`cli.py`), device polling (`device_handler.py`),
+Top-level modules handle CLI commands (`cli/` package), device polling (`device_handler.py`),
 MQTT integration (`mqtt_client.py`), load testing (`load_test.py`), probe and
 annotation (`probe.py`, `annotate.py`), validation (`validate.py`), the background
 daemon (`daemon.py`, `device_manager.py`), the HTTP API (`api.py`), and the web

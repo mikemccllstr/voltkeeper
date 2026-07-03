@@ -4,6 +4,8 @@
 
 import pytest
 
+from voltkeeper.core.devices.ac2a import AC2A
+
 # Raw hex captured from live AC2A in a single BLE session
 _HOME_HEX = (
     "0aaa001300640002010001000000000000000000434141320000"
@@ -114,3 +116,14 @@ _CONTROL_HEX = (
 def ac2a_control_bytes():
     """INV_BASE_SETTINGS register block (addr 2000, 24 regs, 48 bytes)."""
     return bytes.fromhex(_CONTROL_HEX)
+
+
+@pytest.fixture
+def ac2a_device():
+    return AC2A("00:00:00:00:00:00", "TEST")
+
+
+@pytest.fixture
+def ac2a_device_num():
+    """AC2A with a numeric SN so COMMAND_TOPIC_RE (requires \\d+) can match."""
+    return AC2A("00:00:00:00:00:00", "12345678")
