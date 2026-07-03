@@ -177,7 +177,8 @@ def _make_decryptor(key_hex: str | None, iv_hex: str | None):
     """Return a callable that decrypts bytes, or None if no key given.
 
     NOTE: this reuses the supplied IV for every frame. Bluetti chains
-    IVs across frames within a session (see FINDINGS §15.8), so only
+    IVs across frames within a session (see docs/source/protocol/
+    encryption-details.md, "Crypto Material"), so only
     the first encrypted frame will decrypt cleanly. Multi-frame IV
     chaining is a planned follow-up.
     """

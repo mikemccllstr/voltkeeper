@@ -74,7 +74,7 @@ This runs lint, typecheck, tests, and doc checks. Individual tasks:
 Lowercase imperative, single line, no period:
 
 ```
-add cipher module: aes-128-cbc with chained iv per FINDINGS §15.8
+add cipher module: aes-128-cbc with chained iv
 ```
 
 ## Repository layout

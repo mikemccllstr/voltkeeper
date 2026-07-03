@@ -1,4 +1,5 @@
-# ABOUTME: BLE encryption handshake — legacy + ECDH paths per FINDINGS §15.2 step 3 and §15.8.
+# ABOUTME: BLE encryption handshake — legacy + ECDH paths per docs/source/protocol/security.md
+# ABOUTME: ("BLE Connection and Handshake Flow" step 3, and "Complete Crypto Material").
 
 import asyncio
 import hashlib

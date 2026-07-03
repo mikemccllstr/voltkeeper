@@ -1,4 +1,5 @@
-# ABOUTME: Synthetic fixture tests for V1Base register parsing per FINDINGS §15.6.
+# ABOUTME: Synthetic fixture tests for V1Base register parsing per docs/source/protocol/modbus-registers.md
+# ABOUTME: ("Real-Time Data Parsing").
 
 from voltkeeper.core.devices.v1_base import BASE_REAL_DATA, V1Base
 

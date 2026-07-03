@@ -1,7 +1,8 @@
 # ABOUTME: Generic V1-protocol base device class — register blocks, structs, parse dispatch.
-# V1 devices are always plaintext (no BLE encryption). Per FINDINGS §15.4 as of
-# APK 3.0.9, isBLEEncrypted / isESP32Encrypted are false for all V1 models
-# (protocolVer < 2000). Subclasses added in Unit 10 rely on this.
+# V1 devices are always plaintext (no BLE encryption). As of APK 3.0.9,
+# isBLEEncrypted / isESP32Encrypted are false for all V1 models
+# (protocolVer < 2000 — see docs/source/protocol/device-models.md,
+# "Protocol Version Thresholds"). Subclasses added in Unit 10 rely on this.
 
 from typing import Any, List
 
@@ -15,9 +16,11 @@ BASE_CONFIG = 1
 BLUETOOTH_PASSWORD = 7
 BASE_REAL_DATA = 10
 MODBUS_PROTOCOL_VER = 16
-# TODO(hardware): FINDINGS §15.5 lists DEVICE_SN at register 21, but §15.6 puts
-# the SN at byte-offset 14-21 (registers 17-20). Hardware verification needed
-# to resolve. The struct uses register 21 per §15.5 until proven otherwise.
+# TODO(hardware): in docs/source/protocol/modbus-registers.md, the V1 register
+# map ("Complete Modbus Register Map") lists DEVICE_SN at register 21, but the
+# "Real-Time Data Parsing" table puts the SN at byte-offset 14-21 (registers
+# 17-20). Hardware verification needed to resolve. The struct uses register 21
+# per the register map until proven otherwise.
 DEVICE_SN = 21
 MCU_STATUS = 22
 ADDITIONAL_DATA = 70
@@ -84,7 +87,8 @@ class V1Base(BluettiDevice):
 
         super().__init__(address, type, sn)
 
-    # ── BASE_REAL_DATA (register 10) — per FINDINGS §15.6 ──────────────
+    # ── BASE_REAL_DATA (register 10) — per docs/source/protocol/
+    # modbus-registers.md, "Real-Time Data Parsing" ─────────────────────
 
     def _build_real_data_struct(self):
         s = self.real_data_struct
@@ -134,8 +138,9 @@ class V1Base(BluettiDevice):
     def _fill_software_versions(result: dict, data: bytes):
         """Parse mcu1-4 + hmi1-2 software versions from BASE_REAL_DATA.
 
-        Per FINDINGS §15.6: 6 version fields at register offsets 23-34,
-        each 4 bytes in endian [2][3][0][1] format.
+        Per docs/source/protocol/modbus-registers.md ("Real-Time Data
+        Parsing"): 6 version fields at register offsets 23-34, each
+        4 bytes in endian [2][3][0][1] format.
         """
         labels = ["mcu1ver", "mcu2ver", "mcu3ver", "mcu4ver", "hmi1ver", "hmi2ver"]
         for i, label in enumerate(labels):
