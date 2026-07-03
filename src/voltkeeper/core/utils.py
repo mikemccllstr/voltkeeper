@@ -57,7 +57,7 @@ def _bcd_sn(data: bytes, offset: int, length: int) -> str:
     return "".join(chars).lstrip("0")
 
 
-def _format_version(fm_ver: int) -> str:
+def format_version(fm_ver: int) -> str:
     s = str(fm_ver)
     if len(s) > 6:
         return f"v{s[:5]}.{s[5:7]}.{s[7:]}"

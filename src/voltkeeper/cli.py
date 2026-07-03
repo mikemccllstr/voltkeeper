@@ -8,7 +8,7 @@ import sys
 
 import click
 
-from . import load_test
+from . import __version__, load_test
 from .bluetooth import (
     ScanResult,
     build_device,
@@ -21,7 +21,7 @@ from .bluetooth.client import BluetoothClient
 from .bluetooth.exc import BadConnectionError, ModbusError, ParseError
 from .config import ConfigError, load_config, write_config
 from .core.commands import ReadHoldingRegisters, TlvReadHoldingRegisters
-from .core.utils import _format_version
+from .core.utils import format_version
 
 SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
 
@@ -66,7 +66,7 @@ def _device_from_scan(sr: ScanResult):
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 @click.version_option(
-    version="0.1.0",
+    version=__version__,
     prog_name="voltkeeper",
     message="%(prog)s %(version)s",
 )
@@ -446,7 +446,7 @@ def _print_verbose(
         click.echo(f"\n  {click.style('SOFTWARE VERSIONS', bold=True, fg='magenta')}")
         for k in sorted(ver_keys):
             label = k.removesuffix("_version").replace("_", " ").upper()
-            click.echo(f"    {label}:  {_format_version(inv_base[k])}")
+            click.echo(f"    {label}:  {format_version(inv_base[k])}")
 
     # ── PV Details ──
     pv_keys = [k for k in pv if k.startswith("pv[") and k.endswith(".type") and pv.get(k, 0) != 0]

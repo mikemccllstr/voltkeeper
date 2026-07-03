@@ -22,12 +22,12 @@ from voltkeeper.core.struct import UintField
 from voltkeeper.core.utils import (
     _ascii,
     _bcd_sn,
-    _format_version,
     _s16,
     _s32,
     _u16,
     _u32,
     crc16_modbus,
+    format_version,
 )
 from voltkeeper.device_handler import SourceChangeWatcher, _watch_source_changes
 from voltkeeper.mqtt_client import (
@@ -225,22 +225,22 @@ class TestBcdSn:
 
 class TestFormatVersion:
     def test_short(self):
-        assert _format_version(100) == "v100"
+        assert format_version(100) == "v100"
 
     def test_four_digits(self):
-        assert _format_version(9001) == "v9001"
+        assert format_version(9001) == "v9001"
 
     def test_five_digits(self):
-        assert _format_version(77337) == "v7733.7"
+        assert format_version(77337) == "v7733.7"
 
     def test_six_digits(self):
-        assert _format_version(123456) == "v1234.56"
+        assert format_version(123456) == "v1234.56"
 
     def test_seven_plus(self):
-        assert _format_version(773390339) == "v77339.03.39"
+        assert format_version(773390339) == "v77339.03.39"
 
     def test_zero(self):
-        assert _format_version(0) == "v0"
+        assert format_version(0) == "v0"
 
 
 # ═══════════════════════════════════════════════════════════════════════
