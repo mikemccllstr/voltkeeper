@@ -330,3 +330,127 @@ def test_battery_pack_base_no_inverter_blocks():
     assert not hasattr(d, "inv_grid_struct")
     assert not hasattr(d, "inv_load_struct")
     assert not hasattr(d, "inv_inv_struct")
+
+
+class TestSupportTier:
+    def test_enum_members(self):
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+
+        assert hasattr(SupportTier, "HARDWARE_VERIFIED")
+        assert hasattr(SupportTier, "HARDWARE_TESTING")
+        assert hasattr(SupportTier, "APK_DERIVED")
+
+    def test_ac2a_is_hardware_verified(self):
+        from voltkeeper.core.devices.ac2a import AC2A
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+
+        assert AC2A.SUPPORT_TIER == SupportTier.HARDWARE_VERIFIED
+
+    def test_el100v2_is_hardware_testing(self):
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        assert El100V2.SUPPORT_TIER == SupportTier.HARDWARE_TESTING
+
+    def test_default_tier_is_apk_derived(self):
+        from voltkeeper.bluetooth import _device_registry
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+
+        registry = _device_registry()
+        verified_overrides = {"AC2A", "EL100V2"}
+        for prefix, cls in sorted(registry.items()):
+            if prefix in verified_overrides:
+                continue
+            assert cls.SUPPORT_TIER == SupportTier.APK_DERIVED, f"{prefix} ({cls.__name__}) has unexpected SUPPORT_TIER"
+
+
+class TestDocsConsistency:
+    TIER_MAP = {
+        "Verified": "hardware_verified",
+        "Testing": "hardware_testing",
+        "APK": "apk_derived",
+    }
+
+    def _parse_tables(self):
+        import re
+        from pathlib import Path
+
+        doc_path = Path(__file__).parent.parent / "docs" / "source" / "protocol" / "device-models.md"
+        text = doc_path.read_text()
+
+        entries: list[tuple[str, str]] = []
+        in_table = False
+        headers: list[str] = []
+        model_col_idx: int = -1
+        support_col_idx: int = -1
+
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("|") and stripped.endswith("|"):
+                cells = [c.strip() for c in stripped[1:-1].split("|")]
+                is_sep = all(re.fullmatch(r":?-+:?", c) for c in cells)
+                if is_sep:
+                    continue
+                if "Model" in cells or "model" in cells:
+                    headers = cells
+                    in_table = True
+                    try:
+                        model_col_idx = next(i for i, h in enumerate(headers) if h.lower() == "model")
+                    except StopIteration:
+                        model_col_idx = -1
+                    try:
+                        support_col_idx = next(i for i, h in enumerate(headers) if h.lower() == "support")
+                    except StopIteration:
+                        support_col_idx = -1
+                    continue
+                if (
+                    in_table
+                    and model_col_idx >= 0
+                    and support_col_idx >= 0
+                    and len(cells) > max(model_col_idx, support_col_idx)
+                ):
+                    model = cells[model_col_idx]
+                    tier_label = cells[support_col_idx]
+                    if model and tier_label and not model.startswith("-"):
+                        entries.append((model, tier_label))
+            else:
+                in_table = False
+                headers = []
+                model_col_idx = -1
+                support_col_idx = -1
+
+        return entries
+
+    def test_models_in_docs_match_registry(self):
+        from voltkeeper.bluetooth import _device_registry
+
+        registry = _device_registry()
+        registry_prefixes = set(registry.keys())
+        entries = self._parse_tables()
+        doc_models = dict(entries)
+
+        if len(entries) != len(doc_models):
+            seen: list[str] = []
+            dupes: set[str] = set()
+            for model, _tier in entries:
+                if model in seen:
+                    dupes.add(model)
+                else:
+                    seen.append(model)
+            assert not dupes, f"Models appearing more than once in docs: {sorted(dupes)}"
+
+        doc_prefixes = set(doc_models.keys())
+
+        missing_from_docs = registry_prefixes - doc_prefixes
+        assert not missing_from_docs, f"Models in registry but missing from docs: {sorted(missing_from_docs)}"
+
+        extra_in_docs = doc_prefixes - registry_prefixes
+        assert not extra_in_docs, f"Models in docs but missing from registry: {sorted(extra_in_docs)}"
+
+        for model, tier_label in sorted(doc_models.items()):
+            expected_tier_value = self.TIER_MAP.get(tier_label)
+            assert expected_tier_value is not None, f"Unknown Support label '{tier_label}' for model {model}"
+            cls = registry[model]
+            assert cls.SUPPORT_TIER.value == expected_tier_value, (
+                f"{model}: documented as {tier_label} ({expected_tier_value}), code has {cls.SUPPORT_TIER.value}"
+            )

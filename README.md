@@ -92,9 +92,11 @@ On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or `s
 
 ## Tested devices
 
-- **Bluetti AC2A:** seemingly works successfully for the author, one user.
+- **Bluetti AC2A:** Verified on real hardware — the author's daily-use unit.
+- **Bluetti EL100V2:** In testing — core communication confirmed on a physical unit; full `verify` in progress.
 
-Devices not listed above have not been tested. If you are feeling adventurous, please consider testing your device and letting us know how it goes.
+See the [Device Support Tiers](https://mikemccllstr.github.io/voltkeeper/user-guide/support-tiers/) page for what each tier means.
+The [device model catalog](https://mikemccllstr.github.io/voltkeeper/protocol/device-models/) lists the support tier for every supported model. If your device is not yet verified, consider running `voltkeeper verify` and sharing the results.
 
 ## Install
 

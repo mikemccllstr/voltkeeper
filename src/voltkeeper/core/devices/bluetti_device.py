@@ -1,14 +1,23 @@
 # ABOUTME: Base class for Bluetti device definitions — struct, polling commands, protocol version.
 
+from enum import Enum, unique
 from typing import Any, List
 
 from ..commands import ReadHoldingRegisters, WriteSingleRegister
+
+
+@unique
+class SupportTier(Enum):
+    HARDWARE_VERIFIED = "hardware_verified"
+    HARDWARE_TESTING = "hardware_testing"
+    APK_DERIVED = "apk_derived"
 
 
 class BluettiDevice:
     protocol_version: int = 0
     has_battery_packs: bool = False
     has_sub_devices: bool = False
+    SUPPORT_TIER: SupportTier = SupportTier.APK_DERIVED
 
     def __init__(self, address: str, type: str, sn: str):
         self.address = address

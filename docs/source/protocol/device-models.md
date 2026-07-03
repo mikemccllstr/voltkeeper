@@ -64,48 +64,48 @@ The following device models are currently supported in voltkeeper, with model nu
 
 ### Portable Power Stations (V2 Protocol)
 
-| Model   | APK Enum  | Model # | Voltage | Notes                          |
-| ------- | --------- | ------- | ------- | ------------------------------ |
-| AC2A    | `AC2A`    | 20      | 25V     | Reference implementation       |
-| AC60    | `AC60`    | 8       | 56V     | Compact portable               |
-| AC180   | `AC180`   | 23      | 56V     | AC180/AC180P family base       |
-| EL10V2  | `EL10V2`  | 62      | 25V     | Inherits PLP022/AC180 chain    |
-| EL30V2  | `EL30V2`  | 32      | 25V     | Sibling of EL100V2             |
-| EL100V2 | `EL100V2` | 31      | 56V     | ELITE200_V2 family             |
-| EL400   | `EL400`   | 29      | 56V     | Remote power ctrl + sleep mode |
+| Model   | APK Enum  | Model # | Voltage | Support  | Notes                          |
+| ------- | --------- | ------- | ------- | -------- | ------------------------------ |
+| AC2A    | `AC2A`    | 20      | 25V     | Verified | Reference implementation       |
+| AC60    | `AC60`    | 8       | 56V     | APK      | Compact portable               |
+| AC180   | `AC180`   | 23      | 56V     | APK      | AC180/AC180P family base       |
+| EL10V2  | `EL10V2`  | 62      | 25V     | APK      | Inherits PLP022/AC180 chain    |
+| EL30V2  | `EL30V2`  | 32      | 25V     | APK      | Sibling of EL100V2             |
+| EL100V2 | `EL100V2` | 31      | 56V     | Testing  | ELITE200_V2 family             |
+| EL400   | `EL400`   | 29      | 56V     | APK      | Remote power ctrl + sleep mode |
 
 ### Portable Power Stations (V1 Protocol)
 
-| Model   | APK Enum  | Model # | Voltage | Notes                     |
-| ------- | --------- | ------- | ------- | ------------------------- |
-| EB3A    | `EB3A`    | 2       | 25V     | Compact, minimal writable |
-| AC200M  | `AC200M`  | 3       | 56V     | Older mid-range           |
-| AC200L  | `AC200L`  | 5       | 56V     | Mid-range portable        |
-| AC200PL | `AC200PL` | 6       | 56V     | AC200L variant            |
-| AC300   | `AC300`   | 9       | 56V     | Mid-large inverter        |
-| AC500   | `AC500`   | 10      | 56V     | Large inverter            |
+| Model   | APK Enum  | Model # | Voltage | Support | Notes                     |
+| ------- | --------- | ------- | ------- | ------- | ------------------------- |
+| EB3A    | `EB3A`    | 2       | 25V     | APK     | Compact, minimal writable |
+| AC200M  | `AC200M`  | 3       | 56V     | APK     | Older mid-range           |
+| AC200L  | `AC200L`  | 5       | 56V     | APK     | Mid-range portable        |
+| AC200PL | `AC200PL` | 6       | 56V     | APK     | AC200L variant            |
+| AC300   | `AC300`   | 9       | 56V     | APK     | Mid-large inverter        |
+| AC500   | `AC500`   | 10      | 56V     | APK     | Large inverter            |
 
 ### Larger Systems (Mixed Protocol)
 
-| Model | APK Enum | Model # | Voltage | Notes       |
-| ----- | -------- | ------- | ------- | ----------- |
-| EP500 | `EP500`  | 35      | 56V     | Home backup |
-| EP600 | `EP600`  | 36      | 56V     | Home backup |
+| Model | APK Enum | Model # | Voltage | Support | Notes       |
+| ----- | -------- | ------- | ------- | ------- | ----------- |
+| EP500 | `EP500`  | 35      | 56V     | APK     | Home backup |
+| EP600 | `EP600`  | 36      | 56V     | APK     | Home backup |
 
 ### AORA Mini Series
 
-| Model        | APK Enum       | Model # | Voltage | Notes          |
-| ------------ | -------------- | ------- | ------- | -------------- |
-| AORA30_MINI  | `AORA30_MINI`  | 67      | —       | AORA mini base |
-| AORA100_MINI | `AORA100_MINI` | 66      | —       | AORA mini base |
-| AORA200_MINI | `AORA200_MINI` | 68      | —       | AORA mini base |
+| Model        | APK Enum       | Model # | Voltage | Support | Notes          |
+| ------------ | -------------- | ------- | ------- | ------- | -------------- |
+| AORA30_MINI  | `AORA30_MINI`  | 67      | —       | APK     | AORA mini base |
+| AORA100_MINI | `AORA100_MINI` | 66      | —       | APK     | AORA mini base |
+| AORA200_MINI | `AORA200_MINI` | 68      | —       | APK     | AORA mini base |
 
 ### Battery Packs
 
-| Model  | APK Enum | Model # | Notes        |
-| ------ | -------- | ------- | ------------ |
-| HB500S | `HB500S` | 4025    | Battery pack |
-| BH500E | `BH500E` | 4026    | Battery pack |
+| Model  | APK Enum | Model # | Support | Notes        |
+| ------ | -------- | ------- | ------- | ------------ |
+| HB500S | `HB500S` | 4025    | APK     | Battery pack |
+| BH500E | `BH500E` | 4026    | APK     | Battery pack |
 
 ### Key Features by Model
 

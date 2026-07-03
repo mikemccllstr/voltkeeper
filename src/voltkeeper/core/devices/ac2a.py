@@ -5,6 +5,7 @@ from typing import List
 
 from ..commands import EmsCtrlMode, InvFrequency, LedColor, Pv2Type, PvType, ReadHoldingRegisters, WorkingMode
 from ..utils import _s16, _u16
+from .bluetti_device import SupportTier
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_INFO,
@@ -28,6 +29,7 @@ class ChargingMode(Enum):
 
 
 class AC2A(V2Base):
+    SUPPORT_TIER = SupportTier.HARDWARE_VERIFIED
     # AC2A is an 8S LiFePO4 pack (~25.6 V nominal); raw register × 0.01 = volts.
     # All other documented V2 models use ÷10. If a future model also reads 10×
     # high, follow this override pattern.

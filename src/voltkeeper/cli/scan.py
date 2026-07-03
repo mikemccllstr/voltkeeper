@@ -20,6 +20,7 @@ from voltkeeper.cli._helpers import _close_loop
 )
 def scan(timeout):
     """Scan for nearby Bluetti devices and display their MAC addresses."""
+    from voltkeeper.bluetooth import contribution_hint, prefix_lookup
     from voltkeeper.bluetooth import scan_devices as do_scan
 
     loop = asyncio.new_event_loop()
@@ -37,10 +38,20 @@ def scan(timeout):
         click.echo("Make sure the device is powered on and in Bluetooth range.")
         sys.exit(1)
 
+    tiers_found: set = set()
     label = click.style(str(len(devices)), fg="cyan", bold=True)
     click.echo(f"\n{label} device(s) found:\n")
     for sr in devices:
-        click.echo(f"  {sr.display()}")
+        cls = prefix_lookup(sr.name)
+        tier = cls.SUPPORT_TIER if cls is not None else None
+        if tier is not None:
+            tiers_found.add(tier)
+        click.echo(f"  {sr.display(tier=tier)}")
+
+    hint = contribution_hint(tiers_found)
+    if hint:
+        click.echo()
+        click.echo(hint)
 
     click.echo()
     if len(devices) == 1:

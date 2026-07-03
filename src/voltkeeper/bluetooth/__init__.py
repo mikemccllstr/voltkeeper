@@ -25,9 +25,12 @@ class ScanResult:
     name: str
     encrypted: bool | None
 
-    def display(self) -> str:
+    def display(self, tier=None) -> str:
         flag = "encrypted" if self.encrypted else "plaintext" if self.encrypted is False else "unknown"
-        return f"{self.address}  —  {self.name}  [{flag}]"
+        parts = f"{self.address}  —  {self.name}  [{flag}]"
+        if tier is not None:
+            parts += f"  [{tier.value}]"
+        return parts
 
 
 def _parse_sn(name: str) -> str:
@@ -163,10 +166,40 @@ def is_supported_device_type(prefix: str) -> bool:
 
 
 def build_device(address: str, name: str):
+    match = _match_device(name)
+    if match is None:
+        registry = _device_registry()
+        raise ValueError(f"Unsupported device model: {name!r}. Known prefixes: {sorted(registry)}")
+    suffix, cls = match
+    return cls(address, suffix)
+
+
+def prefix_lookup(name: str):
+    match = _match_device(name)
+    if match is None:
+        return None
+    _suffix, cls = match
+    return cls
+
+
+def contribution_hint(tiers: set) -> str:
+    from ..core.devices.bluetti_device import SupportTier
+
+    non_verified = tiers - {SupportTier.HARDWARE_VERIFIED}
+    if non_verified:
+        return (
+            "Some devices are not yet verified on real hardware. "
+            "To help, see the device-testing guide: "
+            "https://mikemccllstr.github.io/voltkeeper/user-guide/support-tiers/"
+        )
+    return ""
+
+
+def _match_device(name: str) -> tuple[str, type] | None:
     registry = _device_registry()
     for prefix, cls in registry.items():
         if name.startswith(prefix):
             suffix = name[len(prefix) :]
             if suffix.isdigit():
-                return cls(address, suffix)
-    raise ValueError(f"Unsupported device model: {name!r}. Known prefixes: {sorted(registry)}")
+                return (suffix, cls)
+    return None

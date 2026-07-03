@@ -6,6 +6,7 @@ from enum import Enum, unique
 from typing import List
 
 from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, WorkingMode
+from .bluetti_device import SupportTier
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
     INV_BASE_SETTINGS,
@@ -26,6 +27,8 @@ class ChargingMode(Enum):
 
 class El100V2(V2Base):
     """EL100V2 portable power station. V2 protocol, 56V system."""
+
+    SUPPORT_TIER = SupportTier.HARDWARE_TESTING
 
     def __init__(self, address: str, sn: str):
         super().__init__(address, "EL100V2", sn)

@@ -11,6 +11,7 @@ from voltkeeper.bluetooth import (
     ScanResult,
     _classify,
     build_device,
+    contribution_hint,
     lookup_scan_result,
 )
 
@@ -153,3 +154,49 @@ class TestDeviceNameRegex:
         d = build_device("AA:BB:CC:DD:EE:FF", "HB500S1234567890123")
         assert d.type == "HB500S"
         assert d.sn == "1234567890123"
+
+
+class TestScanResultTier:
+    def test_display_with_tier_verified(self):
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+
+        r = ScanResult("AA:BB:CC:DD:EE:FF", "AC2A1234567", False)
+        out = r.display(tier=SupportTier.HARDWARE_VERIFIED)
+        assert "[plaintext]" in out
+        assert "[hardware_verified]" in out
+
+    def test_display_with_tier_apk_derived(self):
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+
+        r = ScanResult("AA:BB:CC:DD:EE:FF", "EB3A1234567", False)
+        out = r.display(tier=SupportTier.APK_DERIVED)
+        assert "[plaintext]" in out
+        assert "[apk_derived]" in out
+
+    def test_display_without_tier_unknown_prefix(self):
+        r = ScanResult("AA:BB:CC:DD:EE:FF", "BOGUS999999", None)
+        out = r.display()
+        assert "[unknown]" in out
+        assert "hardware" not in out.lower()
+        assert "apk" not in out.lower()
+
+    def test_display_no_tier_no_exception(self):
+        r = ScanResult("AA:BB:CC:DD:EE:FF", "AC2A1234567", False)
+        out = r.display()
+        assert "[plaintext]" in out
+
+    def test_contribution_hint_non_verified(self):
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+
+        hint = contribution_hint({SupportTier.APK_DERIVED, SupportTier.HARDWARE_VERIFIED})
+        assert "device-testing" in hint.lower()
+
+    def test_contribution_hint_all_verified(self):
+        from voltkeeper.core.devices.bluetti_device import SupportTier
+
+        hint = contribution_hint({SupportTier.HARDWARE_VERIFIED})
+        assert hint == ""
+
+    def test_contribution_hint_empty(self):
+        hint = contribution_hint(set())
+        assert hint == ""

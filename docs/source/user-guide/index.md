@@ -9,6 +9,7 @@ status
 write
 verify
 verify-interpretation
+support-tiers
 mqtt
 daemon
 load-test
