@@ -333,8 +333,39 @@ def diff_apk(bluetti_files: Path, ver_a: str, ver_b: str, out_dir: Path) -> None
     _fmt_set_diff(hosts, "Base URLs / Hosts", lines)
     (out_dir / "cloud_api.txt").write_text("\n".join(lines) + "\n")
 
+    # --- AGENTS.md for the diff directory ---
+    report_path = f"docs/source/protocol/apk-{ver_a}-vs-{ver_b}.md"
+    agents_md = (
+        f"# APK Diff: {ver_a} vs {ver_b}\n"
+        f"\n"
+        f"Produced by: mise run diff-apk {ver_a} {ver_b}\n"
+        f"Polished report: {report_path}\n"
+        f"\n"
+        f"## Artifact Files\n"
+        f"\n"
+        f"protocol_anchors.txt   BLE UUIDs, register constants (static final int/long),\n"
+        f"                       device model string literals.  jadx_out → set diff.\n"
+        f"\n"
+        f"resources.txt          String resources (strings.xml), layout filenames,\n"
+        f"                       AndroidManifest permissions/activities/services,\n"
+        f"                       version name/code.  apktool_out → set/dict diff.\n"
+        f"\n"
+        f"cloud_api.txt          HTTP endpoint paths (\"/api/...\"), host/base URLs.\n"
+        f"                       jadx_out → set diff.\n"
+        f"\n"
+        f"Prefixes: + added, - removed, ~ changed\n"
+        f"\n"
+        f"## Interpretation\n"
+        f"\n"
+        f"New device support shows additions in all three files.\n"
+        f"Feature additions show new strings + new endpoints.\n"
+        f"Pure refactoring usually shows protocol-anchor-only changes or no changes.\n"
+        f"Version bump with zero feature changes may only show version_code in resources.\n"
+    )
+    (out_dir / "AGENTS.md").write_text(agents_md)
+
     print(f"Diff artifacts written to {out_dir}/")
-    print(f"  protocol_anchors.txt  resources.txt  cloud_api.txt")
+    print(f"  protocol_anchors.txt  resources.txt  cloud_api.txt  AGENTS.md")
 
 
 # ---------------------------------------------------------------------------

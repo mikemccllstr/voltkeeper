@@ -1,6 +1,106 @@
 #!/usr/bin/env bash
+# ABOUTME: Downloads the latest APK, decompiles all staged APKs, and writes bluetti-files/AGENTS.md.
 #MISE depends=["download-apk","decompile-jadx","decompile-apktool"]
-#MISE description="Download latest APK and decompile all versions"
+#MISE description="Download latest APK, decompile all versions, and generate bluetti-files/AGENTS.md"
 set -euo pipefail
 
-echo "All done"
+cat > bluetti-files/AGENTS.md << 'AGENTS_EOF'
+# Bluetti APK Analysis Output
+
+This directory contains decompiled Bluetti APKs and comparison artifacts.
+It is gitignored and regenerable from APKs in `bluetti-apk-archive/`.
+See the root `AGENTS.md` for the rebuild workflow.
+
+## Current Inventory
+
+AGENTS_EOF
+
+# Build the inventory table: one row per version directory
+for ver_dir in bluetti-files/BLUETTI-*.apk/; do
+    [[ -d "$ver_dir" ]] || continue
+    version="$(basename "$ver_dir")"
+
+    apk_status="—"
+    [[ -f "$ver_dir/bluetti.apk" ]] && apk_status="bluetti.apk"
+
+    jadx_status="—"
+    [[ -d "$ver_dir/jadx_out" ]] && jadx_status="jadx_out"
+
+    apktool_status="—"
+    [[ -d "$ver_dir/apktool_out" ]] && apktool_status="apktool_out"
+
+    printf "| %s | %s | %s | %s |\n" "$version" "$apk_status" "$jadx_status" "$apktool_status" >> bluetti-files/AGENTS.md
+done
+
+# If no version dirs found, output a placeholder row
+if ! compgen -G "bluetti-files/BLUETTI-*.apk/" > /dev/null 2>&1; then
+    echo "| (none) | — | — | — |" >> bluetti-files/AGENTS.md
+fi
+
+# Diff inventory
+echo "" >> bluetti-files/AGENTS.md
+echo "## Diff Comparisons" >> bluetti-files/AGENTS.md
+echo "" >> bluetti-files/AGENTS.md
+
+if compgen -G "bluetti-files/diff/*/" > /dev/null 2>&1; then
+    for diff_dir in bluetti-files/diff/*/; do
+        [[ -d "$diff_dir" ]] || continue
+        diff_name="$(basename "$diff_dir")"
+        echo "- $diff_name" >> bluetti-files/AGENTS.md
+    done
+else
+    echo "(none)" >> bluetti-files/AGENTS.md
+fi
+
+# Append the static reference sections
+cat >> bluetti-files/AGENTS.md << 'AGENTS_EOF'
+
+## Directory Structure
+
+bluetti-files/
+├── <version>/
+│   ├── bluetti.apk          staged APK (preserved by cleanup; never delete)
+│   ├── jadx_out/            JADX Java decompilation
+│   │   ├── sources/         reconstructed Java source (~22k classes)
+│   │   │   └── net/poweroak/ Bluetti's own code (BLE, cloud, UI, SDK)
+│   │   └── resources/       AndroidManifest.xml, assets, META-INF, res/
+│   └── apktool_out/         apktool disassembly (Smali + resources)
+│       └── res/values/strings.xml
+├── diff/
+│   └── <verA>-vs-<verB>/    comparison artifacts (see AGENTS.md inside)
+└── AGENTS.md                this file
+
+## Searching Protocol Information
+
+Register constants:
+  rg "static final (int|long)\s+\w+\s*=" bluetti-files/*/jadx_out/sources/
+
+BLE UUIDs:
+  rg "0000[a-f0-9]{4}-0000-1000-8000-00805f9b34fb" bluetti-files/*/jadx_out/sources/
+
+Device model identifiers:
+  rg -o '"[A-Z]{2,4}[0-9A-Z]+"' bluetti-files/*/jadx_out/sources/
+
+HTTP endpoints:
+  rg '"/api/' bluetti-files/*/jadx_out/sources/
+
+String resources (requires apktool_out):
+  cat bluetti-files/*/apktool_out/res/values/strings.xml
+
+## Bluetti Source Packages (jadx_out/sources/)
+
+net/poweroak/lib_ble/       BLE protocol (handshake, CRC, HexUtil, OTA)
+net/poweroak/bluetticloud/  Main app (UI, data API, HTTP, helper, SDK)
+net/poweroak/lib_mqtt/      MQTT messaging
+net/poweroak/lib_network/   Network utilities
+net/poweroak/lib_base/      Shared utilities
+net/poweroak/lib_common_ui/ Shared UI components
+net/poweroak/lib_image/     Image handling
+
+## Diff Reports
+
+Polished diff reports are at docs/source/protocol/apk-<verA>-vs-<verB>.md.
+Raw artifacts are under diff/. See the AGENTS.md in each diff directory.
+AGENTS_EOF
+
+echo "All done — bluetti-files/AGENTS.md written"
