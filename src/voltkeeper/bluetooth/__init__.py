@@ -190,7 +190,7 @@ def contribution_hint(tiers: set) -> str:
         return (
             "Some devices are not yet verified on real hardware. "
             "To help, see the device-testing guide: "
-            "https://mikemccllstr.github.io/voltkeeper/user-guide/support-tiers/"
+            "https://mikemccllstr.github.io/voltkeeper/user-guide/test-your-device/"
         )
     return ""
 

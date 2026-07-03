@@ -41,14 +41,13 @@ values, scaling factors, and control commands might produce unexpected results.
 
 A model's tier is promoted when a community member provides hardware evidence.
 
-| Transition                | Criterion                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `APK_DERIVED` → `TESTING` | Core flows confirmed on a real unit: BLE connect, handshake (if encrypted), live-data parse |
-| `TESTING` → `VERIFIED`    | A full `voltkeeper verify` run passes on a real unit                                        |
+| Transition                | Criterion                                                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APK_DERIVED` → `TESTING` | Core flows confirmed on a real unit: BLE connect, handshake (if encrypted), live-data parse                                                                                                   |
+| `TESTING` → `VERIFIED`    | Verify stages 1–3 pass and stage 4 passes under a connected load on real hardware (stages 5–6 are encouraged but optional). See the [verify reference](verify.md) for what each stage covers. |
 
-To submit evidence, open an issue on the [GitHub issue tracker](https://github.com/mikemccllstr/voltkeeper/issues)
-with the `verify` output attached. See the [`verify` command documentation](verify.md) for details on
-running verification.
+Follow the [Test your device](test-your-device.md) walkthrough to produce a report. Then submit
+it through the [device report form](https://github.com/mikemccllstr/voltkeeper/issues/new?template=device-report.yml).
 
 ## How to check a model's tier
 

@@ -189,7 +189,7 @@ class TestScanResultTier:
         from voltkeeper.core.devices.bluetti_device import SupportTier
 
         hint = contribution_hint({SupportTier.APK_DERIVED, SupportTier.HARDWARE_VERIFIED})
-        assert "device-testing" in hint.lower()
+        assert "test-your-device" in hint
 
     def test_contribution_hint_all_verified(self):
         from voltkeeper.core.devices.bluetti_device import SupportTier

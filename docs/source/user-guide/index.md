@@ -10,6 +10,7 @@ write
 verify
 verify-interpretation
 support-tiers
+test-your-device
 mqtt
 daemon
 load-test

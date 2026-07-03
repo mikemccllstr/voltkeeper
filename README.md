@@ -96,7 +96,8 @@ On Linux, the BLE adapter may require elevated privileges (`CAP_NET_ADMIN` or `s
 - **Bluetti EL100V2:** In testing — core communication confirmed on a physical unit; full `verify` in progress.
 
 See the [Device Support Tiers](https://mikemccllstr.github.io/voltkeeper/user-guide/support-tiers/) page for what each tier means.
-The [device model catalog](https://mikemccllstr.github.io/voltkeeper/protocol/device-models/) lists the support tier for every supported model. If your device is not yet verified, consider running `voltkeeper verify` and sharing the results.
+The [device model catalog](https://mikemccllstr.github.io/voltkeeper/protocol/device-models/) lists the support tier for every supported model.
+If your device is not yet verified, follow the [Test your device](https://mikemccllstr.github.io/voltkeeper/user-guide/test-your-device/) walkthrough to run verification and share the results.
 
 ## Install
 
