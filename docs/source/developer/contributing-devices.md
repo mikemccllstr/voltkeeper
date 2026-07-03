@@ -87,6 +87,38 @@ merged — no coding required on your part.
 - V2 devices may use AES-CBC encryption. If your probe YAML shows
   `protocol: v2`, try the parse with and without `--key`.
 
+### Locating encryption keys in a new APK
+
+When a new encrypted model is released, you need the three key constants
+to add to `src/voltkeeper/bluetooth/handshake.py`. They are public
+`static final String` fields in the decompiled APK.
+
+**jadx grep recipe.** Decompile the APK with jadx and search the
+`sources` directory:
+
+```bash
+rg '459FC535808941F17091E0993EE3E93D'   # LOCAL_AES_KEY hex
+rg 'PRIVATE_KEY_L1'                      # field name
+rg 'PUBLIC_KEY_K2'                       # field name
+```
+
+**Source locations (APK v3.0.9):**
+
+| Field            | Class / file              | maps to handshake.py constant |
+| ---------------- | ------------------------- | ----------------------------- |
+| `LOCAL_AES_KEY`  | `ConnConstantsV2.java:98` | `LOCAL_AES_KEY`               |
+| `PRIVATE_KEY_L1` | `SignatureCrypt.java:34`  | `PRIVATE_KEY_L1_HEX`          |
+| `PUBLIC_KEY_K2`  | `SignatureCrypt.java:35`  | `PUBLIC_KEY_K2_DER_HEX`       |
+
+The field names have been stable across every APK version examined so far.
+
+**Caveat.** A new device model may ship different key values. If the
+handshake reaches the ECDH confirmation step and the device returns status
+`0x01` (app-pubkey signature rejected), the baked-in L1/K2 do not match
+that model's firmware. Pull the new values from the corresponding APK
+version following the recipe above, update `handshake.py`, and open a PR.
+See {doc}`/protocol/security` for the status semantics.
+
 ## macOS notes
 
 macOS uses a different Bluetooth stack. If you encounter device discovery

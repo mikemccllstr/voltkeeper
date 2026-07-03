@@ -1,6 +1,6 @@
 # Encryption Details
 
-This page documents the complete cryptographic material found in the Bluetti APK, including all hardcoded keys, AES-128-CBC cipher parameters, IV chaining behavior, and key derivation formulas.
+This page documents the complete cryptographic material found in the Bluetti APK, including all hardcoded keys, AES-CBC cipher parameters, IV chaining behavior, and key derivation formulas.
 
 ## Crypto Material
 
@@ -23,16 +23,21 @@ IV           = decode(randomMd5)                    # the raw 16-byte digest (NO
 
 # ECDH (protocol v2+):
 ecdh_shared_secret = ECDH_secp256r1(app_ephemeral_privkey, device_iot_pubkey)
-bleConnShareKey = ecdh_shared_secret                # 32 hex chars → 16 bytes
+bleConnShareKey = ecdh_shared_secret                # full 32-byte shared point X
 ```
 
 `decode(x)` means hex-decode the string to bytes. `randomMd5` is the lowercase MD5
 hex digest; `bleConnAESKey` and the IV are derived from its **decoded** 16 bytes —
 not from XOR-ing the ASCII characters of the hex string, and not from a second MD5.
 
-**Cipher:** AES-128-CBC, zero-padding (no PKCS). Every encrypted frame is prefixed with a 2-byte big-endian plaintext length. Handshake-stage frames: `[2B len][ciphertext]`, IV = `decode(randomMd5)`, CBC-chained. Post-handshake frames: `[2B len][4B seed][ciphertext]`, IV = `MD5(seed)` per frame.
+**Cipher:** zero-padding (no PKCS). Every encrypted frame is prefixed with a 2-byte big-endian plaintext length. Handshake-stage frames (`bleConnAESKey`, 16-byte key) use AES-128-CBC: `[2B len][ciphertext]`, IV = `decode(randomMd5)`, CBC-chained. Post-handshake frames (`bleConnShareKey`, 32-byte key) use AES-256-CBC: `[2B len][4B seed][ciphertext]`, IV = `MD5(seed)` per frame.
 
 **ECDSA signature message** (both device→app verify and app→device sign): `devicePubKey(64) || decode(randomMd5)(16)` — 80 bytes. The ASCII hex form of `randomMd5` (96 bytes) is NOT used.
+
+The device enforces the app-pubkey signature; a substitute key causes the ECDH
+confirmation frame to return status `0x01` (app-pubkey signature rejected) and
+the handshake aborts. This was confirmed on an Elite 100 V2 (2026-07-03) and
+is documented in {doc}`security`.
 
 ## Legacy challenge-response frame format
 

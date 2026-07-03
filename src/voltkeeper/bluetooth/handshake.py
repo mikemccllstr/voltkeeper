@@ -14,6 +14,36 @@ from .cipher import CbcSession, ShareSession, derive_iv, frame_decode, frame_enc
 
 _log = logging.getLogger(__name__)
 
+# ═══════════════════════════════════════════════════════════════════════
+#  Key material provenance and rationale
+# ═══════════════════════════════════════════════════════════════════════
+#
+# The three constants below are copied from the official Bluetti Android app
+# (decompiled via jadx, APK v3.0.9).  They are public static final String
+# fields — plainly present in the shipped app binary, not harvested from a
+# device or a remote service.
+#
+#   LOCAL_AES_KEY          ConnConstantsV2.LOCAL_AES_KEY (line 98)
+#                          Symmetric AES key for the legacy challenge-response
+#                          stage.  Used to encrypt the ECDH-encapsulated frames
+#                          before the session key is derived.
+#
+#   PRIVATE_KEY_L1_HEX     SignatureCrypt.PRIVATE_KEY_L1 (line 34)
+#                          ECDSA P-256 private key.  voltkeeper signs its
+#                          ephemeral app public key with this key so the device
+#                          can verify the caller is the legitimate Bluetti app.
+#
+#   PUBLIC_KEY_K2_DER_HEX  SignatureCrypt.PUBLIC_KEY_K2 (line 35)
+#                          ECDSA P-256 public key in DER SubjectPublicKeyInfo.
+#                          Used to verify the signature on the device's own
+#                          ephemeral public key during ECDH.
+#
+# voltkeeper embeds these keys solely to interoperate over BLE with Bluetti
+# hardware owned by the person running the software.  The private key (L1)
+# cannot be generated locally or replaced: the device enforces the app-pubkey
+# signature and returns ECDH confirmation status 0x01 when a different key is
+# presented (confirmed on an Elite 100 V2, 2026-07-03).
+
 LOCAL_AES_KEY = bytes.fromhex("459FC535808941F17091E0993EE3E93D")
 PRIVATE_KEY_L1_HEX = "4F19A16E3E87BDD9BD24D3E5495B88041511943CBC8B969ADE9641D0F56AF337"
 PUBLIC_KEY_K2_DER_HEX = (
@@ -187,11 +217,7 @@ class HandshakeSession:
             conf_frame = await self._collect_encrypted_frame()
             conf_plaintext = frame_decode(conf_frame, CbcSession(ble_conn_aes_key, initial_iv))
             _log.debug("handshake: conf_plaintext=%s", conf_plaintext.hex())
-            if conf_plaintext[:3] != b"\x2a\x2a\x06":
-                raise ValueError(f"Expected confirmation 0x2A2A06, got {conf_plaintext[:3].hex()}")
-            if len(conf_plaintext) < 5 or conf_plaintext[4] != 0:
-                status = conf_plaintext[4] if len(conf_plaintext) >= 5 else 0xFF
-                raise ValueError(f"ECDH confirmation failed with status 0x{status:02x}")
+            _check_confirmation(conf_plaintext)
 
             shared_key = derive_shared_key(app_priv, device_pub)
             _log.debug("handshake: shared_key=%s", shared_key.hex())
@@ -199,3 +225,27 @@ class HandshakeSession:
         finally:
             if self._owns_subscription:
                 await client.stop_notify(NOTIFY_UUID)
+
+
+def _check_confirmation(conf_plaintext: bytes) -> None:
+    """Validate the ECDH confirmation frame (2A 2A 06).
+
+    Status 0x00: device accepted the app-pubkey signature — handshake proceeds.
+    Status 0x01: device rejected our app-pubkey signature — the baked-in
+    PRIVATE_KEY_L1_HEX / PUBLIC_KEY_K2_DER_HEX don't match this device model
+    (observed on Elite 100 V2, 2026-07-03). Any other non-zero status aborts
+    with the raw value included for investigation.
+    """
+    if conf_plaintext[:3] != b"\x2a\x2a\x06":
+        raise ValueError(f"Expected confirmation 0x2A2A06, got {conf_plaintext[:3].hex()}")
+    if len(conf_plaintext) < 5:
+        raise ValueError("ECDH confirmation frame too short")
+    status = conf_plaintext[4]
+    if status == 0:
+        return
+    if status == 0x01:
+        raise ValueError(
+            "ECDH confirmation failed: device rejected the app-pubkey signature (status 0x01). "
+            "PRIVATE_KEY_L1_HEX / PUBLIC_KEY_K2_DER_HEX do not match this device model."
+        )
+    raise ValueError(f"ECDH confirmation failed with status 0x{status:02x}")

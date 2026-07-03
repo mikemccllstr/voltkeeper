@@ -156,3 +156,35 @@ def test_sign_app_pubkey_uses_hex_decoded_message():
     l1_pub = ec.derive_private_key(int(PRIVATE_KEY_L1_HEX, 16), ec.SECP256R1()).public_key()
     # Must not raise — L1 signed with hex-decoded message, L1_pub verifies same
     l1_pub.verify(der_sig, pub_raw + bytes.fromhex(random_md5_hex), ec.ECDSA(hashes.SHA256()))
+
+
+class TestConfirmationStatus:
+    def test_status_zero_does_not_raise(self):
+        from voltkeeper.bluetooth.handshake import _check_confirmation
+
+        frame = bytearray(b"\x2a\x2a\x06\x01\x00")
+        _check_confirmation(bytes(frame))
+
+    def test_status_one_raises_with_signature_rejection(self):
+        from voltkeeper.bluetooth.handshake import _check_confirmation
+
+        frame = bytearray(b"\x2a\x2a\x06\x01\x01")
+        with pytest.raises(ValueError, match="app-pubkey signature"):
+            _check_confirmation(bytes(frame))
+
+    def test_status_one_message_mentions_key_mismatch(self):
+        from voltkeeper.bluetooth.handshake import _check_confirmation
+
+        frame = bytearray(b"\x2a\x2a\x06\x01\x01")
+        with pytest.raises(ValueError) as exc:
+            _check_confirmation(bytes(frame))
+        msg = str(exc.value)
+        assert "0x01" in msg
+        assert "do not match this device model" in msg
+
+    def test_other_non_zero_status_raises_with_raw_value(self):
+        from voltkeeper.bluetooth.handshake import _check_confirmation
+
+        frame = bytearray(b"\x2a\x2a\x06\x01\x05")
+        with pytest.raises(ValueError, match="0x05"):
+            _check_confirmation(bytes(frame))

@@ -210,7 +210,9 @@ For devices where `isESP32Encrypted == true` or `isBLEEncrypted == true`:
 1. App generates ephemeral SECP-256R1 keypair
 1. App signs `(appPublicKey || hex_decode(randomMd5))` (80 bytes) with hardcoded `PRIVATE_KEY_L1`
 1. App sends `2A 2A 05 80 ...` with app public key + signature
-1. Device responds `2A 2A 06 00 ...` confirming acceptance
+1. Device responds with an encrypted confirmation frame `2A 2A 06 01 <status>`. The device enforces the app-pubkey signature — it is not merely that the app sends one, but that the device verifies it against the firmware-embedded counterpart of L1. The status byte has confirmed semantics:
+   - `0x00` — device accepted the app-pubkey signature. Handshake proceeds.
+   - `0x01` — device rejected the app-pubkey signature. The baked-in `PRIVATE_KEY_L1_HEX` / `PUBLIC_KEY_K2_DER_HEX` do not match this device model. This was confirmed on an Elite 100 V2 device (2026-07-03) by substituting a freshly generated app key — the device returned `0x01` and the handshake never completed. Other non-zero statuses are possible but unobserved; they abort with the raw value included.
 1. App derives shared secret via ECDH: `bleConnShareKey = ECDH(appPrivKey, devicePubKey)`
 1. `bleConnAESKey` discarded; all subsequent traffic encrypted with `bleConnShareKey`
 
@@ -254,7 +256,44 @@ sig_message = devicePubKey(64 bytes) || hex_decode(randomMd5)(16 bytes)  # 80 by
 
 # ECDH (protocol v2+):
 ecdh_shared_secret = ECDH_secp256r1(app_ephemeral_privkey, device_iot_pubkey)
-bleConnShareKey    = ecdh_shared_secret                # 16 bytes (first 16 of shared point X)
+bleConnShareKey    = ecdh_shared_secret                # 32 bytes (full shared point X)
 ```
 
-**Cipher:** AES-128-CBC, zero-padding (no PKCS). Every encrypted frame is prefixed with a 2-byte big-endian plaintext length. Handshake-stage frames (`bleConnAESKey`): `[2B len][ciphertext]`, IV = `decode(randomMd5)`, CBC-chained. Post-handshake frames (`bleConnShareKey`): `[2B len][4B seed][ciphertext]`, IV = `MD5(seed)` per frame.
+**Cipher:** zero-padding (no PKCS). Every encrypted frame is prefixed with a 2-byte big-endian plaintext length. Handshake-stage frames (`bleConnAESKey`, 16-byte key) use AES-128-CBC: `[2B len][ciphertext]`, IV = `decode(randomMd5)`, CBC-chained. Post-handshake frames (`bleConnShareKey`, 32-byte key) use AES-256-CBC: `[2B len][4B seed][ciphertext]`, IV = `MD5(seed)` per frame.
+
+______________________________________________________________________
+
+### Key Material Provenance and Rationale
+
+The three cryptographic constants in `Complete Crypto Material` above are
+embedded directly in voltkeeper's source code
+(`src/voltkeeper/bluetooth/handshake.py`). This section explains where they
+come from and why the project ships them.
+
+**Origin.** Each constant is copied verbatim from the official Bluetti Android
+app (decompiled via jadx, APK v3.0.9). They are `public static final String`
+fields — plainly present in the shipped app binary. They are not secret keys
+harvested from a device or a remote service.
+
+| voltkeeper constant     | APK source (jadx)               | Purpose                          |
+| ----------------------- | ------------------------------- | -------------------------------- |
+| `LOCAL_AES_KEY`         | `ConnConstantsV2.LOCAL_AES_KEY` | Legacy challenge-response layer  |
+| `PRIVATE_KEY_L1_HEX`    | `SignatureCrypt.PRIVATE_KEY_L1` | App identity (ECDSA signer)      |
+| `PUBLIC_KEY_K2_DER_HEX` | `SignatureCrypt.PUBLIC_KEY_K2`  | Device authentication (verifier) |
+
+**Why voltkeeper embeds them.** The keys enable BLE interoperability with
+Bluetti hardware owned by the person running the software. Without them
+voltkeeper cannot complete the encrypted handshake that the device requires.
+
+**Why the private key cannot be removed.** The device verifies the
+app-pubkey signature and rejects a substitute key. When a freshly generated
+key was tested against a real Elite 100 V2 (2026-07-03), the device returned
+ECDH confirmation status `0x01` ("app-pubkey signature rejected") and the
+handshake never completed. `PRIVATE_KEY_L1_HEX` is load-bearing — it cannot
+be self-generated or omitted without breaking encrypted-device connectivity.
+
+**Decision.** The keys stay baked in. Extracting them at runtime would add
+complexity (APK bundling, filesystem access, version coordination) without a
+security benefit — the keys are already in the public app binary. The burden
+of that complexity would fall on headless deployments (Raspberry Pi, systemd
+services) that are voltkeeper's primary use case.
