@@ -119,18 +119,18 @@ class TestTlvReadCommands:
 class TestChargingMode:
     def test_values(self):
         assert ChargingMode.STANDARD.value == 0
-        assert ChargingMode.TURBO.value == 1
-        assert ChargingMode.SILENT.value == 2
+        assert ChargingMode.SILENT.value == 1
+        assert ChargingMode.TURBO.value == 2
 
     def test_name_lookup(self):
         assert ChargingMode["STANDARD"].value == 0
-        assert ChargingMode["TURBO"].value == 1
-        assert ChargingMode["SILENT"].value == 2
+        assert ChargingMode["SILENT"].value == 1
+        assert ChargingMode["TURBO"].value == 2
 
     def test_value_lookup(self):
         assert ChargingMode(0) == ChargingMode.STANDARD
-        assert ChargingMode(1) == ChargingMode.TURBO
-        assert ChargingMode(2) == ChargingMode.SILENT
+        assert ChargingMode(1) == ChargingMode.SILENT
+        assert ChargingMode(2) == ChargingMode.TURBO
 
 
 class TestSystemPowerOff:

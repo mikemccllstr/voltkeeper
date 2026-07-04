@@ -77,7 +77,7 @@ class TestAC180:
     def test_charging_mode_setter(self, ac180_device):
         cmd = ac180_device.build_setter_command("charging_mode", "TURBO")
         assert cmd.address == 2020
-        assert cmd.value == 1
+        assert cmd.value == 2
 
     def test_unknown_field_rejected(self, ac180_device):
         with pytest.raises(ValueError, match="Unknown writable field"):

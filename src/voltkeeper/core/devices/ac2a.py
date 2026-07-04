@@ -1,6 +1,5 @@
 # ABOUTME: AC2A device definition — V2 register map, inherits from V2Base with custom array helpers.
 
-from enum import Enum, unique
 from typing import List
 
 from ..commands import EmsCtrlMode, InvFrequency, LedColor, Pv2Type, PvType, ReadHoldingRegisters, WorkingMode
@@ -11,15 +10,9 @@ from .v2_base import (
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
     WORKING_MODE,
+    ChargingMode,
     V2Base,
 )
-
-
-@unique
-class ChargingMode(Enum):
-    STANDARD = 0
-    TURBO = 1
-    SILENT = 2
 
 
 class AC2A(V2Base):

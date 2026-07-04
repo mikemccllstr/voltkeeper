@@ -52,7 +52,7 @@ class TestFieldHint:
 
         class Mode(Enum):
             STANDARD = 0
-            TURBO = 1
+            TURBO = 2
 
         assert _field_hint(EnumField("mode", 2020, Mode)) == "[standard|turbo]"
 

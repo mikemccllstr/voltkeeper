@@ -18,11 +18,15 @@ from .v2_base import (
 )
 
 
+# EL100V2 extends the shared V2 ChargingMode (v2_base.py) with CUSTOM=4 per
+# the APK's DeviceSettingsChgModeActivity, which gates custom mode to this
+# model in the non-PLP024 family.  Values mirror the shared enum:
+#   STANDARD=0, SILENT=1, TURBO=2, CUSTOM=4
 @unique
 class ChargingMode(Enum):
     STANDARD = 0
-    TURBO = 1
-    SILENT = 2
+    SILENT = 1
+    TURBO = 2
     CUSTOM = 4
 
 
@@ -30,6 +34,7 @@ class El100V2(V2Base):
     """EL100V2 portable power station. V2 protocol, 56V system."""
 
     SUPPORT_TIER = SupportTier.HARDWARE_TESTING
+    DEFAULT_PACK_VOLTAGE_SCALE = 2  # 56 V-class LiFePO4 — raw register / 100 = physical volts
 
     def __init__(self, address: str, sn: str):
         super().__init__(address, "EL100V2", sn)

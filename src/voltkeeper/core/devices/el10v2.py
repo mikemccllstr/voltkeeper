@@ -2,7 +2,6 @@
 # ABOUTME: 25V portable power station, model #62. Inherits V2Base with AC180-family writable fields.
 # ABOUTME: TODO(hardware): verify against physical device.
 
-from enum import Enum, unique
 from typing import Any, List
 
 from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, WorkingMode, WriteSingleRegister
@@ -15,15 +14,9 @@ from .v2_base import (
     SYSTEM_TIME_ZONE,
     V1_UPS_MODE,
     WORKING_MODE,
+    ChargingMode,
     V2Base,
 )
-
-
-@unique
-class ChargingMode(Enum):
-    STANDARD = 0
-    TURBO = 1
-    SILENT = 2
 
 
 class EL10V2(V2Base):

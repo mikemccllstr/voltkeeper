@@ -422,11 +422,11 @@ class TestSerializable:
 
         class ChargingMode(Enum):
             STANDARD = 0
-            TURBO = 1
+            TURBO = 2
 
         result = _to_serializable({"mode": ChargingMode.TURBO, "soc": 85})
         json.dumps(result)  # must not raise
-        assert result["mode"] == 1
+        assert result["mode"] == ChargingMode.TURBO.value
         assert result["soc"] == 85
 
     def test_to_serializable_handles_nested_enum(self):

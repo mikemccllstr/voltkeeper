@@ -230,7 +230,7 @@ def test_build_setter_command_v2():
 
     cmd = d.build_setter_command("charging_mode", "SILENT")
     assert cmd.address == 2020
-    assert cmd.value == 2
+    assert cmd.value == 1
 
 
 def test_ac2a_lcd_timeout_range_enforced():

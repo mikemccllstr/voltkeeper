@@ -1,6 +1,8 @@
 # ABOUTME: Unit tests for voltkeeper — see test class docstrings for specifics.
 
 
+from decimal import Decimal
+
 import pytest
 
 from voltkeeper.core.utils import (
@@ -111,6 +113,11 @@ class TestEl100V2:
 
     def test_build_setter_charging_mode(self, el100v2_device):
         cmd = el100v2_device.build_setter_command("charging_mode", "TURBO")
+        assert cmd.address == 2020
+        assert cmd.value == 2
+
+    def test_build_setter_charging_mode_silent(self, el100v2_device):
+        cmd = el100v2_device.build_setter_command("charging_mode", "SILENT")
         assert cmd.address == 2020
         assert cmd.value == 1
 
@@ -496,6 +503,14 @@ class TestParseEl100V2Home:
         assert "packTotalSoc" in result
         assert result["packTotalSoc"] == 100
 
+    def test_pack_voltage_ac_run(self, device, el100v2_home_bytes):
+        result = device.parse(100, el100v2_home_bytes)
+        assert result["packTotalVoltage"] == Decimal("53.50")
+
+    def test_pack_voltage_dc_run(self, device, el100v2_home_dc_bytes):
+        result = device.parse(100, el100v2_home_dc_bytes)
+        assert result["packTotalVoltage"] == Decimal("53.33")
+
     def test_model_name(self, device, el100v2_home_bytes):
         result = device.parse(100, el100v2_home_bytes)
         assert result["deviceModel"] == "EL100V2"
@@ -656,8 +671,4 @@ class TestParseEl100V2Control:
         assert result["dc_output"] is True
         from voltkeeper.core.devices.el100v2 import ChargingMode
 
-        # Register value 1: the device was in Silent mode at capture time, but
-        # the enum labels 1 as TURBO — hardware-confirmed swap (see
-        # hardware-data/verify-EL100V2-2026-07-03-notes.md), fixed in the
-        # charging-mode-swap change, which must update this assertion.
-        assert result["charging_mode"] == ChargingMode.TURBO
+        assert result["charging_mode"] == ChargingMode.SILENT

@@ -2,7 +2,6 @@
 # ABOUTME: 25V portable power station, model #32. Same APK code block as EL100V2.
 # ABOUTME: TODO(hardware): verify against physical device.
 
-from enum import Enum, unique
 from typing import List
 
 from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, WorkingMode
@@ -13,15 +12,9 @@ from .v2_base import (
     SYSTEM_TIME_ZONE,
     V1_UPS_MODE,
     WORKING_MODE,
+    ChargingMode,
     V2Base,
 )
-
-
-@unique
-class ChargingMode(Enum):
-    STANDARD = 0
-    TURBO = 1
-    SILENT = 2
 
 
 class EL30V2(V2Base):

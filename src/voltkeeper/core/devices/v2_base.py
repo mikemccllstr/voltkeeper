@@ -1,5 +1,6 @@
 # ABOUTME: Generic V2-protocol base device class — register blocks, structs, parse dispatch.
 
+from enum import Enum, unique
 from typing import Any, List
 
 from ..commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
@@ -17,6 +18,23 @@ from ._v2_alarm_tables import (
     PACK_HIGH_VOLT_ERROR_NAMES,
 )
 from .bluetti_device import BluettiDevice
+
+
+@unique
+class ChargingMode(Enum):
+    """V2 charging-mode register 2020 values per APK v3.0.10 DeviceSettingsChgModeActivity.
+
+    Confirmed on EL100V2 hardware (2026-07-03): writing 1 put the device in
+    Silent mode on its own display.  STANDARD=0, SILENT=1, TURBO=2 for all
+    non-PLP024 devices.  PLP024-series devices use standard=2, turbo=3 — none
+    exist in the tree; any future one MUST NOT use this enum without checking
+    its series.
+    """
+
+    STANDARD = 0
+    SILENT = 1
+    TURBO = 2
+
 
 APP_HOME_DATA = 100
 INV_BASE_INFO = 1100
@@ -119,11 +137,11 @@ class V2Base(BluettiDevice):
     }
 
     # Default pack-voltage scale for V2 devices. EP500/EP600 and other
-    # high-voltage packs use ÷10 (raw register value × 0.1 = volts). The AC2A
-    # is the known exception: its 8S LiFePO4 architecture (~25.6 V nominal)
-    # requires ÷100 — see AC2A.DEFAULT_PACK_VOLTAGE_SCALE. When adding a new
-    # V2 model, verify the pack voltage with a multimeter against the device
-    # LCD; if readings look 10× off, override this attribute on the subclass.
+    # high-voltage packs use ÷10 (raw register value × 0.1 = volts). Several
+    # 25–56 V-class LiFePO4 devices (AC2A, EL10V2, EL30V2, EL100V2) use ÷100
+    # (raw × 0.01). When adding a new V2 model, verify the pack voltage with
+    # a multimeter against the device LCD; if readings look 10× off, override
+    # this attribute on the subclass.
     DEFAULT_PACK_VOLTAGE_SCALE = 1
 
     # Subclasses populate these. Empty defaults mean a model with no

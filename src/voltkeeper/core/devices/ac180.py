@@ -3,7 +3,6 @@
 # ABOUTME: 56V nominal. PLP022 ("PINa") and EL10V2 inherit from this base.
 # ABOUTME: TODO(hardware): verify against physical device.
 
-from enum import Enum, unique
 from typing import Any, List
 
 from ..commands import InvFrequency, ReadHoldingRegisters, WorkingMode, WriteSingleRegister
@@ -15,15 +14,9 @@ from .v2_base import (
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
     WORKING_MODE,
+    ChargingMode,
     V2Base,
 )
-
-
-@unique
-class ChargingMode(Enum):
-    STANDARD = 0
-    TURBO = 1
-    SILENT = 2
 
 
 class AC180(V2Base):

@@ -105,7 +105,7 @@ _CONTROL_HEX = (
     "00000000"  # 2015-2016
     "0001"  # 2017 ac_eco_mode=True
     "00000000"  # 2018-2019
-    "0001"  # 2020 charging_mode=TURBO=1
+    "0001"  # 2020 charging_mode=SILENT=1
     "0000"  # 2021 power_lifting=False
     "0014"  # 2022 sys_low_power=20
     "0050"  # 2023 sys_high_power=80

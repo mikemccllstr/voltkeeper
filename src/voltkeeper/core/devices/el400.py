@@ -2,7 +2,6 @@
 # ABOUTME: 56V portable power station, model #29. Adds remote power control and sleep mode.
 # ABOUTME: TODO(hardware): verify against physical device.
 
-from enum import Enum, unique
 from typing import List
 
 from ..commands import InvFrequency, LedColor, ReadHoldingRegisters, SystemPowerOff, WorkingMode
@@ -15,15 +14,9 @@ from .v2_base import (
     SYSTEM_TIME_ZONE,
     V1_UPS_MODE,
     WORKING_MODE,
+    ChargingMode,
     V2Base,
 )
-
-
-@unique
-class ChargingMode(Enum):
-    STANDARD = 0
-    TURBO = 1
-    SILENT = 2
 
 
 class EL400(V2Base):

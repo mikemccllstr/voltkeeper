@@ -194,7 +194,7 @@ def test_safe_default_bool_returns_zero():
 
 def test_safe_default_enum_returns_min_member():
     result = safe_default(EnumField("x", 100, ChargingMode))
-    # ChargingMode members: STANDARD=0, TURBO=1, SILENT=2 — min is 0
+    # ChargingMode members: STANDARD=0, SILENT=1, TURBO=2 — min is 0
     assert result == 0
 
 
@@ -335,7 +335,7 @@ async def test_run_tier3_bool_restore_failed(alarm_sound_field):
 
 
 async def test_run_tier3_enum_cycles_all_members(charging_mode_field):
-    # ChargingMode: STANDARD=0, TURBO=1, SILENT=2; current=1 (TURBO)
+    # ChargingMode: STANDARD=0, SILENT=1, TURBO=2; current=1 (SILENT)
     client = FakeBluetoothClient({2020: 1})
     result = await run_tier3_enum(client, charging_mode_field, 1)
 

@@ -158,11 +158,11 @@ class TestParseControlData:
         result = ac2a_device.parse(2000, ac2a_control_bytes)
         assert result["ac_eco_mode"] is True
 
-    def test_charging_mode_turbo(self, ac2a_device, ac2a_control_bytes):
+    def test_charging_mode_silent(self, ac2a_device, ac2a_control_bytes):
         from voltkeeper.core.devices.ac2a import ChargingMode
 
         result = ac2a_device.parse(2000, ac2a_control_bytes)
-        assert result["charging_mode"] == ChargingMode.TURBO
+        assert result["charging_mode"] == ChargingMode.SILENT
 
     def test_sys_power_thresholds(self, ac2a_device, ac2a_control_bytes):
         result = ac2a_device.parse(2000, ac2a_control_bytes)
@@ -182,7 +182,7 @@ class TestParseControlData:
     def test_build_setter_charging_mode_enum(self, ac2a_device):
         cmd = ac2a_device.build_setter_command("charging_mode", "TURBO")
         assert cmd.address == 2020
-        assert cmd.value == 1
+        assert cmd.value == 2
 
     def test_has_field_setter_writable(self, ac2a_device):
         assert ac2a_device.has_field_setter("ac_output") is True

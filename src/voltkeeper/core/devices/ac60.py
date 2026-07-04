@@ -3,7 +3,6 @@
 # ABOUTME:   DeviceConnUtil.java sets minProtocolVer=2000, which is V2.
 # ABOUTME: TODO(AC60): verify against hardware.
 
-from enum import Enum, unique
 from typing import List
 
 from ..commands import InvFrequency, ReadHoldingRegisters, WorkingMode
@@ -13,15 +12,9 @@ from .v2_base import (
     SYSTEM_TIME,
     SYSTEM_TIME_ZONE,
     WORKING_MODE,
+    ChargingMode,
     V2Base,
 )
-
-
-@unique
-class ChargingMode(Enum):
-    STANDARD = 0
-    TURBO = 1
-    SILENT = 2
 
 
 class AC60(V2Base):

@@ -125,3 +125,20 @@ macOS uses a different Bluetooth stack. If you encounter device discovery
 issues, try using a Linux VM or a Raspberry Pi for the BLE capture step.
 The btsnoop parsing step doesn't require Bluetooth — it can run on any
 platform.
+
+## Charging mode register (2020)
+
+V2 devices that expose charging mode on register 2020 use these values
+per APK v3.0.10 `DeviceSettingsChgModeActivity` (hardware-confirmed on
+EL100V2):
+
+| Value | Mode     |
+| ----- | -------- |
+| 0     | Standard |
+| 1     | Silent   |
+| 2     | Turbo    |
+
+**PLP024-series exception.** PLP024-series devices use a different
+mapping: `standard=2`, `turbo=3`. If you are adding a PLP024-series
+device, do **not** use the v2_base.py `ChargingMode` enum — define a
+local enum with the correct values.
