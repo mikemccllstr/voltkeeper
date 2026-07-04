@@ -477,3 +477,187 @@ class TestEl100V2EcoRanges:
     def test_eco_range_rejects_out_of_range(self, el100v2_device, field, value):
         with pytest.raises(ValueError, match="not in range"):
             el100v2_device.build_setter_command(field, value)
+
+
+# ── Fixture-based parse tests (Group 4.2) ─────────────────────────────────────
+
+
+class TestParseEl100V2Home:
+    @pytest.fixture
+    def device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_battery_fields_present(self, device, el100v2_home_bytes):
+        result = device.parse(100, el100v2_home_bytes)
+        assert "packTotalVoltage" in result
+        assert "packTotalCurrent" in result
+        assert "packTotalSoc" in result
+        assert result["packTotalSoc"] == 100
+
+    def test_model_name(self, device, el100v2_home_bytes):
+        result = device.parse(100, el100v2_home_bytes)
+        assert result["deviceModel"] == "EL100V2"
+
+    def test_power_meters_have_keys(self, device, el100v2_home_bytes):
+        result = device.parse(100, el100v2_home_bytes)
+        for key in ("totalDCPower", "totalACPower", "totalPVPower", "totalGridPower"):
+            assert key in result
+
+    def test_energy_totals_have_keys(self, device, el100v2_home_bytes):
+        result = device.parse(100, el100v2_home_bytes)
+        for key in (
+            "totalDCEnergy",
+            "totalACEnergy",
+            "totalPVChargingEnergy",
+            "totalGridChargingEnergy",
+        ):
+            assert key in result
+            assert result[key] >= 0.0
+
+    def test_status_fields_present(self, device, el100v2_home_bytes):
+        result = device.parse(100, el100v2_home_bytes)
+        assert "chargingMode" in result
+        assert "invWorkingStatus" in result
+
+    def test_dc_run_soc(self, device, el100v2_home_dc_bytes):
+        result = device.parse(100, el100v2_home_dc_bytes)
+        assert result["packTotalSoc"] == 99
+
+
+class TestParseEl100V2InvBase:
+    @pytest.fixture
+    def device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_inv_type(self, device, el100v2_inv_base_bytes):
+        result = device.parse(1100, el100v2_inv_base_bytes)
+        assert result["invType"] == "EL100V2"
+
+    def test_firmware_versions(self, device, el100v2_inv_base_bytes):
+        result = device.parse(1100, el100v2_inv_base_bytes)
+        assert result["arm_version"] == 218614
+        assert result["dsp_version"] == 220013
+        assert result["bms_version"] == 108307
+
+
+class TestParseEl100V2InvPv:
+    @pytest.fixture
+    def device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_pv_string_present(self, device, el100v2_inv_pv_bytes):
+        result = device.parse(1200, el100v2_inv_pv_bytes)
+        assert "pv[0].workingStatus" in result
+        assert "pv[0].type" in result
+        assert result["pv[0].inputPower"] == pytest.approx(102, abs=1)
+        assert result["pv[0].inputVoltage"] == pytest.approx(12.5, abs=0.1)
+        assert result["pv[0].inputCurrent"] == pytest.approx(8.1, abs=0.1)
+
+    def test_no_second_string(self, device, el100v2_inv_pv_bytes):
+        result = device.parse(1200, el100v2_inv_pv_bytes)
+        assert "pv[1].inputPower" not in result
+
+
+class TestParseEl100V2InvGrid:
+    @pytest.fixture
+    def device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_grid_phase_present(self, device, el100v2_inv_grid_bytes):
+        result = device.parse(1300, el100v2_inv_grid_bytes)
+        assert result["gridPhase[0].power"] == pytest.approx(46, abs=2)
+        assert result["gridPhase[0].voltage"] == pytest.approx(119.3, abs=0.5)
+        assert result["gridPhase[0].current"] > 0
+
+    def test_no_second_phase(self, device, el100v2_inv_grid_bytes):
+        result = device.parse(1300, el100v2_inv_grid_bytes)
+        assert "gridPhase[1].power" not in result
+
+
+class TestParseEl100V2InvLoad:
+    @pytest.fixture
+    def device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_load_block_parses(self, device, el100v2_inv_load_bytes):
+        result = device.parse(1400, el100v2_inv_load_bytes)
+        assert "dc5VPower" in result
+        assert "dc12VPower" in result
+
+    def test_load_phase_present(self, device, el100v2_inv_load_bytes):
+        result = device.parse(1400, el100v2_inv_load_bytes)
+        assert result["acPhase[0].power"] == pytest.approx(46, abs=2)
+        assert result["acPhase[0].voltage"] == pytest.approx(119.4, abs=0.5)
+
+    def test_no_second_load_phase(self, device, el100v2_inv_load_bytes):
+        result = device.parse(1400, el100v2_inv_load_bytes)
+        assert "acPhase[1].power" not in result
+
+
+class TestParseEl100V2InvInv:
+    @pytest.fixture
+    def device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_inv_phase_present(self, device, el100v2_inv_inv_bytes):
+        result = device.parse(1500, el100v2_inv_inv_bytes)
+        assert result["invPhase[0].voltage"] == pytest.approx(119.4, abs=0.5)
+        assert "invPhase[0].power" in result
+        assert "invPhase[0].workStatus" in result
+
+
+class TestParseEl100V2Control:
+    @pytest.fixture
+    def device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    def test_ac_output_on(self, device, el100v2_control_bytes):
+        result = device.parse(2000, el100v2_control_bytes)
+        assert result["ac_output"] is True
+
+    def test_dc_output_on(self, device, el100v2_control_bytes):
+        result = device.parse(2000, el100v2_control_bytes)
+        assert result["dc_output"] is True
+
+    def test_charging_mode(self, device, el100v2_control_bytes):
+        from voltkeeper.core.devices.el100v2 import ChargingMode
+
+        result = device.parse(2000, el100v2_control_bytes)
+        assert result["charging_mode"] == ChargingMode.STANDARD
+
+    def test_eco_power_values(self, device, el100v2_control_bytes):
+        result = device.parse(2000, el100v2_control_bytes)
+        assert result["dc_eco_power"] == 6
+        assert result["ac_eco_power"] == 10
+        assert result["dc_eco_auto_off_time"] == 4
+        assert result["ac_eco_auto_off_time"] == 4
+
+    def test_grid_max_current_from_advance(self, device, el100v2_advance_bytes):
+        result = device.parse(2200, el100v2_advance_bytes)
+        assert result["grid_max_current"] == 4
+
+    def test_dc_run_control(self, device, el100v2_control_dc_bytes):
+        result = device.parse(2000, el100v2_control_dc_bytes)
+        assert result["ac_output"] is True
+        assert result["dc_output"] is True
+        from voltkeeper.core.devices.el100v2 import ChargingMode
+
+        # Register value 1: the device was in Silent mode at capture time, but
+        # the enum labels 1 as TURBO — hardware-confirmed swap (see
+        # hardware-data/verify-EL100V2-2026-07-03-notes.md), fixed in the
+        # charging-mode-swap change, which must update this assertion.
+        assert result["charging_mode"] == ChargingMode.TURBO
