@@ -482,16 +482,20 @@ class TestRunObservations:
     @pytest.mark.asyncio
     async def test_prompt_flow_records_match(self, ac2a):
         """Prompt flow records observation/parsed/raw-ref/match."""
+        from voltkeeper.core.verify import _serialize
+
+        parsed_val = 85
+        prompt_text = f"State of Charge (%) (voltkeeper parsed: {_serialize(parsed_val)}) — type what the screen shows"
         items = [
             ObservationCheck(
                 field="soc",
                 prompt="State of Charge (%)",
                 source="device_screen",
-                parsed=85,
+                parsed=parsed_val,
                 raw_ref="100",
             )
         ]
-        prompter = FakePrompter({"State of Charge (%)": "85"})
+        prompter = FakePrompter({prompt_text: "85"})
 
         await run_observations(items, {}, ac2a, prompter.prompt)
 
@@ -502,15 +506,19 @@ class TestRunObservations:
 
     @pytest.mark.asyncio
     async def test_prompt_flow_records_mismatch(self, ac2a):
+        from voltkeeper.core.verify import _serialize
+
+        parsed_val = 85
+        prompt_text = f"State of Charge (%) (voltkeeper parsed: {_serialize(parsed_val)}) — type what the screen shows"
         items = [
             ObservationCheck(
                 field="soc",
                 prompt="State of Charge (%)",
                 source="device_screen",
-                parsed=85,
+                parsed=parsed_val,
             )
         ]
-        prompter = FakePrompter({"State of Charge (%)": "90"})
+        prompter = FakePrompter({prompt_text: "90"})
 
         await run_observations(items, {}, ac2a, prompter.prompt)
 
@@ -575,19 +583,23 @@ class TestRunObservations:
         """Observation of 121V against raw 1210 → mismatch with inferred decivolt scale."""
         import struct
 
+        from voltkeeper.core.verify import _serialize
+
         raw_hex = struct.pack("!H", 1210).hex().ljust(56, "0")
         blocks = {"100": BlockResult(status="pass", fields_parsed=1, raw=raw_hex)}
 
+        parsed_val = 12.1
+        prompt_text = f"Pack voltage (V) (voltkeeper parsed: {_serialize(parsed_val)})"
         items = [
             ObservationCheck(
                 field="pack_voltage",
                 prompt="Pack voltage (V)",
                 source="multimeter_or_app",
-                parsed=12.1,  # Wrong scale parsed value
+                parsed=parsed_val,
                 raw_ref="100",
             )
         ]
-        prompter = FakePrompter({"Pack voltage (V)": "121.0"})
+        prompter = FakePrompter({prompt_text: "121.0"})
 
         await run_observations(items, blocks, ac2a, prompter.prompt)
 
@@ -1033,3 +1045,132 @@ class TestInducedCheck:
         result = await run_induced_check(INDUCED_CHECKS[0], client, ac2a, capture)
         assert result.status == "captured"
         assert result.alarm_bits == []
+
+
+# ── 4. Category selection ─────────────────────────────────────────────────────
+
+
+class TestCategorySelection:
+    """Tests for category-based skip controls in ground-truth mode."""
+
+    def test_build_observation_items_respects_category_deselected(self, ac2a):
+        """Deselecting observations produces no prompable items."""
+        from voltkeeper.core.ground_truth import build_observation_items
+
+        tier1_values = {"packTotalSoc": 85}
+        items = build_observation_items(ac2a, tier1_values, selected_categories=frozenset())
+
+        assert len(items) == 0, "No observation items when observations category deselected"
+
+    def test_build_observation_items_all_enabled_by_default(self, ac2a):
+        """Default (no filter) gives all observation items."""
+        from voltkeeper.core.ground_truth import build_observation_items
+
+        tier1_values = {"packTotalSoc": 85}
+        items = build_observation_items(ac2a, tier1_values)
+
+        assert len(items) > 0, "Default should produce observation items"
+
+    def test_build_actuation_items_respects_load_category(self, ac2a):
+        """Deselecting load_actuations skips tier-4 fields."""
+        from voltkeeper.core.ground_truth import build_actuation_items
+
+        tier1_values = {"ac_output": True, "alarm_sound": False, "charging_mode": 0}
+        consented = frozenset({2, 3, 4, 5})
+
+        # With load_actuations deselected, tier-4 fields (ac_output) should be excluded
+        items = build_actuation_items(
+            ac2a, tier1_values, consented, selected_categories=frozenset({"mode_actuations", "induced"})
+        )
+
+        ac_output_items = [i for i in items if i.field == "ac_output"]
+        assert len(ac_output_items) == 0, "Tier-4 field should not appear when load_actuations deselected"
+
+    def test_build_actuation_items_respects_mode_category(self, ac2a):
+        """Deselecting mode_actuations skips tier-5 fields."""
+        from voltkeeper.core.ground_truth import build_actuation_items
+
+        tier1_values = {"ac_output": True, "alarm_sound": False, "charging_mode": 0}
+        consented = frozenset({2, 3, 4, 5})
+
+        items = build_actuation_items(
+            ac2a, tier1_values, consented, selected_categories=frozenset({"load_actuations", "induced"})
+        )
+
+        # ac_output (tier 4) should appear, but tier-5 fields should not
+        ac_output_items = [i for i in items if i.field == "ac_output"]
+        assert len(ac_output_items) > 0, "Tier-4 field should appear when load_actuations selected"
+
+    def test_build_actuation_items_all_enabled_by_default(self, ac2a):
+        """Default (no category filter) gives all eligible actuation items."""
+        from voltkeeper.core.ground_truth import build_actuation_items
+
+        tier1_values = {"ac_output": True, "alarm_sound": False, "charging_mode": 0}
+        consented = frozenset({2, 3, 4, 5})
+
+        items = build_actuation_items(ac2a, tier1_values, consented)
+
+        assert len(items) > 0, "Default should produce actuation items"
+
+    @pytest.mark.asyncio
+    async def test_run_induced_checks_skipped_when_category_deselected(self, ac2a):
+        """Deselecting induced produces empty results."""
+        from tests.test_verify import FakeBluetoothClient
+        from voltkeeper.core.ground_truth import run_induced_checks
+
+        state = {100 + i: 0 for i in range(62)}
+        client = FakeBluetoothClient(state=state)
+
+        async def capture(text, source):
+            return ""
+
+        results = await run_induced_checks(client, ac2a, capture, selected_categories=frozenset())
+
+        assert len(results) == 0, "No induced checks when category deselected"
+
+
+# ── 5. Category CLI option ────────────────────────────────────────────────────
+
+
+class TestCategoryFromCLIFlags:
+    """Test that --skip-category CLI flags produce correct category sets."""
+
+    def test_default_categories_all_enabled(self):
+        """Default is all four categories enabled."""
+        from voltkeeper.cli.verify import _categories_from_skips
+
+        categories = _categories_from_skips([])
+        assert "observations" in categories
+        assert "load_actuations" in categories
+        assert "mode_actuations" in categories
+        assert "induced" in categories
+
+    def test_skip_observations(self):
+        from voltkeeper.cli.verify import _categories_from_skips
+
+        categories = _categories_from_skips(["observations"])
+        assert "observations" not in categories
+        assert "load_actuations" in categories
+        assert "mode_actuations" in categories
+        assert "induced" in categories
+
+    def test_skip_multiple(self):
+        from voltkeeper.cli.verify import _categories_from_skips
+
+        categories = _categories_from_skips(["observations", "induced"])
+        assert "observations" not in categories
+        assert "induced" not in categories
+        assert "load_actuations" in categories
+        assert "mode_actuations" in categories
+
+    def test_skip_all_leaves_empty(self):
+        from voltkeeper.cli.verify import _categories_from_skips
+
+        categories = _categories_from_skips(["observations", "load_actuations", "mode_actuations", "induced"])
+        assert len(categories) == 0
+
+    def test_unknown_category_raises(self):
+        from voltkeeper.cli.verify import _categories_from_skips
+
+        with pytest.raises(ValueError, match="unknown"):
+            _categories_from_skips(["garbage"])

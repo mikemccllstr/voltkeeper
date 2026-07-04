@@ -1032,3 +1032,261 @@ def test_scrub_iot_block_zeros_mac_ip(ac2a):
     assert scrubbed_bytes[20:40] == iot_bytes[20:40]
     assert scrubbed_bytes[52:54] == iot_bytes[52:54]
     assert scrubbed_bytes[66:70] == iot_bytes[66:70]
+
+
+# ── 9. Observation prompt enhancements ────────────────────────────────────────
+
+
+def test_build_observation_items_source_override_app_live(ac2a):
+    """device_screen sources become app_live when source_override='app_live'."""
+    from voltkeeper.core.ground_truth import build_observation_items
+
+    tier1_values = {"packTotalSoc": 85}
+    items = build_observation_items(ac2a, tier1_values, source_override="app_live")
+
+    soc = next(i for i in items if i.field == "soc")
+    assert soc.source == "app_live", "device_screen should become app_live"
+
+
+def test_build_observation_items_source_override_leaves_multimeter_alone(ac2a):
+    """Without source_override, multimeter sources stay as-is."""
+    from voltkeeper.core.ground_truth import build_observation_items
+
+    tier1_values = {"packTotalVoltage": 5350}
+    items = build_observation_items(ac2a, tier1_values)
+
+    pv = next(i for i in items if i.field == "pack_voltage")
+    assert pv.source == "multimeter", "multimeter source should stay as-is without override"
+
+
+def test_build_observation_items_source_override_covers_multimeter(ac2a):
+    """With source_override, multimeter sources become app_live too."""
+    from voltkeeper.core.ground_truth import build_observation_items
+
+    tier1_values = {"packTotalVoltage": 5350}
+    items = build_observation_items(ac2a, tier1_values, source_override="app_live")
+
+    pv = next(i for i in items if i.field == "pack_voltage")
+    assert pv.source == "app_live", "multimeter source should become app_live with override"
+
+
+def test_build_observation_items_source_override_no_default(ac2a):
+    """Without source_override, device_screen stays device_screen."""
+    from voltkeeper.core.ground_truth import build_observation_items
+
+    tier1_values = {"packTotalSoc": 85}
+    items = build_observation_items(ac2a, tier1_values)
+
+    soc = next(i for i in items if i.field == "soc")
+    assert soc.source == "device_screen"
+
+
+async def test_observation_prompt_includes_parsed_value(ac2a):
+    """Observation prompts must show the parsed value as what to look for."""
+    from voltkeeper.core.ground_truth import build_observation_items, run_observations
+
+    tier1_values = {"packTotalSoc": 94}
+    items = build_observation_items(ac2a, tier1_values)
+
+    prompt_texts = []
+
+    async def capture_prompt(text, source):
+        prompt_texts.append(text)
+        return "94"
+
+    await run_observations(items, {}, ac2a, capture_prompt)
+
+    soc_prompt = next(t for t in prompt_texts if "State of Charge" in t)
+    assert "94" in soc_prompt, "Prompt should show parsed value 94"
+
+
+async def test_unanchored_status_stays_unanchored(ac2a):
+    """Fields with no tier1 value stay unanchored regardless of source."""
+    from voltkeeper.core.ground_truth import build_observation_items
+
+    tier1_values = {}  # nothing available
+    items = build_observation_items(ac2a, tier1_values, source_override="app_live")
+
+    for item in items:
+        assert item.status == "unanchored"
+
+
+# ── 10. Restore audit ───────────────────────────────────────────────────────
+
+
+def test_restore_audit_detects_deviation(ac2a):
+    """Deviation against tier-1 baseline is detected and reported."""
+    from voltkeeper.core.verify import _run_restore_audit
+
+    tier1_values = {"alarm_sound": True}
+    client = FakeBluetoothClient({2066: 0})
+
+    loop = __import__("asyncio").new_event_loop()
+    audit = loop.run_until_complete(_run_restore_audit(client, ac2a, tier1_values))
+    loop.close()
+
+    assert audit["status"] != "clean", "Should detect deviation"
+    deviations = audit.get("deviations", [])
+    alarm_sound_dev = next((d for d in deviations if d["field"] == "alarm_sound"), None)
+    assert alarm_sound_dev is not None, "alarm_sound changed from True to False"
+    assert alarm_sound_dev["was"] is True or str(alarm_sound_dev["was"]).lower() == "true"
+    assert alarm_sound_dev["now"] is False or str(alarm_sound_dev["now"]).lower() == "false"
+
+
+def test_restore_audit_clean_run(ac2a):
+    """Clean run where no writable field changed yields status: clean."""
+    from voltkeeper.core.verify import _run_restore_audit
+
+    tier1_values = {"alarm_sound": False}
+    client = FakeBluetoothClient({2066: 0})
+
+    loop = __import__("asyncio").new_event_loop()
+    audit = loop.run_until_complete(_run_restore_audit(client, ac2a, tier1_values))
+    loop.close()
+
+    assert audit["status"] == "clean"
+
+
+def test_restore_audit_incomplete_when_all_reads_fail(ac2a):
+    """When every read fails (e.g. disconnected client), status is incomplete."""
+    from voltkeeper.core.verify import _run_restore_audit
+
+    tier1_values = {"alarm_sound": False}
+
+    # Client that raises on every read
+    class DeadClient:
+        async def execute(self, cmd):
+            raise RuntimeError("Not connected")
+
+    client = DeadClient()
+    loop = __import__("asyncio").new_event_loop()
+    audit = loop.run_until_complete(_run_restore_audit(client, ac2a, tier1_values))
+    loop.close()
+
+    assert audit["status"] == "incomplete"
+
+
+def test_print_restore_audit_clean():
+    """Clean audit prints a confirmation line."""
+    import io
+
+    import click
+
+    from voltkeeper.core.verify import _print_restore_audit
+
+    buf = io.StringIO()
+    old = click.echo
+    click.echo = lambda msg=None, **kw: print(msg, file=buf) if msg is not None else None
+    try:
+        _print_restore_audit({"status": "clean"})
+    finally:
+        click.echo = old
+    assert "clean" in buf.getvalue()
+
+
+def test_print_restore_audit_deviations():
+    """Deviation audit prints each field with fix guidance."""
+    import io
+
+    import click
+
+    from voltkeeper.core.verify import _print_restore_audit
+
+    buf = io.StringIO()
+    old = click.echo
+    old_secho = click.secho
+
+    click.echo = lambda msg=None, **kw: print(msg, file=buf) if msg is not None else None
+    click.secho = lambda msg=None, **kw: print(msg, file=buf) if msg is not None else None
+    try:
+        _print_restore_audit(
+            {
+                "status": "deviations_found",
+                "deviations": [{"field": "ac_eco_power", "was": 10, "now": 34}],
+            }
+        )
+    finally:
+        click.echo = old
+        click.secho = old_secho
+    output = buf.getvalue()
+    assert "ac_eco_power" in output
+    assert "was 10" in output
+    assert "now 34" in output
+    assert "restore" in output.lower()
+
+
+def test_print_restore_audit_incomplete():
+    """Incomplete audit prints a warning."""
+    import io
+
+    import click
+
+    from voltkeeper.core.verify import _print_restore_audit
+
+    buf = io.StringIO()
+    old = click.echo
+    old_secho = click.secho
+    click.echo = lambda msg=None, **kw: print(msg, file=buf) if msg is not None else None
+    click.secho = lambda msg=None, **kw: print(msg, file=buf) if msg is not None else None
+    try:
+        _print_restore_audit({"status": "incomplete"})
+    finally:
+        click.echo = old
+        click.secho = old_secho
+    assert "incomplete" in buf.getvalue().lower()
+
+
+# ── 11. Progress callback ───────────────────────────────────────────────────
+
+
+async def test_tier2_invokes_progress_callback(ac2a):
+    """Tier 2 calls progress at field start/completion."""
+    from voltkeeper.core.verify import run_tier2
+
+    client = FakeBluetoothClient({2066: 0})
+    tier1 = {"alarm_sound": False}
+    events = []
+
+    def progress(msg):
+        events.append(msg)
+
+    await run_tier2(client, ac2a, tier1, ["alarm_sound"], progress=progress)
+
+    # Should have tier start and field events
+    assert len(events) >= 1, "Progress should be called at least once"
+
+
+async def test_tier3_invokes_progress_callback(ac2a):
+    """Tier 3 calls progress at field start/completion with probe count."""
+    from voltkeeper.core.verify import run_tier3
+
+    client = FakeBluetoothClient({2066: 0})
+    tier1 = {"alarm_sound": False}
+    events = []
+
+    def progress(msg):
+        events.append(msg)
+
+    await run_tier3(client, ac2a, tier1, ["alarm_sound"], progress=progress)
+
+    # Tier 3 is bool (toggle + restore) — should have field events
+    assert len(events) >= 1, "Progress should be called at least once"
+
+
+async def test_progress_callback_is_optional(ac2a):
+    """Tier functions work without a progress callback."""
+    from voltkeeper.core.verify import run_tier2
+
+    client = FakeBluetoothClient({2066: 0})
+    tier1 = {"alarm_sound": False}
+
+    result = await run_tier2(client, ac2a, tier1, ["alarm_sound"])
+    assert result.status == "pass"
+
+
+def test_restore_audit_not_applicable_for_tier1_only():
+    """Tier-1-only run records not-applicable and performs no re-read."""
+    from voltkeeper.core.verify import _run_restore_audit_or_note
+
+    result = _run_restore_audit_or_note(None, None, None, False, max_tier=1)
+    assert result["status"] == "not_applicable"

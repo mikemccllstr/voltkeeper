@@ -56,6 +56,7 @@ class GroundTruthResult:
     observations: list[ObservationCheck] = field(default_factory=list)
     actuations: list[ActuateCheck] = field(default_factory=list)
     induced_checks: list[InducedCheck] = field(default_factory=list)
+    categories: dict[str, str] = field(default_factory=dict)
 
 
 # ── Observation definitions ────────────────────────────────────────────────────
@@ -272,11 +273,20 @@ def compare_observation(
 def build_observation_items(
     device: Any,
     tier1_values: dict,
+    source_override: Optional[str] = None,
+    selected_categories: Optional[frozenset[str]] = None,
 ) -> list[ObservationCheck]:
     """Build the list of observation checks for a device and its tier1 values.
 
     Filters by model, resolves comparison values, and flags unanchorable fields.
+    When source_override is given (e.g. "app_live"), "device_screen" sources
+    are replaced with the override value.
+    When selected_categories is given and does not include "observations",
+    returns an empty list.
     """
+    if selected_categories is not None and "observations" not in selected_categories:
+        return []
+
     model_name = getattr(device, "type", device.__class__.__name__)
     items: list[ObservationCheck] = []
 
@@ -297,11 +307,15 @@ def build_observation_items(
             )
             continue
 
+        source = obs_def.source
+        if source_override is not None:
+            source = source_override
+
         items.append(
             ObservationCheck(
                 field=obs_def.id,
                 prompt=obs_def.prompt,
-                source=obs_def.source,
+                source=source,
                 parsed=comparison,
             )
         )
@@ -393,7 +407,18 @@ async def run_observations(
         tolerance_type = obs_def.tolerance_type if obs_def else "exact"
         is_secondary = obs_def.source in ("multimeter", "app_screenshot") if obs_def else False
 
-        response = await prompt_fn(item.prompt, item.source)
+        prompt_text = item.prompt
+        if item.parsed is not None:
+            from .verify import _serialize
+
+            parsed_display = _serialize(item.parsed)
+            if item.source in ("app_live", "device_screen"):
+                where = "the app" if item.source == "app_live" else "the screen"
+                prompt_text = f"{item.prompt} (voltkeeper parsed: {parsed_display}) — type what {where} shows"
+            else:
+                prompt_text = f"{item.prompt} (voltkeeper parsed: {parsed_display})"
+
+        response = await prompt_fn(prompt_text, item.source)
         if response is None or response.strip() == "":
             if is_secondary:
                 item.status = "unanchored"
@@ -505,11 +530,19 @@ def _other_value(device_field: Any, current_raw: int) -> Optional[int]:
     return None
 
 
-def build_actuation_items(device: Any, tier1_values: dict, consented_tiers: frozenset[int]) -> list[ActuateCheck]:
+def build_actuation_items(
+    device: Any,
+    tier1_values: dict,
+    consented_tiers: frozenset[int],
+    selected_categories: Optional[frozenset[str]] = None,
+) -> list[ActuateCheck]:
     """Build the list of actuate-and-confirm checks for a device.
 
     Only includes fields whose risk tier was consented to in the verify run.
     Tier-6 fields are never actuated.
+    When selected_categories is given, tier-4 fields are excluded when
+    "load_actuations" is not in the set, and tier-5 fields are excluded when
+    "mode_actuations" is not in the set.
     """
     from .struct import BoolField, EnumField
 
@@ -527,6 +560,13 @@ def build_actuation_items(device: Any, tier1_values: dict, consented_tiers: froz
                 item = ActuateCheck(field=f.name, note=f"tier_{tier}_not_consented")
                 items.append(item)
             continue
+
+        if selected_categories is not None:
+            tier = _actuate_field_tier(f.name)
+            if tier == 4 and "load_actuations" not in selected_categories:
+                continue
+            if tier == 5 and "mode_actuations" not in selected_categories:
+                continue
 
         current = tier1_values.get(f.name)
         if current is None:
@@ -763,8 +803,15 @@ async def run_induced_checks(
     client: Any,
     device: Any,
     prompt_fn: Callable[[str, str], Any],
+    selected_categories: Optional[frozenset[str]] = None,
 ) -> list[InducedCheck]:
-    """Run all induced-condition checks."""
+    """Run all induced-condition checks.
+
+    When selected_categories is given and does not include "induced",
+    returns an empty list.
+    """
+    if selected_categories is not None and "induced" not in selected_categories:
+        return []
     results: list[InducedCheck] = []
     for check in INDUCED_CHECKS:
         result = await run_induced_check(check, client, device, prompt_fn)
@@ -826,6 +873,8 @@ def ground_truth_to_report_section(result: GroundTruthResult) -> dict:
 
     section: dict = {}
 
+    if result.categories:
+        section["categories"] = dict(result.categories)
     if result.observations:
         section["observations"] = [_obs_to_dict(o) for o in result.observations]
     if result.actuations:

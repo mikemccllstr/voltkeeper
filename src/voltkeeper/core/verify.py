@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from .commands import ReadHoldingRegisters, TlvReadHoldingRegisters, WriteSingleRegister
 from .devices.bluetti_device import BluettiDevice
@@ -265,11 +265,18 @@ async def run_tier2(
     device: BluettiDevice,
     tier1_values: dict,
     fields: list[str],
+    progress: Optional[Callable[[str], None]] = None,
 ) -> TierResult:
     """Identity write: for each field, write current value (or safe default), verify roundtrip."""
     result = TierResult(tier=2, status="pass")
 
+    if progress:
+        progress(f"Tier 2  identity writes ({len(fields)} fields) — one write per field")
+
     for name in fields:
+        if progress:
+            progress(f"  {name}")
+
         device_field = _get_control_field(device, name)
         if device_field is None:
             result.fields[name] = FieldResult(status="skipped", note="not in control_struct")
@@ -547,11 +554,17 @@ async def run_tier3(
     device: BluettiDevice,
     tier1_values: dict,
     fields: list[str],
+    progress: Optional[Callable[[str], None]] = None,
 ) -> TierResult:
     """Dispatch probe writes by field type for each automatic field."""
     result = TierResult(tier=3, status="pass")
 
+    if progress:
+        progress(f"Tier 3  probe writes ({len(fields)} fields) — several writes per field")
+
     for name in fields:
+        if progress:
+            progress(f"  {name}")
         device_field = _get_control_field(device, name)
         if device_field is None:
             result.fields[name] = FieldResult(status="skipped", note="not in control_struct")
@@ -575,6 +588,11 @@ async def run_tier3(
         result.fields[name] = fr
         if fr.status == "fail":
             result.status = "fail"
+        if progress:
+            pc = getattr(fr, "probes_count", None)
+            detail = f" ({pc} probes)" if pc else ""
+            status_icon = "✓" if fr.status == "pass" else "✗"
+            progress(f"  {status_icon} {name}{detail}")
 
     return result
 
@@ -586,9 +604,12 @@ async def run_tier_supervised(
     fields: list[str],
     tier_num: int,
     consent: Optional[str] = None,
+    progress: Optional[Callable[[str], None]] = None,
 ) -> TierResult:
     """Identity-write for supervised tiers (4/5/6) — same logic as tier 2."""
-    t2 = await run_tier2(client, device, tier1_values, fields)
+    if progress:
+        progress(f"Tier {tier_num}  identity writes ({len(fields)} fields) — one write per field")
+    t2 = await run_tier2(client, device, tier1_values, fields, progress=progress)
     return TierResult(
         tier=tier_num,
         status=t2.status,
@@ -799,3 +820,92 @@ def write_report(report: dict, path: str) -> str:
     with open(path, "w") as f:
         yaml.dump(report, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
     return path
+
+
+# ── Restore audit ────────────────────────────────────────────────────────────
+
+
+async def _run_restore_audit(client: Any, device: Any, tier1_values: dict) -> dict:
+    """Re-read writable control fields and diff against tier-1 baseline.
+
+    Returns a dict with ``status`` and, when applicable, ``deviations``.
+    Status is "clean" (all read, no devs), "deviations_found", or
+    "incomplete" (read failures made the diff unreliable).
+    """
+    deviations: list[dict] = []
+    readable: int = 0
+    unreadable: int = 0
+
+    cs = getattr(device, "control_struct", None)
+    if cs is None:
+        return {"status": "clean"}
+
+    for f in cs.fields:
+        name = f.name
+        if name not in getattr(device, "WRITABLE_FIELD_NAMES", set()):
+            continue
+        baseline = tier1_values.get(name)
+        if baseline is None:
+            continue
+
+        try:
+            raw, parsed = await read_single_register(client, device, f.address)
+            readable += 1
+        except Exception:
+            unreadable += 1
+            continue
+
+        current = parsed.get(name)
+        if current is None:
+            continue
+
+        baseline_serialized = _serialize(baseline)
+        current_serialized = _serialize(current)
+        if baseline_serialized != current_serialized:
+            deviations.append(
+                {
+                    "field": name,
+                    "was": baseline_serialized,
+                    "now": current_serialized,
+                }
+            )
+
+    if unreadable > readable:
+        return {"status": "incomplete", "unreadable": unreadable, "readable": readable}
+    if deviations:
+        return {"status": "deviations_found", "deviations": deviations}
+    return {"status": "clean"}
+
+
+def _run_restore_audit_or_note(loop, client, device, tier1_values, max_tier):
+    """Return the restore audit dict, or not_applicable for tier-1-only runs."""
+    if max_tier < 2:
+        return {"status": "not_applicable"}
+    return loop.run_until_complete(_run_restore_audit(client, device, tier1_values))
+
+
+def _print_restore_audit(audit: dict) -> None:
+    """Print restore-audit results to the operator (CLI output)."""
+    if not audit:
+        return
+    status = audit.get("status")
+    if status == "clean":
+        import click
+
+        click.echo("\nRestore audit: clean — device settings match tier-1 baseline.")
+    elif status == "deviations_found":
+        import click
+
+        click.echo("\n── Restore audit: deviations found ─────────────")
+        for d in audit.get("deviations", []):
+            click.secho(
+                f"  {d['field']}: was {d['was']}, is now {d['now']} — restore in the app or with `voltkeeper write`",
+                fg="yellow",
+            )
+    elif status == "incomplete":
+        import click
+
+        click.secho(
+            "\nRestore audit: incomplete — could not read enough fields to verify.",
+            fg="yellow",
+        )

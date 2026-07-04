@@ -17,14 +17,15 @@ report is written to the `hardware-data/` folder.
 voltkeeper verify <address> [options]
 ```
 
-| Option                | Description                                                           |
-| --------------------- | --------------------------------------------------------------------- |
-| `<address>`           | BLE MAC address (or UUID on macOS) of the target device               |
-| `-o`, `--output FILE` | Override the default report filename                                  |
-| `--tier N`            | Stop after tier N (remaining tiers recorded as skipped)               |
-| `--yes`               | Pre-consent to all supervised tiers — no prompts                      |
-| `--no-scrub`          | Write real serial number and BLE address to the report                |
-| `--ground-truth`      | Attended mode: compare device-display values against parsed registers |
+| Option                     | Description                                                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `<address>`                | BLE MAC address (or UUID on macOS) of the target device                                                           |
+| `-o`, `--output FILE`      | Override the default report filename                                                                              |
+| `--tier N`                 | Stop after tier N (remaining tiers recorded as skipped)                                                           |
+| `--yes`                    | Pre-consent to all supervised tiers — no prompts                                                                  |
+| `--no-scrub`               | Write real serial number and BLE address to the report                                                            |
+| `--ground-truth`           | Attended mode: compare device-display values against parsed registers                                             |
+| `--skip-category CATEGORY` | Skip a ground-truth category (repeatable). Valid: `observations`, `load_actuations`, `mode_actuations`, `induced` |
 
 ## The six tiers
 
@@ -114,9 +115,34 @@ the device's own display against parsed register values. This catches
 interpretation errors — wrong decimal scales, swapped enum labels, or
 misassigned registers — that write/readback verification alone cannot detect.
 
-Ground-truth mode runs after whatever tiers execute — including under a
-`--tier` limit, since the observations only need the tier-1 capture — and has
-three phases:
+Ground-truth mode runs in two phases. **Passive observations** run immediately
+after tier 1, before any tier performs writes, so the operator's readings and
+secondary sources describe unmutated device state. **Actuate-and-confirm and
+induced-condition checks** run after whatever tiers execute — including under a
+`--tier` limit: actuate-and-confirm checks follow tier consent, and a tier
+that never ran was never consented, so its fields record `skipped`.
+
+The observation phase is structured as an **app handoff**:
+
+1. Voltkeeper disconnects BLE and invites you to open the BLUETTI app and
+   connect to the device. If you don't have the app installed, you can proceed
+   LCD-only: each prompt will ask you to type what the device screen shows
+   instead.
+1. Each observation prompt shows the value voltkeeper parsed (e.g. "voltkeeper
+   parsed: 94") and asks you to type **exactly what the app or screen shows** —
+   even if it differs. This anchors the prompt while keeping your response
+   independent.
+1. After the last observation, voltkeeper asks you to return the app to its
+   device-list screen, then reconnects for tier 2. If reconnection fails
+   (the app is still holding the connection), it retries with operator guidance.
+   If reconnection cannot be established, tier-1 and observations are preserved
+   in the report and tiers 2+ are recorded as skipped.
+
+Observations read from the live app are recorded with source `app_live`.
+Voltage readings still use `multimeter` or `multimeter_or_app` sources when the
+app is not used.
+
+The ground-truth session has three phases:
 
 1. **Passive observations**: the tool prompts for values shown on the device's
    own screen (SoC, output/input watts, AC/DC output state, AC output frequency,
@@ -167,13 +193,14 @@ not intended for routine verification. Every prompt is individually skippable.
 1. Connect the device and position it so the screen is visible.
 1. Set up a known steady load (e.g., a lamp drawing a known wattage).
 1. Run `voltkeeper verify <address> --ground-truth`.
-1. Complete tiers 1–3 (auto) and any supervised tiers you consent to.
-1. When the ground-truth phase begins, answer each prompt based on what the
-   device display shows. Use the device-info and settings pages as needed.
-1. For voltage prompts, use a multimeter or a vendor app screenshot taken
-   before the session (BLE exclusivity prevents concurrent app observation).
-1. If prompted for an induced condition, read the rationale and safety notes
-   before typing the confirmation phrase.
+1. After tier 1, the observation phase begins: voltkeeper disconnects BLE. Open the
+   BLUETTI app and connect to the device (or choose LCD-only). Answer each
+   observation prompt with the app or screen reading.
+1. Return the app to its device list and press Enter; voltkeeper reconnects.
+1. Tiers 2–6 run as normal (consent for supervised tiers).
+1. The actuations and induced-checks phases run after the tiers.
+1. The restore audit checks whether any settings changed from the tier-1 baseline.
+1. The report is written — share it in a GitHub issue.
 
 ### Report section
 
@@ -228,6 +255,53 @@ when their tier was consented to during the run. If you declined tier 4 during
 verify, the actuation phase skips all tier-4 fields. The same applies under a
 `--tier` limit: a tier that never ran was never consented, so its fields are
 recorded as skipped.
+
+## Category skip controls
+
+At the start of a ground-truth session, the operator is offered a category menu:
+
+- **Passive observations** (screen readings)
+- **Output & load actuations** (tier-4 fields)
+- **Operating mode actuations** (tier-5 fields)
+- **Induced conditions** (e.g. overload test)
+
+All four are enabled by default. Deselected categories record
+`skipped (operator category selection)` without prompting per item.
+
+The `--skip-category` CLI option pre-answers the menu:
+
+```bash
+voltkeeper verify AA:BB:CC:DD:EE:FF --ground-truth --skip-category induced
+```
+
+This is repeatable — use it for non-interactive repeat runs.
+
+## Restore audit
+
+Any session that executed tier 2 or deeper ends with a restore audit: voltkeeper
+re-reads the device's control registers, compares every writable field's value
+against the tier-1 baseline, and records any deviations in the report under a
+`restore_audit` section.
+
+```yaml
+restore_audit:
+  status: deviations_found
+  deviations:
+    - field: ac_eco_power
+      was: 10
+      now: 34
+```
+
+A clean run records:
+
+```yaml
+restore_audit:
+  status: clean
+```
+
+A tier-1-only run records `status: not_applicable` with no re-read performed.
+The audit runs regardless of `--yes` (report-only when unattended). It does
+**not** attempt corrective writes — the operator decides how to proceed.
 
 ## Progress display
 
