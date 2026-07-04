@@ -7,16 +7,20 @@ what each device model actually supports.
 ## Naming convention
 
 ```
-verify-<MODEL>-<YYYY-MM-DD>.yaml
+{verify|verify-ground-truth}_<MODEL>_<YYYY-MM-DDTHHMMZ>.yaml
 ```
 
-Examples:
-- `verify-AC2A-2026-05-26.yaml`
-- `verify-AC2A-2026-05-27.yaml`
+The mode component is `verify` for plain runs and `verify-ground-truth` for
+`--ground-truth` runs. `<MODEL>` is the device's `type` attribute (e.g.,
+`AC2A`). The timestamp is the session start time in UTC at minute precision.
 
-`<MODEL>` matches the device's `type` attribute (e.g., `AC2A`). Multiple runs
-on the same day can be distinguished by appending `-2`, `-3`, etc., or by
-passing an explicit `--output` path.
+Examples:
+- `verify_AC2A_2026-05-26T1000Z.yaml`
+- `verify_AC2A_2026-05-27T1530Z.yaml`
+
+When the computed path already exists, the writer appends `_v2`, `_v3`, etc.
+before `.yaml` — existing files are never overwritten. Use `--output` to
+specify a custom path.
 
 ## Why these files are committed
 

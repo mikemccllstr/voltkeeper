@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import datetime
+import os
 import struct
 from dataclasses import dataclass
 from dataclasses import field as dc_field
@@ -754,9 +756,46 @@ def build_report(
     return report
 
 
-def write_report(report: dict, path: str) -> None:
-    """Serialize report dict to YAML at path."""
+def _unique_path(path: str) -> str:
+    """Return path with _v<N> inserted before suffix if path already exists.
+
+    Chooses the smallest N ≥ 2 that yields a non-existent path.
+    Non-existent paths are returned unchanged.
+    """
+    if not os.path.exists(path):
+        return path
+    base, ext = os.path.splitext(path)
+    n = 2
+    while True:
+        candidate = f"{base}_v{n}{ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        n += 1
+
+
+def _build_default_output_path(
+    device_type: str,
+    ground_truth: bool = False,
+    now: "datetime.datetime | None" = None,
+) -> str:
+    """Build the default report path from mode, model, and UTC timestamp."""
+    if now is None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+    else:
+        now = now.astimezone(datetime.timezone.utc)
+    mode = "verify-ground-truth" if ground_truth else "verify"
+    timestamp = now.strftime("%Y-%m-%dT%H%MZ")
+    return f"hardware-data/{mode}_{device_type}_{timestamp}.yaml"
+
+
+def write_report(report: dict, path: str) -> str:
+    """Serialize report dict to YAML at path, never overwriting an existing file.
+
+    Returns the actual path written (may differ from `path` when a unique suffix was added).
+    """
     import yaml
 
+    path = _unique_path(path)
     with open(path, "w") as f:
         yaml.dump(report, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    return path

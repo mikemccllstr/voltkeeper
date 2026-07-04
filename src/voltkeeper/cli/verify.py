@@ -12,7 +12,12 @@ from voltkeeper.cli._helpers import _close_loop, _device_from_scan
 
 @cli.command()
 @click.argument("address")
-@click.option("-o", "--output", default=None, help="Output YAML file (default: hardware-data/verify-MODEL-DATE.yaml)")
+@click.option(
+    "-o",
+    "--output",
+    default=None,
+    help="Output YAML file (default: hardware-data/{verify|verify-ground-truth}_MODEL_YYYY-MM-DDTHHMMZ.yaml)",
+)
 @click.option("--tier", "max_tier", default=6, type=int, help="Run through this tier only (1–6).")
 @click.option("--yes", "pre_consent", is_flag=True, default=False, help="Pre-consent to all supervised tiers.")
 @click.option("--no-scrub", "no_scrub", is_flag=True, default=False, help="Keep real SN and BLE address in report.")
@@ -54,6 +59,8 @@ def verify(
     if pre_consent and ground_truth:
         raise click.UsageError("--yes and --ground-truth are mutually exclusive.")
 
+    session_start = datetime.datetime.now(datetime.timezone.utc)
+
     TIER_DESCRIPTIONS = {
         4: "load-affecting toggles (ac_output, dc_output, ctrl_grid, ctrl_feed, power_lifting, eco_mode)",
         5: "operating mode changes (working_mode, ups_mode)",
@@ -78,8 +85,9 @@ def verify(
     tier_plan = build_tier_plan(device)
 
     if output is None:
-        today = datetime.date.today().isoformat()
-        output = f"hardware-data/verify-{device.type}-{today}.yaml"
+        from voltkeeper.core.verify import _build_default_output_path
+
+        output = _build_default_output_path(device.type, ground_truth=ground_truth, now=session_start)
 
     client = BluetoothClient(address, encrypted=sr.encrypted or False)
     loop = asyncio.new_event_loop()
@@ -271,8 +279,8 @@ def _finish(
                 if ic.raw_hex is not None:
                     ic.raw_hex = _scrub_block_raw(ic.raw_hex, 100, sn_fields)
         report["ground_truth"] = ground_truth_to_report_section(ground_truth_result)
-    write_report(report, output)
-    click.echo(f"\nReport written to: {output}")
+    actual_path = write_report(report, output)
+    click.echo(f"\nReport written to: {actual_path}")
     click.secho(
         "Share this file in a GitHub issue: https://github.com/mikemccllstr/voltkeeper/issues",
         fg="cyan",

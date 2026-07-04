@@ -93,7 +93,7 @@ summary like:
 Tier 1  ████████  23/23  ✓
 Tier 2  ████████  19/19  ✓
 Tier 3  ████████  19/19  ✓
-Report written to hardware-data/verify-<MODEL>-<DATE>.yaml
+Report written to hardware-data/verify_MODEL_YYYY-MM-DDTHHMMZ.yaml
 ```
 
 A YAML report is written to `hardware-data/`. If any stage shows a partial

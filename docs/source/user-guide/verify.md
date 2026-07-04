@@ -248,8 +248,14 @@ Tier 2  ████░░░░  16/19  ✗
 
 ## Output report
 
-The report is written to `hardware-data/verify-<MODEL>-<YYYY-MM-DD>.yaml`
-unless overridden with `--output`.
+The report is written to
+`hardware-data/{verify|verify-ground-truth}_<MODEL>_<YYYY-MM-DDTHHMMZ>.yaml`
+by default, with the mode component set to `verify-ground-truth` for
+`--ground-truth` runs. The timestamp is the session start time in UTC at
+minute precision. Existing files are never overwritten: when the target
+path already exists the writer appends `_v<N>` before `.yaml`, choosing
+the smallest N ≥ 2 that yields a non-existent path. Use `--output` to
+specify a custom path.
 
 ### Scrubbing
 
@@ -395,9 +401,18 @@ act on these findings.
 
 ### Output file
 
-The report is written to `hardware-data/verify-<MODEL>-<YYYY-MM-DD>.yaml`
-unless overridden with `--output`. The `hardware-data/` folder is tracked by
-git so that verify runs are kept alongside the code they inform.
+The report is written to
+`hardware-data/{verify|verify-ground-truth}_<MODEL>_<YYYY-MM-DDTHHMMZ>.yaml`
+by default, where the mode component is `verify` for plain runs and
+`verify-ground-truth` for runs with `--ground-truth`, `<MODEL>` is the
+device type, and the timestamp is the session start time in UTC at minute
+precision. When the computed path already exists the writer appends
+`_v<N>` before `.yaml`, choosing the smallest N ≥ 2 that makes the path
+unique — existing files are never overwritten.
+
+Use `--output` to specify a custom path; the same no-overwrite rule applies.
+The `hardware-data/` folder is tracked by git so that verify runs are kept
+alongside the code they inform.
 
 ## Submitting a report
 

@@ -540,16 +540,129 @@ def test_tier_result_to_dict_in_range_rejected_omitted_when_empty(ac2a):
     assert "in_range_rejected" not in fd
 
 
-def test_cli_default_output_path_uses_hardware_data_prefix():
-    # The default output path must start with hardware-data/ so verify files
-    # land in the committed hardware-data folder, not the working directory.
-    import datetime
+# ── 5.A Unique-path helper ─────────────────────────────────────────────────────
 
-    model = "AC2A"
-    today = datetime.date.today().isoformat()
-    output = f"hardware-data/verify-{model}-{today}.yaml"
+
+def test_unique_path_non_existent_unchanged(tmp_path):
+    from voltkeeper.core.verify import _unique_path
+
+    p = tmp_path / "does_not_exist.yaml"
+    result = _unique_path(str(p))
+    assert result == str(p)
+
+
+def test_unique_path_existing_gets_v2(tmp_path):
+    from voltkeeper.core.verify import _unique_path
+
+    p = tmp_path / "existing.yaml"
+    p.write_text("old")
+    result = _unique_path(str(p))
+    assert result == str(tmp_path / "existing_v2.yaml")
+
+
+def test_unique_path_v2_occupied_gets_v3(tmp_path):
+    from voltkeeper.core.verify import _unique_path
+
+    p = tmp_path / "collision.yaml"
+    v2 = tmp_path / "collision_v2.yaml"
+    v3 = tmp_path / "collision_v3.yaml"
+
+    p.write_text("base")
+    v2.write_text("v2")
+    result = _unique_path(str(p))
+    assert result == str(v3)
+
+
+def test_unique_path_v2_open_returns_v2_skipping_higher(tmp_path):
+    from voltkeeper.core.verify import _unique_path
+
+    p = tmp_path / "base.yaml"
+    v3 = tmp_path / "base_v3.yaml"
+
+    p.write_text("base")
+    v3.write_text("v3")
+    result = _unique_path(str(p))
+    # _v2 is free → should take _v2, not _v3 or higher
+    assert result == str(tmp_path / "base_v2.yaml")
+
+
+def test_write_report_returns_actual_path_and_avoids_overwrite(tmp_path):
+    from voltkeeper.core.verify import write_report
+
+    request_path = tmp_path / "rpt.yaml"
+
+    report = {"device": {"model": "TEST"}}
+    actual1 = write_report(report, str(request_path))
+    assert actual1 == str(request_path)  # first write uses exact path
+    assert (tmp_path / "rpt.yaml").exists()
+
+    actual2 = write_report(report, str(request_path))
+    assert actual2 == str(tmp_path / "rpt_v2.yaml")  # collision gets _v2
+    assert (tmp_path / "rpt_v2.yaml").exists()
+
+    # First file content untouched
+    assert (tmp_path / "rpt.yaml").read_text()
+
+    actual3 = write_report(report, str(request_path))
+    assert actual3 == str(tmp_path / "rpt_v3.yaml")
+    assert (tmp_path / "rpt_v3.yaml").exists()
+
+
+# ── 5.B Default filename builder ───────────────────────────────────────────────
+
+
+def test_default_filename_plain_run():
+    from datetime import datetime, timezone
+
+    from voltkeeper.core.verify import _build_default_output_path
+
+    timestamp = datetime(2026, 7, 4, 17, 59, tzinfo=timezone.utc)
+    path = _build_default_output_path("EL100V2", ground_truth=False, now=timestamp)
+    assert path == "hardware-data/verify_EL100V2_2026-07-04T1759Z.yaml"
+
+
+def test_default_filename_ground_truth_run():
+    from datetime import datetime, timezone
+
+    from voltkeeper.core.verify import _build_default_output_path
+
+    timestamp = datetime(2026, 7, 4, 17, 59, tzinfo=timezone.utc)
+    path = _build_default_output_path("EL100V2", ground_truth=True, now=timestamp)
+    assert path == "hardware-data/verify-ground-truth_EL100V2_2026-07-04T1759Z.yaml"
+
+
+def test_default_filename_timestamp_utc_minute_precision_z_suffix():
+    from datetime import datetime, timezone
+
+    from voltkeeper.core.verify import _build_default_output_path
+
+    timestamp = datetime(2026, 1, 1, 0, 5, tzinfo=timezone.utc)
+    path = _build_default_output_path("AC2A", ground_truth=False, now=timestamp)
+    assert path.endswith("_2026-01-01T0005Z.yaml")
+
+
+def test_default_filename_model_with_digit_suffix():
+    from datetime import datetime, timezone
+
+    from voltkeeper.core.verify import _build_default_output_path
+
+    timestamp = datetime(2026, 7, 4, 17, 59, tzinfo=timezone.utc)
+    path = _build_default_output_path("EL100V2", ground_truth=False, now=timestamp)
+    # Underscore separates mode/model/timestamp; model itself contains no underscore
+    # so "EL100V2" stays intact
+    assert "EL100V2" in path
+    assert "verify_EL100V2_" in path
+
+
+def test_cli_default_output_path_uses_hardware_data_prefix():
+    from datetime import datetime, timezone
+
+    from voltkeeper.core.verify import _build_default_output_path
+
+    timestamp = datetime(2026, 7, 4, 17, 59, tzinfo=timezone.utc)
+    output = _build_default_output_path("AC2A", ground_truth=False, now=timestamp)
     assert output.startswith("hardware-data/")
-    assert f"verify-{model}-" in output
+    assert "verify_AC2A_" in output
     assert output.endswith(".yaml")
 
 
