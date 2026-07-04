@@ -23,7 +23,7 @@ Values are `on` or `off`:
 
 ## Enum fields
 
-- `charging_mode` — `standard` (0), `silent` (1), `turbo` (2); also `custom` (4) on EL100V2. Mapping confirmed against APK v3.0.10 and hardware bench testing — `silent` enables the quiet, lower-speed mode on the device. **(breaking:** releases through v2026.05 had `turbo` and `silent` swapped, so each wrote the opposite physical mode\*\*)\*\*
+- `charging_mode` — `standard` (0), `silent` (1), `turbo` (2); also `custom` (4) on EL100V2. Mapping confirmed against APK v3.0.10 and hardware bench testing — `silent` enables the quiet, lower-speed mode on the device. **(breaking: releases through v2026.05 had `turbo` and `silent` swapped, so each wrote the opposite physical mode)**
 - `system_power` *(EL400)* — `normal`, `shutdown`, `power_down_v1`, `power_down_v2`, or `sleep`. Replaces the older `power_off` / `sleep_mode` toggles, which collided on register 2013. Use `system_power sleep` to enter sleep mode and `system_power shutdown` to power down.
 
 ## Numeric fields
