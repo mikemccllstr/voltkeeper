@@ -59,7 +59,7 @@ Same file as the raw capture (`verify-raw-capture`), so one session yields one a
 
 ## Open Questions
 
-- **App/BLE concurrency**: can the vendor app show live data (cloud path) while voltkeeper holds BLE? Test at the next bench session. Determines whether app observations become a secondary source.
+- **App/BLE concurrency**: ANSWERED (EL100V2 bench, 2026-07-03) — no. While voltkeeper held BLE, the Android app's device scan did not show the EL100V2 (it reappeared after disconnect), and the cloud path was inactive (`mqtt_status: false`). The device accepts one BLE session at a time; app observations stay out of the design (decision 1 stands).
 - **Device UI coverage**: inventory what the EL100V2 (and AC2A) screens actually display — which core-list fields are anchorable at all.
 - **Flag vs. subcommand**: `verify --ground-truth` reusing the tier flow, or a standalone attended command? Leaning flag, but the induce-and-capture class may fit awkwardly inside the tier sequence.
 - **Which induced conditions are worth scripting**: AC overload is the obvious first; anything else (DC overload? low-battery cutoff?) needs a per-condition safety argument.

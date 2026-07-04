@@ -417,15 +417,63 @@ class TestEl100V2CustomChargingMode:
     def test_grid_max_current_range_accepts_1(self, el100v2_device):
         cmd = el100v2_device.build_setter_command("grid_max_current", 1)
         assert cmd.address == 2214
+        assert cmd.value == 1
 
     def test_grid_max_current_range_accepts_15(self, el100v2_device):
         cmd = el100v2_device.build_setter_command("grid_max_current", 15)
         assert cmd.address == 2214
+        assert cmd.value == 15
 
-    def test_grid_max_current_range_rejects_0(self, el100v2_device):
-        with pytest.raises(ValueError, match="not in range"):
-            el100v2_device.build_setter_command("grid_max_current", 0)
+    def test_grid_max_current_range_accepts_0(self, el100v2_device):
+        cmd = el100v2_device.build_setter_command("grid_max_current", 0)
+        assert cmd.address == 2214
+        assert cmd.value == 0
 
     def test_grid_max_current_range_rejects_16(self, el100v2_device):
         with pytest.raises(ValueError, match="not in range"):
             el100v2_device.build_setter_command("grid_max_current", 16)
+
+
+class TestEl100V2EcoRanges:
+    """ECO field ranges established on hardware (verify-EL100V2-2026-07-03):
+    app ECO settings screen and tier-3 probe results agree."""
+
+    @pytest.fixture
+    def el100v2_device(self):
+        from voltkeeper.core.devices.el100v2 import El100V2
+
+        return El100V2("AA:BB:CC:DD:EE:FF", "2305000")
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("ac_eco_power", 10),
+            ("ac_eco_power", 40),
+            ("dc_eco_power", 5),
+            ("dc_eco_power", 20),
+            ("ac_eco_auto_off_time", 1),
+            ("ac_eco_auto_off_time", 4),
+            ("dc_eco_auto_off_time", 1),
+            ("dc_eco_auto_off_time", 4),
+        ],
+    )
+    def test_eco_range_accepts_bounds(self, el100v2_device, field, value):
+        cmd = el100v2_device.build_setter_command(field, value)
+        assert cmd.value == value
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("ac_eco_power", 9),
+            ("ac_eco_power", 41),
+            ("dc_eco_power", 4),
+            ("dc_eco_power", 21),
+            ("ac_eco_auto_off_time", 0),
+            ("ac_eco_auto_off_time", 5),
+            ("dc_eco_auto_off_time", 0),
+            ("dc_eco_auto_off_time", 5),
+        ],
+    )
+    def test_eco_range_rejects_out_of_range(self, el100v2_device, field, value):
+        with pytest.raises(ValueError, match="not in range"):
+            el100v2_device.build_setter_command(field, value)

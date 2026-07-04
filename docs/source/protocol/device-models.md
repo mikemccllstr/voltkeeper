@@ -42,7 +42,9 @@ For the AC2A, the minimum protocol version is defined in `DeviceConnUtil.getDevi
 - **Protocol:** V2 (≥2000)
 - **Charging modes:** register 2020 — `STANDARD` (0), `CUSTOM` (4). Values 1 and 2 are turbo and silent, but the exact mapping is unresolved: voltkeeper's enum has turbo=1/silent=2 while APK v3.0.10's `DeviceSettingsChgModeActivity` writes silent=1/turbo=2. Hardware confirmation is tracked as a separate change.
 - **Removed fields:** `sys_low_power` (2022), `sys_high_power` (2023), `led_color` (2078) — APK v3.0.10 sets `sysPowerConditions(null)` and does not opt into `ledColor` for EL100V2; hardware verification confirms these registers are not honored on this device. **(breaking)**
-- **grid_max_current:** Range `(1, 15)` per APK `maxGridChgCurrent` for non-high-volt EL100V2
+- **grid_max_current:** UintField at 2214, whole amps, range `(0, 15)` — 0 means Pro Mode disabled, 1–15 available within custom charging mode. Bench-confirmed (verify-EL100V2-ac-2026-07-03): device accepts raw 0–15 and rejects 16+.
+- **ECO ranges (bench-confirmed):** `dc_eco_power` 5–20 W, `ac_eco_power` 10–40 W, `dc_eco_auto_off_time` 1–4 h, `ac_eco_auto_off_time` 1–4 h
+- **Firmware versions (IOT/ARM/DSP/BMS):** app displays raw register / 100 (e.g., 218614 → v2186.14) — INV_BASE_INFO bytes 26–61
 - **IoT:** EL100V2 responds on block 11000; firmware version array in INV_BASE_INFO reports ARM, DSP, BMS, and IOT versions
 - **Has battery:** Yes (built-in 56V LiFePO4)
 - **Supports:** AC output, DC output, grid charging, feed-in, ECO mode, Online UPS, working mode selection

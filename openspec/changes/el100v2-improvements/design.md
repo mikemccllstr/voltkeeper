@@ -47,13 +47,17 @@ APK sets `chgModeCustom=true` for EL100V2; `DeviceSettingsChgModeActivity` write
 
 *Alternative considered:* keep as read-only struct fields. Rejected — verify capture shows the registers hold values the device won't honor (writes of 1–3 to led_color get no readback), so the read values are not meaningful state.
 
-### 5. `grid_max_current` gets `range=(1, 15)`
+### 5. `grid_max_current` is a uint in whole amps, range `(0, 15)`
 
-Matches APK `maxGridChgCurrent` for non-high-volt EL100V2 and explains the verify-capture failures probing 0–2 A. `build_setter_command` already enforces ranges on `DecimalField`, so this is declarative only.
+The change originally declared `range=(1, 15)` on the existing DecimalField (÷10), from the APK `maxGridChgCurrent` slider range. The 2026-07-03 bench sweep corrected this: the device accepts raw register values 0–15 and rejects 16+, and the app shows 0 A while its password-gated Pro Mode is disabled. So register 2214 holds whole amps (a DecimalField write of "15 A" would send raw 150 and be rejected), and 0 is a legitimate state meaning Pro Mode disabled — hence uint, range `(0, 15)`.
 
-### 6. Fixtures are captured hex blobs, EL100V2-local
+### 5a. ECO fields get bench-confirmed ranges
 
-Mirror the AC2A pattern in `tests/conftest.py`: hex strings captured in a single live BLE session, one fixture per register block (HOME, INV_BASE_INFO, INV_PV_INFO, INV_GRID_INFO, INV_LOAD_INFO, INV_INV_INFO, base settings), documented with the device state at capture time. Capture comes from the `verify-raw-capture` change (a prerequisite of the hardware-session tasks): the raw-capture-enabled verify run records scrubbed per-block hex in its report, and fixtures are hand-promoted from there per the workflow documented in verify.md. Capture must happen before the parse tests can be written.
+The same session established `dc_eco_power` 5–20 W, `ac_eco_power` 10–40 W, and both ECO auto-off times 1–4 h, each confirmed twice over (app settings screen + tier-3 probe results). Declared as ranges on the existing uint fields; registers hold watts and hours directly.
+
+### 6. Fixtures are captured hex blobs, EL100V2-local, from two operating states
+
+Mirror the AC2A pattern in `tests/conftest.py`: hex strings hand-promoted from verify reports per the workflow documented in verify.md, one fixture per register block, documented with the device state at capture time. The 2026-07-03 bench session produced captures in two states, and fixtures draw on both: the grid-connected run (`verify-EL100V2-ac-2026-07-03.yaml`) supplies HOME, INV_BASE_INFO, GRID, LOAD, INV, and both control blocks (live grid/load phase data, ~45 W AC + 16 W DC load at 100% SoC); the on-battery run (`verify-EL100V2-dc2-2026-07-03.yaml`, tier-1-only) supplies a second HOME and the PV block (one live DC string at ~102 W, SoC 99%). Anchor values in the spec scenarios were cross-confirmed against the Bluetti app at capture time; full session context is in `hardware-data/verify-EL100V2-2026-07-03-notes.md`.
 
 ## Risks / Trade-offs
 
@@ -64,4 +68,4 @@ Mirror the AC2A pattern in `tests/conftest.py`: hex strings captured in a single
 
 ## Open Questions
 
-- Whether EL100V2's device firmware accepts `charging_mode = 4` — the verify capture only probed 0–2. The write path will allow it after this change; a hardware probe of 4 during the fixture-capture session confirms it (and its readback).
+- Whether EL100V2's device firmware accepts `charging_mode = 4` — the verify capture only probed 0–2. The write path will allow it after this change; a hardware probe of 4 during the fixture-capture session confirms it (and its readback). **ANSWERED (2026-07-03 bench): accepted, readback 4.**

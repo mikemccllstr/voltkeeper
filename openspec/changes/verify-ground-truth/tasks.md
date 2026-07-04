@@ -4,7 +4,7 @@
 
 ## 0. Re-evaluation gate (bench findings first)
 
-- [ ] 0.1 During the next bench session, test whether the vendor app can display live device data (cloud/IoT path) while voltkeeper holds the BLE connection; record the answer in design.md
+- [x] 0.1 During the next bench session, test whether the vendor app can display live device data (cloud/IoT path) while voltkeeper holds the BLE connection; record the answer in design.md (no — BLE is exclusive and cloud path was inactive; recorded in design.md open questions)
 - [ ] 0.2 Inventory what the EL100V2 and AC2A on-device screens display; mark which core-list observation fields are anchorable; record in design.md
 - [ ] 0.3 Run one manual ground-truth session using notes (the `el100v2-improvements` hardware session is the natural opportunity) and use it to refine the prompt list and tolerances in this change's spec
 - [ ] 0.4 Decide flag vs. standalone subcommand based on how the induce-and-capture flow fit the manual session; revise proposal/design/spec accordingly and get Mike's sign-off to proceed

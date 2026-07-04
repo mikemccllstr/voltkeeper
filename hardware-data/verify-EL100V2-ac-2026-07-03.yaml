@@ -1,0 +1,381 @@
+voltkeeper_version: 2026.5.post93+gbd793b88f
+verified_at: '2026-07-03T22:04:51.814271+00:00'
+device:
+  model: EL100V2
+  sn: VKTEST000000
+  ble_address: AA:BB:CC:DD:EE:FF
+  firmware:
+    softwareNumber: 3
+    arm_version: 218614
+    dsp_version: 220013
+    bms_version: 108307
+    iot_software_ver: 802411
+    iot_rf_ver: 0
+tier_1:
+  status: pass
+  blocks:
+    '100':
+      status: pass
+      fields_parsed: 28
+      raw: 14e60004006400001026102600000001000100004c45303156300032000000000000000000000000000100000001031a0a3e00000000000000000000000000000000000000000000000000000000000000100000002d000000000000002d000000070000008300000133000000000000024300000000000000000003
+    '1100':
+      status: pass
+      fields_parsed: 8
+      raw: 00004c4530315630003200000000000000000000000000010003000155f6000300025b6d00030003a713000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000
+    '1200':
+      status: pass
+      fields_parsed: 9
+      raw: 0000000000000000000000000000000000000001000000000000008500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    '1300':
+      status: pass
+      fields_parsed: 7
+      raw: 0258002e00000000000000000000000000000000000000000001002e04a90004000000000000000000000000000000000000000000000000000000000000
+    '1400':
+      status: pass
+      fields_parsed: 16
+      raw: 00100000000000000000000000100000000000000000000000000000000000000000000000000000002e000000000000000000000000000000000001002e04aa0004000000000000000000000000000000000000000000000000000000000000
+    '1500':
+      status: pass
+      fields_parsed: 7
+      raw: 0258000000000000000000000000000000010003000704aa000000000000000000000000000000000000000000000000000000000000000000000000
+    '2000':
+      status: pass
+      fields_parsed: 15
+      raw: 00001a070311002a000000040a3e000000010000000000010001000000010004000600010004000a00000000001700500000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    '2200':
+      status: pass
+      fields_parsed: 10
+      raw: '000000000000000000000000000000010000000000010000000000000004000000000000'
+    '11000':
+      status: pass
+      fields_parsed: 13
+      raw: 4f4900540000000000000000000000000000000078ec0e96000000003e6b000c000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  fields: {}
+tier_2:
+  status: fail
+  fields:
+    dc_eco_auto_off_time:
+      status: pass
+      read: 4
+      wrote: 4
+      readback: 4
+      match: true
+    dc_eco_power:
+      status: pass
+      read: 6
+      wrote: 6
+      readback: 6
+      match: true
+    ac_eco_auto_off_time:
+      status: pass
+      read: 4
+      wrote: 4
+      readback: 4
+      match: true
+    ac_eco_power:
+      status: pass
+      read: 10
+      wrote: 10
+      readback: 10
+      match: true
+    charging_mode:
+      status: pass
+      read: standard
+      wrote: 0
+      readback: 0
+      match: true
+    alarm_sound:
+      status: pass
+      read: false
+      wrote: 0
+      readback: 0
+      match: true
+    lcd_timeout:
+      status: fail
+      wrote: 0
+      readback: 5
+      match: false
+      note: no status value — used safe default
+    soc_holding_low:
+      status: pass
+      wrote: 0
+      readback: 0
+      match: true
+      note: no status value — used safe default
+    soc_holding_high:
+      status: pass
+      wrote: 0
+      readback: 0
+      match: true
+      note: no status value — used safe default
+    inv_voltage:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    inv_freq:
+      status: pass
+      read: hz_60
+      wrote: 1
+      readback: 1
+      match: true
+    chg_max_voltage:
+      status: pass
+      read: 0.0
+      wrote: 0
+      readback: 0
+      match: true
+    chg_max_current:
+      status: pass
+      read: 0.0
+      wrote: 0
+      readback: 0
+      match: true
+    grid_max_power:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    grid_max_current:
+      status: fail
+      wrote: 1
+      readback: 4
+      match: false
+      note: no status value — used safe default
+    feed_max_power:
+      status: pass
+      read: 0
+      wrote: 0
+      readback: 0
+      match: true
+    feed_max_current:
+      status: pass
+      read: 0.0
+      wrote: 0
+      readback: 0
+      match: true
+tier_3:
+  status: fail
+  fields:
+    dc_eco_auto_off_time:
+      status: pass
+      current_value: 4
+      probes_count: 7
+      probed_range:
+      - 0
+      - 6
+      probe_cap_hit: false
+      discovered_range:
+      - 1
+      - 4
+    dc_eco_power:
+      status: fail
+      current_value: 6
+      probes_count: 8
+      probed_range:
+      - 0
+      - 7
+      probe_cap_hit: false
+      discovered_range:
+      - 5
+      - 6
+      restore_failed: true
+      last_known_value: 7
+    ac_eco_auto_off_time:
+      status: pass
+      current_value: 4
+      probes_count: 7
+      probed_range:
+      - 0
+      - 6
+      probe_cap_hit: false
+      discovered_range:
+      - 1
+      - 4
+    ac_eco_power:
+      status: fail
+      current_value: 10
+      probes_count: 15
+      probed_range:
+      - 0
+      - 14
+      probe_cap_hit: false
+      discovered_range:
+      - 10
+      - 14
+      restore_failed: true
+      last_known_value: 14
+    charging_mode:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 0
+        result: accepted
+      - wrote: 1
+        readback: 1
+        result: accepted
+      - wrote: 2
+        readback: 2
+        result: accepted
+      - wrote: 4
+        readback: 4
+        result: accepted
+    alarm_sound:
+      status: pass
+      probes:
+      - wrote: 1
+        readback: 0
+        result: no-readback
+    lcd_timeout:
+      status: fail
+      current_value: 0
+      probes_count: 1
+      probed_range:
+      - 0
+      - 0
+      probe_cap_hit: false
+      restore_failed: true
+      last_known_value: 0
+    soc_holding_low:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      declared_range:
+      - 0
+      - 100
+      in_range_rejected:
+      - 1
+      - 2
+      discovered_range:
+      - 0
+      - 0
+      range_discrepancy: true
+    soc_holding_high:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      declared_range:
+      - 0
+      - 100
+      in_range_rejected:
+      - 1
+      - 2
+      discovered_range:
+      - 0
+      - 0
+      range_discrepancy: true
+    inv_voltage:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      discovered_range:
+      - 0
+      - 0
+    inv_freq:
+      status: pass
+      probes:
+      - wrote: 0
+        readback: 1
+        result: no-readback
+      - wrote: 1
+        readback: 1
+        result: accepted
+    chg_max_voltage:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      discovered_range:
+      - 0
+      - 0
+    chg_max_current:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      discovered_range:
+      - 0
+      - 0
+    grid_max_power:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      discovered_range:
+      - 0
+      - 0
+    grid_max_current:
+      status: pass
+      current_value: 1
+      probes_count: 18
+      probed_range:
+      - 0
+      - 17
+      probe_cap_hit: false
+      declared_range:
+      - 10
+      - 150
+      in_range_rejected:
+      - 16
+      - 17
+      discovered_range:
+      - 0
+      - 15
+      range_discrepancy: true
+    feed_max_power:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      discovered_range:
+      - 0
+      - 0
+    feed_max_current:
+      status: pass
+      current_value: 0
+      probes_count: 3
+      probed_range:
+      - 0
+      - 2
+      probe_cap_hit: false
+      discovered_range:
+      - 0
+      - 0
+tier_4:
+  status: skipped
+  reason: tier limit
+  fields: {}
+tier_5:
+  status: skipped
+  reason: tier limit
+  fields: {}
+tier_6:
+  status: skipped
+  reason: tier limit
+  fields: {}
