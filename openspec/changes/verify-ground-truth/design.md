@@ -44,7 +44,7 @@ Numeric comparisons carry a per-quantity tolerance (voltage ±2 V, watts ±10 % 
 
 ### 4. Prompt script is derived, with a curated observation list
 
-The actuate-and-confirm set derives from the device's writable enum/bool fields (skip-listed like verify's SKIP_AUTO). The observe set is a curated core list matching what the device screens actually show (SoC, total output/input watts, AC/DC output state, AC output frequency, charging mode, charge/discharge direction, firmware versions where on-screen); voltages are a separate secondary-source class (multimeter or pre/post-session app screenshot) since neither LCD displays any voltage. Small enough that a session stays tolerable. Everything is skippable; a skipped prompt records `skipped`, never blocks the run.
+The actuate-and-confirm set derives from the device's writable enum/bool fields (skip-listed like verify's SKIP_AUTO), gated by the same FIELD_TIERS risk classification the tiers use: tier-6 (irreversible) fields are never actuated, and tier-4/5 fields are actuated only when the operator consented to that tier during the run — the write precedes the confirmation prompt by design, so consent must come from the tier gate, not the prompt. The observe set is a curated core list matching what the device screens actually show (SoC, total output/input watts, AC/DC output state, AC output frequency, charging mode, firmware versions where on-screen — charge/discharge direction was dropped: its parsed field is a bare uint with no validated label mapping to compare an operator's answer against, and direction is already triangulated by the watt totals and charging-mode checks); voltages are a separate secondary-source class (multimeter or pre/post-session app screenshot) since neither LCD displays any voltage. Small enough that a session stays tolerable. Everything is skippable; a skipped prompt records `skipped`, never blocks the run.
 
 ### 5. Results live in the verify report's `ground_truth` section
 
@@ -52,7 +52,7 @@ Same file as the raw capture (`verify-raw-capture`), so one session yields one a
 
 ### 6. Ground-truth mode is a flag: `verify --ground-truth`
 
-Not a standalone subcommand (Mike sign-off, 2026-07-04). The manual prototype session fit naturally around a normal verify run, decision 5 already puts results in the verify report, and a separate command would duplicate the connection/tier/report plumbing. The induce-and-capture class runs as a distinct phase after the tiers — it is gated behind typed confirmation either way, so its awkwardness inside the tier sequence is avoided by ordering, not by a separate command.
+Not a standalone subcommand (Mike sign-off, 2026-07-04). The manual prototype session fit naturally around a normal verify run, decision 5 already puts results in the verify report, and a separate command would duplicate the connection/tier/report plumbing. The induce-and-capture class runs as a distinct phase after the tiers — it is gated behind typed confirmation either way, so its awkwardness inside the tier sequence is avoided by ordering, not by a separate command. The phase runs after whatever tiers execute, including under a `--tier` limit: observations and induced checks need only the tier-1 capture, and the tier-consent gate (decision 4) already handles actuations — a tier that never ran was never consented.
 
 ## Risks / Trade-offs
 

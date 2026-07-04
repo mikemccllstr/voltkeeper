@@ -17,13 +17,14 @@ report is written to the `hardware-data/` folder.
 voltkeeper verify <address> [options]
 ```
 
-| Option                | Description                                             |
-| --------------------- | ------------------------------------------------------- |
-| `<address>`           | BLE MAC address (or UUID on macOS) of the target device |
-| `-o`, `--output FILE` | Override the default report filename                    |
-| `--tier N`            | Stop after tier N (remaining tiers recorded as skipped) |
-| `--yes`               | Pre-consent to all supervised tiers — no prompts        |
-| `--no-scrub`          | Write real serial number and BLE address to the report  |
+| Option                | Description                                                           |
+| --------------------- | --------------------------------------------------------------------- |
+| `<address>`           | BLE MAC address (or UUID on macOS) of the target device               |
+| `-o`, `--output FILE` | Override the default report filename                                  |
+| `--tier N`            | Stop after tier N (remaining tiers recorded as skipped)               |
+| `--yes`               | Pre-consent to all supervised tiers — no prompts                      |
+| `--no-scrub`          | Write real serial number and BLE address to the report                |
+| `--ground-truth`      | Attended mode: compare device-display values against parsed registers |
 
 ## The six tiers
 
@@ -105,6 +106,128 @@ I understand this is irreversible
 
 Anything else (including pressing Enter) records tier 6 as
 `skipped (user declined)`.
+
+## Ground-truth mode
+
+The `--ground-truth` flag enables an attended verification mode that compares
+the device's own display against parsed register values. This catches
+interpretation errors — wrong decimal scales, swapped enum labels, or
+misassigned registers — that write/readback verification alone cannot detect.
+
+Ground-truth mode runs after whatever tiers execute — including under a
+`--tier` limit, since the observations only need the tier-1 capture — and has
+three phases:
+
+1. **Passive observations**: the tool prompts for values shown on the device's
+   own screen (SoC, output/input watts, AC/DC output state, AC output frequency,
+   charging mode) and compares them against
+   parsed values with per-quantity tolerances. Where the device screen shows a
+   total (output/input watts), the tool compares against the sum of the
+   corresponding parsed fields. Firmware versions are compared under the
+   device's own display format (raw register ÷ 100). Quantities not shown on
+   any device LCD (voltages) are prompted with an explicit request to use a
+   multimeter or a pre/post-session app screenshot, and recorded as secondary
+   source observations.
+
+1. **Actuate-and-confirm**: the tool writes a different value to each writable
+   enum or bool field and asks the operator to confirm the device UI reflects
+   the change. A denial with a matching readback is the signature of an enum
+   label swap — exactly the SILENT/TURBO case. Fields the device UI cannot
+   display are recorded as `not_confirmable_on_device`.
+
+1. **Induced-condition checks** (AC overload only): the operator applies a
+   resistive load above the device's rated output, the tool captures alarm/fault
+   registers and raw HOME block hex during the event, and the operator records
+   which alarm indicators appeared on the device display. This validates
+   alarm-bit decoding that is otherwise untestable without a physical fault.
+   Each induced check requires typed confirmation (tier-6 pattern) and documents
+   why the condition is within the device's designed protections.
+
+### When to run it
+
+Ground-truth mode is for characterization sessions — new device bring-up,
+firmware revision re-characterization, or suspected interpretation bugs. It is
+not intended for routine verification. Every prompt is individually skippable.
+
+### Safety notes for induced conditions
+
+- **Only use AC overload**: the device's over-current protection is
+  non-destructive and self-resetting. Do not short outputs, bypass protections,
+  or create fault conditions the device was not designed to handle.
+- **Load within safe margins**: ~150 W for the Elite 100 V2 (rated 100 W),
+  ~400 W for the AC2A (rated 300 W). Use a resistive load (incandescent bulb,
+  space heater on low).
+- **Typed confirmation required**: the tool will not instruct you to create
+  the condition until you type the exact confirmation phrase.
+- **Stay with the device**: induced checks are attended by design. Watch for
+  unexpected behaviour and be ready to disconnect the load.
+
+### Session checklist
+
+1. Connect the device and position it so the screen is visible.
+1. Set up a known steady load (e.g., a lamp drawing a known wattage).
+1. Run `voltkeeper verify <address> --ground-truth`.
+1. Complete tiers 1–3 (auto) and any supervised tiers you consent to.
+1. When the ground-truth phase begins, answer each prompt based on what the
+   device display shows. Use the device-info and settings pages as needed.
+1. For voltage prompts, use a multimeter or a vendor app screenshot taken
+   before the session (BLE exclusivity prevents concurrent app observation).
+1. If prompted for an induced condition, read the rationale and safety notes
+   before typing the confirmation phrase.
+
+### Report section
+
+When `--ground-truth` is active, the report includes a `ground_truth` section
+alongside the tier results:
+
+```yaml
+ground_truth:
+  observations:
+    - field: soc
+      prompt: State of Charge (%)
+      source: device_screen
+      status: match
+      observation: 85.0
+      parsed: 85
+      raw_ref: "100"
+    - field: pack_voltage
+      prompt: Pack voltage (V) — multimeter or pre/post-session app screenshot
+      source: multimeter_or_app
+      status: mismatch
+      observation: 53.5
+      parsed: 5.35
+      inferred_scale: "÷10"
+      note: matches raw value at ÷10
+  actuations:
+    - field: charging_mode
+      prompt: Device set to turbo (was standard) — does the device display confirm this change? ...
+      wrote: turbo
+      readback: turbo
+      device_confirmed: false
+      note: denial with readback match — possible label mapping error
+  induced_checks:
+    - condition: ac_overload
+      status: captured
+      alarm_bits: [1, 3]
+      raw_hex: "0aaa0013..."
+      device_indicator: Overload icon lit
+```
+
+### `--yes` and `--ground-truth` are mutually exclusive
+
+`--ground-truth` is an attended mode by design. Combining it with `--yes`
+(unattended) is rejected before connecting. A `--yes` report never contains a
+`ground_truth` section.
+
+### Actuation tier gating
+
+Actuate-and-confirm checks (phase 2) respect the same risk-tier classification
+as the main verify tiers. Tier-6 fields (`factory_reset`, `system_power`,
+`power_off`) are never actuated. Tier-4 and tier-5 fields are only actuated
+when their tier was consented to during the run. If you declined tier 4 during
+verify, the actuation phase skips all tier-4 fields. The same applies under a
+`--tier` limit: a tier that never ran was never consented, so its fields are
+recorded as skipped.
 
 ## Progress display
 

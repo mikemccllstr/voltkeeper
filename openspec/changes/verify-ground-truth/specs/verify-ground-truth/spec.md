@@ -5,11 +5,19 @@
 
 ### Requirement: Ground-truth mode is opt-in and attended
 
-The system SHALL provide an opt-in ground-truth mode via a `--ground-truth` flag on `voltkeeper verify` that prompts the operator for observations of the device's own UI and physical setup. The mode SHALL NOT activate during `--yes` unattended runs. Every prompt SHALL be individually skippable, recording `skipped` without affecting other checks.
+The system SHALL provide an opt-in ground-truth mode via a `--ground-truth` flag on `voltkeeper verify` that prompts the operator for observations of the device's own UI and physical setup. The mode is attended by definition and `--ground-truth` and `--yes` are mutually exclusive: combining them SHALL be rejected with an error before connecting to the device, and a `--yes` report SHALL never contain a `ground_truth` section. Ground-truth mode SHALL run after whatever tiers execute, including under a `--tier` limit: passive observations and induced-condition checks depend only on the tier-1 capture, and actuate-and-confirm checks follow tier consent — a tier that never ran was never consented, so its fields record `skipped`. Every prompt SHALL be individually skippable, recording `skipped` without affecting other checks.
 
 #### Scenario: Unattended runs unaffected
 - **WHEN** `voltkeeper verify --yes` runs without the ground-truth flag
 - **THEN** no ground-truth prompts appear and the report contains no `ground_truth` section
+
+#### Scenario: Flags mutually exclusive
+- **WHEN** `voltkeeper verify --yes --ground-truth` is invoked
+- **THEN** the command exits with an error naming the flags as mutually exclusive, without connecting to the device
+
+#### Scenario: Ground truth under a tier limit
+- **WHEN** `voltkeeper verify --tier 1 --ground-truth` runs
+- **THEN** ground-truth prompts run after tier 1, passive observations and induced-condition checks are offered, and every tier-4/5 actuation check records `skipped` with its tier noted as not consented
 
 #### Scenario: Skipped prompt recorded
 - **WHEN** the operator skips a ground-truth prompt
@@ -17,7 +25,7 @@ The system SHALL provide an opt-in ground-truth mode via a `--ground-truth` flag
 
 ### Requirement: Passive observations recorded with tolerance-aware comparison
 
-Ground-truth mode SHALL prompt for a curated core list of device-screen values — SoC, total output watts, total input watts, AC/DC output state, AC output frequency, charging mode, battery charge/discharge direction, and firmware versions where the device shows them on-screen — and record each as observation, comparison value, reference to the captured raw block, observation source, and match result. Where the device screen shows a total (output watts, input watts), the comparison value SHALL be the sum of the corresponding parsed fields, not any single field. Numeric comparisons SHALL apply per-quantity tolerances rather than exact equality (bench-validated 2026-07-03: SoC ±1, watts ±10 % or ±10 W). Firmware-version comparisons SHALL apply the device display format (raw register ÷ 100, e.g. 218614 → "2186.14") before comparing.
+Ground-truth mode SHALL prompt for a curated core list of device-screen values — SoC, total output watts, total input watts, AC/DC output state, AC output frequency, charging mode, and firmware versions where the device shows them on-screen — and record each as observation, comparison value, reference to the captured raw block, observation source, and match result. Where the device screen shows a total (output watts, input watts), the comparison value SHALL be the sum of the corresponding parsed fields, not any single field. Numeric comparisons SHALL apply per-quantity tolerances rather than exact equality (bench-validated 2026-07-03: SoC ±1, watts ±10 % or ±10 W). Firmware-version comparisons SHALL apply the device display format (raw register ÷ 100, e.g. 218614 → "2186.14") before comparing.
 
 #### Scenario: Observation matches within tolerance
 - **WHEN** the operator enters a total output of 60 W and the parsed AC and DC outputs sum to 62 W
@@ -57,7 +65,7 @@ When a numeric observation mismatches the parsed value, the comparator SHALL tes
 
 ### Requirement: Active control checks confirm effects on the device UI
 
-Ground-truth mode SHALL support actuate-and-confirm checks: write a value to a writable enum or bool field, prompt the operator to confirm the device UI reflects the intended effect, and record wrote/readback/confirmed. Fields excluded from automatic tier testing (SKIP_AUTO) SHALL be excluded here too. The prompt SHALL tell the operator where on the device to look when the main display does not distinguish the written value (e.g. the EL100V2 shows the charging mode only on settings page P03; only Turbo has a main-display icon); when the device UI cannot reflect the difference at all, the check SHALL be recorded as `not_confirmable_on_device` rather than as a denial.
+Ground-truth mode SHALL support actuate-and-confirm checks: write a value to a writable enum or bool field, prompt the operator to confirm the device UI reflects the intended effect, and record wrote/readback/confirmed. The write deliberately precedes the confirmation prompt — the check exists to test whether the actuation command produces the effect our label claims. Field eligibility SHALL follow the same risk classification the tiers use (FIELD_TIERS): fields classified tier 6 (irreversible) SHALL never be actuated in ground-truth mode; fields classified tier 4 or 5 SHALL be actuated only when the operator consented to that tier during the same run, and otherwise recorded as `skipped` with the declined tier noted. Fields excluded from automatic tier testing (SKIP_AUTO) SHALL be excluded here too. The prompt SHALL tell the operator where on the device to look when the main display does not distinguish the written value (e.g. the EL100V2 shows the charging mode only on settings page P03; only Turbo has a main-display icon); when the device UI cannot reflect the difference at all, the check SHALL be recorded as `not_confirmable_on_device` rather than as a denial.
 
 #### Scenario: Enum label swap detected
 - **WHEN** the tool writes the value it maps to TURBO, readback matches, and the operator reports the device UI shows a different mode
@@ -66,6 +74,14 @@ Ground-truth mode SHALL support actuate-and-confirm checks: write a value to a w
 #### Scenario: Effect not visible on the device UI
 - **WHEN** a written value produces no distinguishable indication anywhere on the device (e.g. Standard vs. Silent on a device with only a Turbo icon and no settings pages)
 - **THEN** the check is recorded as `not_confirmable_on_device` with wrote and readback values, not as a confirmation or denial
+
+#### Scenario: Irreversible fields are never actuated
+- **WHEN** a device's control struct includes a tier-6 field (e.g. `factory_reset`, `power_off`)
+- **THEN** ground-truth mode does not write to it under any circumstances — actuate-and-confirm restores the original value afterwards, which is impossible for an irreversible action
+
+#### Scenario: Unconsented tier not actuated
+- **WHEN** the operator declined tier 4 during the run and ground-truth mode reaches a tier-4 field (e.g. `ac_output`)
+- **THEN** the check is recorded as `skipped` with a note that tier 4 was not consented, and no write occurs
 
 ### Requirement: Induced-condition checks capture alarm state safely
 

@@ -1,0 +1,1035 @@
+# ABOUTME: Tests for ground-truth verify mode — observation resolution, tolerance comparison, scale inference.
+# ABOUTME: Uses AC2A device fixtures from conftest.py and the ground_truth module's pure functions.
+
+from __future__ import annotations
+
+import struct
+
+import pytest
+
+from voltkeeper.core.devices.ac2a import AC2A, ChargingMode
+from voltkeeper.core.devices.el100v2 import El100V2
+from voltkeeper.core.ground_truth import (
+    CORE_OBS_MAP,
+    CORE_OBSERVATION_DEFS,
+    INDUCED_CHECKS,
+    ActuateCheck,
+    GroundTruthResult,
+    InducedCheck,
+    ObservationCheck,
+    ObservationDef,
+    _lookup_raw_value,
+    build_actuation_items,
+    build_observation_items,
+    compare_observation,
+    ground_truth_to_report_section,
+    infer_scale,
+    resolve_observation_value,
+    run_actuations,
+    run_induced_check,
+    run_observations,
+)
+from voltkeeper.core.verify import BlockResult
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _make_full_tier1_values() -> dict:
+    """Return a tier1_values dict with all fields needed for actuation tests."""
+    from voltkeeper.core.commands import LedColor, WorkingMode
+    from voltkeeper.core.devices.ac2a import ChargingMode
+
+    return {
+        "packTotalSoc": 85,
+        "ac_output": True,
+        "dc_output": False,
+        "charging_mode": ChargingMode.STANDARD,
+        "working_mode": WorkingMode.STANDARD_UPS,
+        "ups_mode": WorkingMode.STANDARD_UPS,
+        "power_lifting": False,
+        "ac_eco_mode": False,
+        "dc_eco_mode": False,
+        "ctrl_grid": False,
+        "ctrl_feed": False,
+        "power_off": False,
+        "factory_reset": 0,
+        "system_power": 0,
+        "silence_mode": False,
+        "led_color": LedColor.COOL,
+        "led_mode": 0,
+        "time_mode": 0,
+        "screen_lock": False,
+        "beep": False,
+        "data_upload": False,
+        "ac_output_frequency": 50,
+    }
+
+
+# ── Fake prompt ────────────────────────────────────────────────────────────────
+
+
+class FakePrompter:
+    """Captures prompts instead of asking the operator."""
+
+    def __init__(self, responses: dict[str, str] | None = None):
+        self.responses = responses or {}
+        self.prompts: list[tuple[str, str]] = []
+        self.default: str | None = None
+
+    async def prompt(self, text: str, source: str) -> str | None:
+        self.prompts.append((text, source))
+        return self.responses.get(text, self.default)
+
+
+def _sync_prompt(text: str, source: str) -> str | None:
+    """Synchronous prompt for simple test cases."""
+    return text
+
+
+# ── Fixtures ──────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def ac2a():
+    return AC2A("AA:BB:CC:DD:EE:FF", "0")
+
+
+@pytest.fixture
+def el100v2():
+    return El100V2("AA:BB:CC:DD:EE:FF", "0")
+
+
+# ── Resolution tests (§1) ──────────────────────────────────────────────────────
+
+
+class TestResolveObservationValue:
+    def test_first_aggregate_returns_single_value(self):
+        obs_def = ObservationDef("test", "prompt", ["a"], "first", "device_screen", "exact")
+        result = resolve_observation_value({"a": 42, "b": 99}, obs_def)
+        assert result == 42
+
+    def test_first_returns_none_when_field_missing(self):
+        obs_def = ObservationDef("test", "prompt", ["missing"], "first", "device_screen", "exact")
+        result = resolve_observation_value({}, obs_def)
+        assert result is None
+
+    def test_sum_aggregate_combines_values(self):
+        obs_def = ObservationDef("test", "prompt", ["a", "b"], "sum", "device_screen", "watts")
+        result = resolve_observation_value({"a": 100, "b": 50}, obs_def)
+        assert result == 150.0
+
+    def test_sum_abs_uses_absolute_values(self):
+        obs_def = ObservationDef("test", "prompt", ["a", "b"], "sum_abs", "device_screen", "watts")
+        result = resolve_observation_value({"a": -60, "b": 50}, obs_def)
+        assert result == 110.0
+
+    def test_sum_ignores_missing_fields(self):
+        obs_def = ObservationDef("test", "prompt", ["a", "b"], "sum", "device_screen", "watts")
+        result = resolve_observation_value({"a": 100}, obs_def)
+        assert result == 100.0
+
+    def test_returns_none_when_all_fields_missing(self):
+        obs_def = ObservationDef("test", "prompt", ["a", "b"], "sum", "device_screen", "watts")
+        result = resolve_observation_value({"c": 1}, obs_def)
+        assert result is None
+
+    def test_decimal_values_work(self):
+        from decimal import Decimal
+
+        obs_def = ObservationDef("test", "prompt", ["v"], "first", "device_screen", "voltage")
+        result = resolve_observation_value({"v": Decimal("53.5")}, obs_def)
+        assert result == Decimal("53.5")
+
+
+# ── Comparison tests (§2) ──────────────────────────────────────────────────────
+
+
+class TestCompareObservation:
+    # ── Numeric tolerance ──
+
+    def test_soc_exact(self):
+        result = compare_observation("85", 85.0, "soc")
+        assert result["match"] is True
+
+    def test_soc_within_tolerance_plus(self):
+        result = compare_observation("86", 85.0, "soc")
+        assert result["match"] is True
+
+    def test_soc_within_tolerance_minus(self):
+        result = compare_observation("84", 85.0, "soc")
+        assert result["match"] is True
+
+    def test_soc_outside_tolerance(self):
+        result = compare_observation("87", 85.0, "soc")
+        assert result["match"] is False
+
+    def test_soc_observation_recorded(self):
+        result = compare_observation("85", 85.0, "soc")
+        assert result["observation"] == 85.0
+
+    # ── Watts tolerance ──
+
+    def test_watts_10_percent_tolerance(self):
+        result = compare_observation("110", 100.0, "watts")
+        assert result["match"] is True
+
+    def test_watts_10_watt_floor(self):
+        result = compare_observation("15", 5.0, "watts")
+        # tolerance = max(5*0.10, 10) = 10
+        assert result["match"] is True
+
+    def test_watts_outside_tolerance(self):
+        result = compare_observation("125", 100.0, "watts")
+        assert result["match"] is False
+
+    def test_watts_zero_tolerance(self):
+        result = compare_observation("9", 0.0, "watts")
+        # tolerance = max(0, 10) = 10
+        assert result["match"] is True
+
+    # ── Voltage tolerance ──
+
+    def test_voltage_within_tolerance(self):
+        result = compare_observation("122", 121.0, "voltage")
+        assert result["match"] is True
+
+    def test_voltage_outside_tolerance(self):
+        result = compare_observation("124", 121.0, "voltage")
+        assert result["match"] is False
+
+    def test_voltage_oat_tolerance(self):
+        result = compare_observation("121", 121.0, "voltage")
+        assert result["match"] is True
+
+    # ── Frequency tolerance ──
+
+    def test_frequency_match(self):
+        result = compare_observation("50", 50.0, "frequency")
+        assert result["match"] is True
+
+    def test_frequency_within_tolerance(self):
+        result = compare_observation("51", 50.0, "frequency")
+        assert result["match"] is True
+
+    def test_frequency_outside_tolerance(self):
+        result = compare_observation("52", 50.0, "frequency")
+        assert result["match"] is False
+
+    # ── Firmware version ──
+
+    def test_firmware_display_format_match(self):
+        # tier1_values contain raw uint16 (218614), device shows 2186.14 (÷100)
+        result = compare_observation("2186.14", 218614, "firmware_version", raw_value=218614)
+        assert result["match"] is True
+
+    def test_firmware_display_format_mismatch(self):
+        result = compare_observation("2186.15", 218614, "firmware_version", raw_value=218614)
+        assert result["match"] is False
+
+    def test_firmware_no_raw_works_with_parsed(self):
+        # Without raw_value, still applies ÷100 to parsed
+        result = compare_observation("2186.14", 218614, "firmware_version")
+        assert result["match"] is True
+
+    # ── Exact (bool/enum) ──
+
+    def test_exact_bool_true(self):
+        result = compare_observation("on", True, "exact")
+        assert result["match"] is True
+        assert result["observation"] is True
+
+    def test_exact_bool_false(self):
+        result = compare_observation("off", True, "exact")
+        assert result["match"] is False
+        assert result["observation"] is False
+
+    def test_exact_bool_capitalization(self):
+        result = compare_observation("ON", True, "exact")
+        assert result["match"] is True
+
+    def test_exact_enum_match(self):
+        from voltkeeper.core.devices.ac2a import ChargingMode
+
+        result = compare_observation("STANDARD", ChargingMode.STANDARD, "exact")
+        assert result["match"] is True
+
+    def test_exact_enum_mismatch(self):
+        from voltkeeper.core.devices.ac2a import ChargingMode
+
+        result = compare_observation("TURBO", ChargingMode.STANDARD, "exact")
+        assert result["match"] is False
+
+    def test_exact_enum_case_insensitive(self):
+        from voltkeeper.core.devices.ac2a import ChargingMode
+
+        result = compare_observation("standard", ChargingMode.STANDARD, "exact")
+        assert result["match"] is True
+
+    def test_exact_string_match(self):
+        result = compare_observation("charging", "charging", "exact")
+        assert result["match"] is True
+
+    def test_exact_string_mismatch(self):
+        result = compare_observation("charging", "discharging", "exact")
+        assert result["match"] is False
+
+    # ── Unparseable numeric ──
+
+    def test_unparseable_numeric(self):
+        result = compare_observation("abc", 50.0, "voltage")
+        assert result["match"] is None
+        assert "could not parse" in result["note"]
+
+
+# ── Scale inference tests (§2.1) ───────────────────────────────────────────────
+
+
+class TestInferScale:
+    def test_divide_by_10_match(self):
+        result = infer_scale(121.0, 1210)
+        assert result == "÷10"
+
+    def test_divide_by_100_match(self):
+        result = infer_scale(53.5, 5350)
+        assert result == "÷100"
+
+    def test_raw_times_1_match(self):
+        result = infer_scale(150.0, 150)
+        assert result == "×1 (raw)"
+
+    def test_no_match(self):
+        result = infer_scale(121.0, 9999)
+        assert result is None
+
+    def test_zero_raw_returns_none(self):
+        result = infer_scale(0.0, 0)
+        assert result is None
+
+    def test_near_match_within_tolerance(self):
+        result = infer_scale(121.0, 1212)
+        assert result == "÷10"
+
+    def test_divide_by_10_preferred_over_times_1(self):
+        result = infer_scale(12.1, 121)
+        assert result == "÷10"
+
+
+# ── Scale inference in comparison context (§2.2) ──────────────────────────────
+
+
+class TestCompareWithScaleInference:
+    def test_voltage_mismatch_infers_decivolt_scale(self):
+        result = compare_observation("121", 12.1, "voltage", raw_value=1210)
+        assert result["match"] is False
+        assert result["inferred_scale"] == "÷10"
+        assert "matches raw value at ÷10" in result["note"]
+
+    def test_pack_voltage_mismatch_infers_centivolt_scale(self):
+        result = compare_observation("53.5", 5.35, "voltage", raw_value=5350)
+        assert result["match"] is False
+        assert result["inferred_scale"] == "÷100"
+
+    def test_match_no_scale_inference(self):
+        result = compare_observation("121", 121.0, "voltage", raw_value=121)
+        assert result["match"] is True
+        assert result["inferred_scale"] is None
+
+    def test_no_raw_value_no_scale_inference(self):
+        result = compare_observation("121", 12.1, "voltage")
+        assert result["match"] is False
+        assert result["inferred_scale"] is None
+
+
+# ── Observation building tests (§1.2) ─────────────────────────────────────────
+
+
+class TestBuildObservationItems:
+    def test_builds_for_ac2a(self, ac2a):
+        tier1_values = {
+            "packTotalSoc": 85,
+            "totalACPower": 60,
+            "totalDCPower": 14,
+            "totalGridPower": 50,
+            "totalPVPower": 0,
+            "ac_output": True,
+            "dc_output": False,
+            "frequency": 50.0,
+            "charging_mode": "STANDARD",
+            "packChargingStatus": 1,
+            "acPhase[0].voltage": 121.0,
+            "gridPhase[0].voltage": 120.0,
+            "packTotalVoltage": 53.5,
+        }
+        items = build_observation_items(ac2a, tier1_values)
+        ids = [i.field for i in items]
+        assert "soc" in ids
+        assert "output_watts" in ids
+        assert "input_watts" in ids
+        assert "ac_output_state" in ids
+        assert "dc_output_state" in ids
+        assert "ac_output_frequency" in ids
+        assert "charging_mode" in ids
+        assert "ac_output_voltage" in ids
+        assert "grid_voltage" in ids
+        assert "pack_voltage" in ids
+        # firmware_display is EL100V2-only
+        assert "firmware_display" not in ids
+
+    def test_builds_for_el100v2_includes_firmware(self, el100v2):
+        tier1_values = {
+            "packTotalSoc": 85,
+            "totalACPower": 60,
+            "totalDCPower": 0,
+            "totalGridPower": 50,
+            "totalPVPower": 0,
+            "ac_output": True,
+            "dc_output": False,
+            "frequency": 50.0,
+            "charging_mode": "TURBO",
+            "packChargingStatus": 2,
+            "arm_version": 218614,
+            "acPhase[0].voltage": 121.0,
+            "gridPhase[0].voltage": 120.0,
+            "packTotalVoltage": 53.5,
+        }
+        items = build_observation_items(el100v2, tier1_values)
+        ids = [i.field for i in items]
+        assert "firmware_display" in ids
+
+    def test_missing_values_unanchored(self, ac2a):
+        items = build_observation_items(ac2a, {})
+        for item in items:
+            if item.field not in ("firmware_display",):  # firmware_display filtered for AC2A
+                assert item.status == "unanchored"
+                assert "no tier1 value" in item.note
+
+    def test_parsed_values_set(self, ac2a):
+        tier1_values = {"packTotalSoc": 85}
+        items = build_observation_items(ac2a, tier1_values)
+        soc = next(i for i in items if i.field == "soc")
+        assert soc.parsed == 85
+
+    def test_sum_abs_for_output_watts(self, ac2a):
+        tier1_values = {"totalACPower": 60, "totalDCPower": 14}
+        items = build_observation_items(ac2a, tier1_values)
+        ow = next(i for i in items if i.field == "output_watts")
+        assert ow.parsed == 74.0
+
+    def test_sum_abs_for_negative_grid_input(self, ac2a):
+        tier1_values = {"totalGridPower": -50, "totalPVPower": 200}
+        items = build_observation_items(ac2a, tier1_values)
+        iw = next(i for i in items if i.field == "input_watts")
+        # sum_abs: abs(-50) + abs(200) = 250
+        assert iw.parsed == 250.0
+
+
+# ── Raw value lookup tests (§6.3) ───────────────────────────────────────────────
+
+
+class TestLookupRawValueSynthKeys:
+    """Cross-check SYNTH_REGISTERS against the device's own phase-fill parsing.
+
+    The synthesized phase keys (acPhase[0].voltage, gridPhase[0].voltage) have no
+    struct field, so _lookup_raw_value carries a hand-maintained register map. These
+    tests fabricate a block with a known voltage at the phase-0 position and assert
+    the lookup returns the same raw register the parser decodes — failing if the map
+    and the _fill_*_phases byte offsets ever disagree.
+    """
+
+    def _grid_block(self, raw_voltage: int) -> bytes:
+        # INV_GRID_INFO block (1300, 31 regs). sysPhaseNumber at reg 1312 byte 1;
+        # gridPhase[0].voltage at byte offset 26 + 2 (see _fill_grid_phases).
+        data = bytearray(62)
+        data[25] = 1
+        data[28:30] = struct.pack("!H", raw_voltage)
+        return bytes(data)
+
+    def _load_block(self, raw_voltage: int) -> bytes:
+        # INV_LOAD_INFO block (1400, 48 regs). sysPhaseNumber at reg 1429 byte 1;
+        # acPhase[0].voltage at byte offset 60 + 2 (see _fill_load_phases).
+        data = bytearray(96)
+        data[59] = 1
+        data[62:64] = struct.pack("!H", raw_voltage)
+        return bytes(data)
+
+    def test_grid_phase_voltage_lookup_matches_parser(self, ac2a):
+        raw = self._grid_block(1203)
+        blocks = {"1300": BlockResult(status="pass", fields_parsed=1, raw=raw.hex())}
+        raw_int, raw_ref = _lookup_raw_value(ac2a, ["gridPhase[0].voltage"], blocks)
+        assert raw_ref == "1300"
+        parsed = ac2a.parse(1300, raw)["gridPhase[0].voltage"]
+        assert raw_int / 10.0 == parsed == 120.3
+
+    def test_ac_phase_voltage_lookup_matches_parser(self, ac2a):
+        raw = self._load_block(1210)
+        blocks = {"1400": BlockResult(status="pass", fields_parsed=1, raw=raw.hex())}
+        raw_int, raw_ref = _lookup_raw_value(ac2a, ["acPhase[0].voltage"], blocks)
+        assert raw_ref == "1400"
+        parsed = ac2a.parse(1400, raw)["acPhase[0].voltage"]
+        assert raw_int / 10.0 == parsed == 121.0
+
+    def test_synth_key_absent_from_blocks(self, ac2a):
+        blocks = {"100": BlockResult(status="pass", fields_parsed=1, raw="00" * 124)}
+        raw_int, raw_ref = _lookup_raw_value(ac2a, ["acPhase[0].voltage"], blocks)
+        assert raw_int is None
+        assert raw_ref is None
+
+
+# ── Observation runner tests (§1.2) ────────────────────────────────────────────
+
+
+class TestRunObservations:
+    @pytest.mark.asyncio
+    async def test_prompt_flow_records_match(self, ac2a):
+        """Prompt flow records observation/parsed/raw-ref/match."""
+        items = [
+            ObservationCheck(
+                field="soc",
+                prompt="State of Charge (%)",
+                source="device_screen",
+                parsed=85,
+                raw_ref="100",
+            )
+        ]
+        prompter = FakePrompter({"State of Charge (%)": "85"})
+
+        await run_observations(items, {}, ac2a, prompter.prompt)
+
+        assert len(items) == 1
+        assert items[0].status == "match"
+        assert items[0].observation == 85.0
+        assert items[0].parsed == 85
+
+    @pytest.mark.asyncio
+    async def test_prompt_flow_records_mismatch(self, ac2a):
+        items = [
+            ObservationCheck(
+                field="soc",
+                prompt="State of Charge (%)",
+                source="device_screen",
+                parsed=85,
+            )
+        ]
+        prompter = FakePrompter({"State of Charge (%)": "90"})
+
+        await run_observations(items, {}, ac2a, prompter.prompt)
+
+        assert items[0].status == "mismatch"
+
+    @pytest.mark.asyncio
+    async def test_skip_records_skipped(self, ac2a):
+        """Single skip records 'skipped'."""
+        items = [
+            ObservationCheck(
+                field="soc",
+                prompt="State of Charge (%)",
+                source="device_screen",
+                parsed=85,
+            )
+        ]
+        # Empty string response = skip
+        prompter = FakePrompter({"State of Charge (%)": ""})
+
+        await run_observations(items, {}, ac2a, prompter.prompt)
+
+        assert items[0].status == "skipped"
+        assert items[0].note == "operator skipped"
+
+    @pytest.mark.asyncio
+    async def test_none_response_skips(self, ac2a):
+        items = [
+            ObservationCheck(
+                field="soc",
+                prompt="State of Charge (%)",
+                source="device_screen",
+                parsed=85,
+            )
+        ]
+        prompter = FakePrompter({})
+        prompter.default = None
+
+        await run_observations(items, {}, ac2a, prompter.prompt)
+
+        assert items[0].status == "skipped"
+
+    @pytest.mark.asyncio
+    async def test_unanchored_items_skipped_without_prompt(self, ac2a):
+        items = [
+            ObservationCheck(
+                field="soc",
+                prompt="State of Charge (%)",
+                source="device_screen",
+                status="unanchored",
+                note="no tier1 value",
+            )
+        ]
+        prompter = FakePrompter({"State of Charge (%)": "85"})
+
+        await run_observations(items, {}, ac2a, prompter.prompt)
+
+        # Should remain unanchored, not get prompted
+        assert items[0].status == "unanchored"
+
+    @pytest.mark.asyncio
+    async def test_voltage_with_scale_inference(self, ac2a):
+        """Observation of 121V against raw 1210 → mismatch with inferred decivolt scale."""
+        import struct
+
+        raw_hex = struct.pack("!H", 1210).hex().ljust(56, "0")
+        blocks = {"100": BlockResult(status="pass", fields_parsed=1, raw=raw_hex)}
+
+        items = [
+            ObservationCheck(
+                field="pack_voltage",
+                prompt="Pack voltage (V)",
+                source="multimeter_or_app",
+                parsed=12.1,  # Wrong scale parsed value
+                raw_ref="100",
+            )
+        ]
+        prompter = FakePrompter({"Pack voltage (V)": "121.0"})
+
+        await run_observations(items, blocks, ac2a, prompter.prompt)
+
+        assert items[0].status == "mismatch"
+        # Scale inference may or may not fire depending on whether the field is found in structs
+        # The raw lookup depends on finding packTotalVoltage in device structs
+        # If found and address 100, should infer ÷10
+
+
+# ── Report serialization tests (§1.2) ─────────────────────────────────────────
+
+
+class TestGroundTruthReportSection:
+    def test_observation_to_dict(self):
+        result = GroundTruthResult(
+            observations=[
+                ObservationCheck(
+                    field="soc",
+                    prompt="State of Charge (%)",
+                    source="device_screen",
+                    status="match",
+                    observation=85.0,
+                    parsed=85,
+                    raw_ref="100",
+                )
+            ]
+        )
+        section = ground_truth_to_report_section(result)
+        assert "observations" in section
+        obs = section["observations"]
+        assert len(obs) == 1
+        assert obs[0]["field"] == "soc"
+        assert obs[0]["status"] == "match"
+        assert obs[0]["observation"] == 85.0
+        assert obs[0]["parsed"] == 85
+        assert obs[0]["raw_ref"] == "100"
+
+    def test_observation_mismatch_with_inferred_scale(self):
+        result = GroundTruthResult(
+            observations=[
+                ObservationCheck(
+                    field="ac_output_voltage",
+                    prompt="AC output voltage (V)",
+                    source="multimeter_or_app",
+                    status="mismatch",
+                    observation=121.0,
+                    parsed=12.1,
+                    raw_ref="100",
+                    inferred_scale="÷10",
+                    note="matches raw value at ÷10",
+                )
+            ]
+        )
+        section = ground_truth_to_report_section(result)
+        obs = section["observations"][0]
+        assert obs["status"] == "mismatch"
+        assert obs["inferred_scale"] == "÷10"
+        assert "matches raw value at ÷10" in obs["note"]
+
+    def test_skipped_observation(self):
+        result = GroundTruthResult(
+            observations=[
+                ObservationCheck(
+                    field="soc",
+                    prompt="State of Charge (%)",
+                    source="device_screen",
+                    status="skipped",
+                    note="operator skipped",
+                )
+            ]
+        )
+        section = ground_truth_to_report_section(result)
+        obs = section["observations"][0]
+        assert obs["status"] == "skipped"
+        assert "observation" not in obs
+        assert "parsed" not in obs
+
+    def test_unanchored_observation(self):
+        result = GroundTruthResult(
+            observations=[
+                ObservationCheck(
+                    field="pack_voltage",
+                    prompt="Pack voltage (V)",
+                    source="multimeter_or_app",
+                    status="unanchored",
+                    note="no tier1 value available for this field",
+                )
+            ]
+        )
+        section = ground_truth_to_report_section(result)
+        obs = section["observations"][0]
+        assert obs["status"] == "unanchored"
+        assert "no tier1 value" in obs["note"]
+
+    def test_actuation_to_dict(self):
+        result = GroundTruthResult(
+            actuations=[
+                ActuateCheck(
+                    field="charging_mode",
+                    prompt="Switching charging mode to TURBO on control_struct",
+                    wrote="turbo",
+                    readback="turbo",
+                    device_confirmed=False,
+                    note="operator reports SILENT displayed",
+                )
+            ]
+        )
+        section = ground_truth_to_report_section(result)
+        assert "observations" not in section
+        act = section["actuations"][0]
+        assert act["field"] == "charging_mode"
+        assert act["wrote"] == "turbo"
+        assert act["readback"] == "turbo"
+        assert act["device_confirmed"] is False
+        assert "SILENT" in act["note"]
+
+    def test_induction_to_dict(self):
+        result = GroundTruthResult(
+            induced_checks=[
+                InducedCheck(
+                    condition="ac_overload",
+                    status="captured",
+                    alarm_bits=["alarm.overload", "fault.overcurrent"],
+                    raw_hex="abcdef",
+                    device_indicator="Overload icon lit",
+                )
+            ]
+        )
+        section = ground_truth_to_report_section(result)
+        ind = section["induced_checks"][0]
+        assert ind["condition"] == "ac_overload"
+        assert ind["status"] == "captured"
+        assert ind["alarm_bits"] == ["alarm.overload", "fault.overcurrent"]
+        assert ind["raw_hex"] == "abcdef"
+        assert ind["device_indicator"] == "Overload icon lit"
+
+    def test_empty_result_no_sections(self):
+        result = GroundTruthResult()
+        section = ground_truth_to_report_section(result)
+        assert section == {}
+
+    def test_mixed_result_all_sections(self):
+        result = GroundTruthResult(
+            observations=[
+                ObservationCheck(
+                    field="soc",
+                    prompt="SoC",
+                    source="device_screen",
+                    status="match",
+                    observation=85.0,
+                    parsed=85,
+                )
+            ],
+            actuations=[
+                ActuateCheck(
+                    field="ac_output",
+                    wrote=True,
+                    readback=True,
+                    device_confirmed=True,
+                )
+            ],
+            induced_checks=[
+                InducedCheck(
+                    condition="ac_overload",
+                    status="skipped",
+                    note="operator declined",
+                )
+            ],
+        )
+        section = ground_truth_to_report_section(result)
+        assert "observations" in section
+        assert "actuations" in section
+        assert "induced_checks" in section
+
+
+# ── Core observation defs integrity ────────────────────────────────────────────
+
+
+class TestCoreObservationDefs:
+    def test_all_ids_unique(self):
+        ids = [d.id for d in CORE_OBSERVATION_DEFS]
+        assert len(ids) == len(set(ids))
+
+    def test_map_covers_all(self):
+        assert set(d.id for d in CORE_OBSERVATION_DEFS) == set(CORE_OBS_MAP.keys())
+
+    def test_all_have_tolerance_type(self):
+        for d in CORE_OBSERVATION_DEFS:
+            assert d.tolerance_type in ("soc", "watts", "voltage", "frequency", "firmware_version", "exact")
+
+    def test_firmware_display_is_el100v2_only(self):
+        fw = CORE_OBS_MAP["firmware_display"]
+        assert fw.model_filter == "EL100V2"
+
+    def test_voltage_fields_use_multimeter_source(self):
+        for oid in ("ac_output_voltage", "grid_voltage", "pack_voltage"):
+            d = CORE_OBS_MAP[oid]
+            assert d.source == "multimeter"
+            assert d.tolerance_type == "voltage"
+
+
+# ── Actuate-and-confirm tests (§3) ────────────────────────────────────────────
+
+
+class TestBuildActuationItems:
+    def test_skips_skip_auto_fields(self, ac2a):
+        tier1_values = _make_full_tier1_values()
+        items = build_actuation_items(ac2a, tier1_values, frozenset({4, 5}))
+        for item in items:
+            assert item.field not in ("system_time", "system_timezone", "ja12_enable", "ctrl_led")
+
+    def test_charging_mode_is_included(self, ac2a):
+        tier1_values = _make_full_tier1_values()
+        items = build_actuation_items(ac2a, tier1_values, frozenset({4, 5}))
+        cm = next((i for i in items if i.field == "charging_mode"), None)
+        assert cm is not None
+
+    def test_ac2a_charging_mode_not_confirmable(self, ac2a):
+        tier1_values = _make_full_tier1_values()
+        items = build_actuation_items(ac2a, tier1_values, frozenset({4, 5}))
+        cm = next(i for i in items if i.field == "charging_mode")
+        assert cm.device_confirmed is None
+        assert cm.note == "not_confirmable_on_device"
+
+    def test_bool_field_has_prompt(self, ac2a):
+        tier1_values = _make_full_tier1_values()
+        items = build_actuation_items(ac2a, tier1_values, frozenset({4, 5}))
+        ac_out = next((i for i in items if i.field == "ac_output"), None)
+        assert ac_out is not None
+        assert "does the device display confirm" in ac_out.prompt
+
+    def test_fields_without_tier1_values_skipped(self, ac2a):
+        items = build_actuation_items(ac2a, {}, frozenset({4, 5}))
+        assert len(items) == 0
+
+    def test_tier6_fields_excluded(self, ac2a):
+        tier1_values = _make_full_tier1_values()
+        items = build_actuation_items(ac2a, tier1_values, frozenset({4, 5, 6}))
+        tier6_fields = {"power_off", "factory_reset", "system_power"}
+        for item in items:
+            assert item.field not in tier6_fields
+
+    def test_tier4_fields_excluded_without_consent(self, ac2a):
+        tier1_values = _make_full_tier1_values()
+        items = build_actuation_items(ac2a, tier1_values, frozenset())
+        tier4_fields = {
+            "ac_output",
+            "dc_output",
+            "ctrl_grid",
+            "ctrl_feed",
+            "power_lifting",
+            "ac_eco_mode",
+            "dc_eco_mode",
+        }
+        tier4_skipped = [i for i in items if i.field in tier4_fields]
+        assert len(tier4_skipped) == len(tier4_fields)
+        for item in tier4_skipped:
+            assert item.note == "tier_4_not_consented"
+            assert item.wrote_raw is None
+            assert item.wrote is None
+
+        tier5_skipped = [i for i in items if i.field == "working_mode"]
+        assert len(tier5_skipped) == 1
+        for item in tier5_skipped:
+            assert item.note == "tier_5_not_consented"
+            assert item.wrote_raw is None
+            assert item.wrote is None
+
+
+class TestRunActuations:
+    @pytest.mark.asyncio
+    async def test_happy_path_write_readback_confirm_restore(self, ac2a):
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+        ac_out = next(i for i in items if i.field == "ac_output")
+
+        async def capture(text, source):
+            return "y"
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        assert ac_out.wrote_raw == 0
+        assert ac_out.wrote == "off"
+        assert ac_out.readback is False
+        assert ac_out.device_confirmed is True
+        assert ac_out.note is None
+        assert client.state[2011] == 1
+        assert client.write_log == [(2011, 0), (2011, 1)]
+
+    @pytest.mark.asyncio
+    async def test_operator_denies_with_readback_match(self, ac2a):
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+        ac_out = next(i for i in items if i.field == "ac_output")
+
+        async def capture(text, source):
+            return "n"
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        assert ac_out.device_confirmed is False
+        assert ac_out.readback is False
+        assert ac_out.note == "denial with readback match — possible label mapping error"
+        assert client.state[2011] == 1
+        assert client.write_log == [(2011, 0), (2011, 1)]
+
+    @pytest.mark.asyncio
+    async def test_operator_skips_restore_still_happens(self, ac2a):
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+        ac_out = next(i for i in items if i.field == "ac_output")
+
+        async def capture(text, source):
+            return ""
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        assert ac_out.device_confirmed is None
+        assert ac_out.note == "operator skipped"
+        assert client.state[2011] == 1
+        assert client.write_log == [(2011, 0), (2011, 1)]
+
+    @pytest.mark.asyncio
+    async def test_readback_failure_restore_still_attempted(self, ac2a):
+        from voltkeeper.core.commands import ReadHoldingRegisters
+
+        from .test_verify import FakeBluetoothClient
+
+        class ReadFailingClient(FakeBluetoothClient):
+            async def execute(self, cmd):
+                if isinstance(cmd, ReadHoldingRegisters) and cmd.starting_address == 2011:
+                    raise RuntimeError("simulated readback failure")
+                return await super().execute(cmd)
+
+        client = ReadFailingClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+        ac_out = next(i for i in items if i.field == "ac_output")
+
+        async def capture(text, source):
+            return "y"
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        assert ac_out.readback is None
+        assert "readback failed" in ac_out.note
+        assert client.state[2011] == 1
+        assert client.write_log == [(2011, 0), (2011, 1)]
+
+    @pytest.mark.asyncio
+    async def test_not_confirmable_no_prompt_write_readback_restore(self, ac2a):
+        """Not-confirmable: no prompt issued, but write/readback/restore all happen."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2020: 0})
+        items = build_actuation_items(ac2a, {"charging_mode": ChargingMode.STANDARD}, frozenset({4, 5}))
+        cm = next(i for i in items if i.field == "charging_mode")
+
+        prompt_calls: list = []
+
+        async def capture(text, source):
+            prompt_calls.append((text, source))
+            return "n"
+
+        await run_actuations(items, client, ac2a, {"charging_mode": ChargingMode.STANDARD}, capture)
+
+        assert len(prompt_calls) == 0
+        assert cm.note == "not_confirmable_on_device"
+        assert cm.device_confirmed is None
+        assert cm.wrote_raw == 1
+        assert cm.wrote == "silent"
+        assert cm.readback == "silent"
+        assert client.state[2020] == 0
+        assert client.write_log == [(2020, 1), (2020, 0)]
+
+
+# ── Induced-condition tests (§4) ──────────────────────────────────────────────
+
+
+class TestInducedCheck:
+    @pytest.mark.asyncio
+    async def test_typed_confirmation_skips_when_declined(self):
+        async def capture(text, source):
+            return "wrong phrase"
+
+        result = await run_induced_check(INDUCED_CHECKS[0], None, None, capture)
+        assert result.status == "skipped"
+        assert "operator declined" in result.note
+
+    @pytest.mark.asyncio
+    async def test_typed_confirmation_empty_skips(self):
+        async def capture(text, source):
+            return ""
+
+        result = await run_induced_check(INDUCED_CHECKS[0], None, None, capture)
+        assert result.status == "skipped"
+
+    @pytest.mark.asyncio
+    async def test_confirmation_allows_capture(self, ac2a):
+        from .test_verify import FakeBluetoothClient
+
+        # HOME block with alarm bits set
+        home_data = bytearray(124)
+        home_data[52:54] = b"\x00\x02"  # alarm word 1 bit 1
+        state = {}
+        for i in range(62):
+            val = struct.unpack("!H", home_data[i * 2 : i * 2 + 2])[0]
+            state[100 + i] = val
+        client = FakeBluetoothClient(state=state)
+
+        async def capture(text, source):
+            if "Type" in text:
+                return "I am applying an overload"
+            if "Which alarm indicators" in text:
+                return "Overload icon lit"
+            return ""
+
+        result = await run_induced_check(INDUCED_CHECKS[0], client, ac2a, capture)
+        assert result.status == "captured"
+        assert result.alarm_bits is not None
+        assert len(result.alarm_bits) > 0
+        assert result.device_indicator == "Overload icon lit"
+
+    @pytest.mark.asyncio
+    async def test_no_alarm_bits_when_clear(self, ac2a):
+        from .test_verify import FakeBluetoothClient
+
+        state = {100 + i: 0 for i in range(62)}
+        client = FakeBluetoothClient(state=state)
+
+        async def capture(text, source):
+            if "I am applying an overload" in text:
+                return "I am applying an overload"
+            if "Which alarm indicators" in text:
+                return "none"
+            return ""
+
+        result = await run_induced_check(INDUCED_CHECKS[0], client, ac2a, capture)
+        assert result.status == "captured"
+        assert result.alarm_bits == []

@@ -16,7 +16,20 @@ from voltkeeper.cli._helpers import _close_loop, _device_from_scan
 @click.option("--tier", "max_tier", default=6, type=int, help="Run through this tier only (1–6).")
 @click.option("--yes", "pre_consent", is_flag=True, default=False, help="Pre-consent to all supervised tiers.")
 @click.option("--no-scrub", "no_scrub", is_flag=True, default=False, help="Keep real SN and BLE address in report.")
-def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, no_scrub: bool) -> None:
+@click.option(
+    "--ground-truth",
+    is_flag=True,
+    default=False,
+    help="Attended mode: prompts operator to compare device-screen values against parsed registers.",
+)
+def verify(
+    address: str,
+    output: str | None,
+    max_tier: int,
+    pre_consent: bool,
+    no_scrub: bool,
+    ground_truth: bool,
+) -> None:
     """Run a six-tier integration test against a Bluetti device.
 
     \b
@@ -37,6 +50,9 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
         run_tier3,
         run_tier_supervised,
     )
+
+    if pre_consent and ground_truth:
+        raise click.UsageError("--yes and --ground-truth are mutually exclusive.")
 
     TIER_DESCRIPTIONS = {
         4: "load-affecting toggles (ac_output, dc_output, ctrl_grid, ctrl_feed, power_lifting, eco_mode)",
@@ -71,6 +87,8 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
 
     tier_results: list[TierResult] = []
     tier1_values: dict = {}
+    ground_truth_result = None
+    consented_tiers: set[int] = {1, 2, 3}
 
     try:
         loop.run_until_complete(client.connect())
@@ -88,7 +106,10 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
             )
         if max_tier < 2:
             _skip_remaining(tier_results, tier_plan, 2, "tier limit")
-            _finish(device, address, tier_results, tier1_values, output, no_scrub)
+            ground_truth_result = _maybe_run_ground_truth(
+                loop, ground_truth, client, device, tier1_values, t1.blocks, consented_tiers
+            )
+            _finish(device, address, tier_results, tier1_values, output, no_scrub, ground_truth_result)
             return
 
         # ── Tier 2: identity writes ────────────────────────────────────
@@ -107,7 +128,10 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
             )
         if max_tier < 3:
             _skip_remaining(tier_results, tier_plan, 3, "tier limit")
-            _finish(device, address, tier_results, tier1_values, output, no_scrub)
+            ground_truth_result = _maybe_run_ground_truth(
+                loop, ground_truth, client, device, tier1_values, t1.blocks, consented_tiers
+            )
+            _finish(device, address, tier_results, tier1_values, output, no_scrub, ground_truth_result)
             return
 
         # ── Tier 3: probe writes ───────────────────────────────────────
@@ -171,11 +195,17 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
             )
             tier_results.append(t)
             _print_tier_summary(t)
+            consented_tiers.add(tier_num)
             if t.failure_count and tier_num < 6:
                 click.secho(
                     f"  ⚠ {t.failure_count} issue(s) found — consider sharing the report before continuing",
                     fg="yellow",
                 )
+
+        # ── Ground-truth mode ────────────────────────────────────────────
+        ground_truth_result = _maybe_run_ground_truth(
+            loop, ground_truth, client, device, tier1_values, t1.blocks, consented_tiers
+        )
 
     except KeyboardInterrupt:
         click.echo("\nInterrupted.")
@@ -185,7 +215,7 @@ def verify(address: str, output: str | None, max_tier: int, pre_consent: bool, n
         loop.run_until_complete(client.disconnect())
         _close_loop(loop)
 
-    _finish(device, address, tier_results, tier1_values, output, no_scrub)
+    _finish(device, address, tier_results, tier1_values, output, no_scrub, ground_truth_result)
 
 
 def _print_tier_summary(t) -> None:
@@ -217,9 +247,11 @@ def _finish(
     tier1_values: dict,
     output: str,
     no_scrub: bool,
+    ground_truth_result=None,
 ) -> None:
     from voltkeeper import _version
-    from voltkeeper.core.verify import build_report, write_report
+    from voltkeeper.core.ground_truth import ground_truth_to_report_section
+    from voltkeeper.core.verify import _device_bcd_sn_fields, _scrub_block_raw, build_report, write_report
 
     report = build_report(
         device,
@@ -230,9 +262,63 @@ def _finish(
         scrub=not no_scrub,
         voltkeeper_version=_version.__version__,
     )
+    if ground_truth_result is not None:
+        if not no_scrub:
+            # Scrub induced-check raw hex (HOME block, address 100) using the
+            # same BCD-serial-field logic as tier-1 blocks.
+            sn_fields = _device_bcd_sn_fields(device)
+            for ic in ground_truth_result.induced_checks:
+                if ic.raw_hex is not None:
+                    ic.raw_hex = _scrub_block_raw(ic.raw_hex, 100, sn_fields)
+        report["ground_truth"] = ground_truth_to_report_section(ground_truth_result)
     write_report(report, output)
     click.echo(f"\nReport written to: {output}")
     click.secho(
         "Share this file in a GitHub issue: https://github.com/mikemccllstr/voltkeeper/issues",
         fg="cyan",
     )
+
+
+async def _run_ground_truth(client, device, tier1_values, tier1_blocks, consented_tiers):
+    """Run the ground-truth flow: observations, actuations, induced checks."""
+    from voltkeeper.core.ground_truth import (
+        GroundTruthResult,
+        build_actuation_items,
+        build_observation_items,
+        run_actuations,
+        run_induced_checks,
+        run_observations,
+    )
+
+    result = GroundTruthResult()
+
+    async def _prompt(text: str, source: str) -> str | None:
+        return click.prompt(f"  {text}", default="", show_default=False)
+
+    # 1. Passive observations
+    obs_items = build_observation_items(device, tier1_values)
+    if obs_items:
+        await run_observations(obs_items, tier1_blocks, device, _prompt)
+        result.observations = obs_items
+
+    # 2. Actuate-and-confirm
+    act_items = build_actuation_items(device, tier1_values, consented_tiers)
+    if act_items:
+        await run_actuations(act_items, client, device, tier1_values, _prompt)
+        result.actuations = act_items
+
+    # 3. Induced-condition checks
+    induced = await run_induced_checks(client, device, _prompt)
+    if induced:
+        result.induced_checks = induced
+
+    return result
+
+
+def _maybe_run_ground_truth(loop, ground_truth, client, device, tier1_values, tier1_blocks, consented_tiers):
+    """Run the ground-truth flow if --ground-truth was requested, otherwise return None."""
+    if not ground_truth:
+        return None
+    click.echo("\n── Ground truth ───────────────────────────────")
+    click.echo("Answer questions based on what the device's own display shows.\n")
+    return loop.run_until_complete(_run_ground_truth(client, device, tier1_values, tier1_blocks, consented_tiers))

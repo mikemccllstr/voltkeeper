@@ -216,3 +216,90 @@ UintField("some_setting", 2030, range=(0, 10))
 # after
 UintField("some_setting", 2030, range=(3, 10))
 ```
+
+## Interpreting the ground_truth section
+
+When a verify run uses `--ground-truth`, the report includes a `ground_truth`
+section with observations, actuations, and induced checks. This section captures
+the operator's observations of the device's own display alongside parsed values
+and raw register data.
+
+### Observation fields
+
+| Field            | Type             | Meaning                                                          |
+| ---------------- | ---------------- | ---------------------------------------------------------------- |
+| `field`          | `str`            | Observation identifier (soc, output_watts, etc.)                 |
+| `prompt`         | `str`            | What the operator was asked                                      |
+| `source`         | `str`            | `device_screen` or `multimeter`                                  |
+| `status`         | `str`            | `match`, `mismatch`, `skipped`, or `unanchored`                  |
+| `observation`    | `any`            | What the operator entered (normalized)                           |
+| `parsed`         | `any`            | The parsed register value for comparison                         |
+| `raw_ref`        | `str` (optional) | Block address reference into the tier-1 raw hex                  |
+| `inferred_scale` | `str` (optional) | e.g. `÷10` — the raw value matches the observation at this scale |
+| `note`           | `str` (optional) | Context or diagnostic message                                    |
+
+**Status meanings:**
+
+- **`match`**: observation falls within the per-quantity tolerance of the
+  parsed value (SoC ±1, watts ±10% or ±10 W, voltage ±2 V, frequency ±1 Hz).
+  Boolean/enum observations must match exactly.
+- **`mismatch`**: observation is outside tolerance. Both values are recorded
+  for human adjudication. If `inferred_scale` is present, the observation
+  matches the raw register at a different decimal scale — a direct indicator
+  of a scale interpretation error in the device model.
+- **`skipped`**: operator pressed Enter without providing a value, or `--yes`
+  mode was active. The field is not evaluated.
+- **`unanchored`**: the device model has no tier-1 value for this field (e.g.,
+  firmware version on a device that does not display it on-screen). No prompt
+  was shown.
+
+**Where observations map to parsed values:**
+
+| Observation           | Parsed value(s)                   | Aggregate              |
+| --------------------- | --------------------------------- | ---------------------- |
+| `soc`                 | `packTotalSoc`                    | first                  |
+| `output_watts`        | `totalACPower` + `totalDCPower`   | sum of absolute values |
+| `input_watts`         | `totalGridPower` + `totalPVPower` | sum of absolute values |
+| `ac_output_state`     | `ac_output` (bool)                | exact                  |
+| `dc_output_state`     | `dc_output` (bool)                | exact                  |
+| `ac_output_frequency` | `frequency`                       | first                  |
+| `charging_mode`       | `charging_mode` (enum)            | exact                  |
+| `firmware_display`    | `arm_version`                     | first (EL100V2 only)   |
+| `ac_output_voltage`   | `acPhase[0].voltage`              | first                  |
+| `grid_voltage`        | `gridPhase[0].voltage`            | first                  |
+| `pack_voltage`        | `packTotalVoltage`                | first                  |
+
+### Actuation fields
+
+| Field              | Type             | Meaning                                                     |
+| ------------------ | ---------------- | ----------------------------------------------------------- |
+| `field`            | `str`            | Writable field name                                         |
+| `wrote`            | `any`            | Value written (label, e.g. `turbo`)                         |
+| `readback`         | `any`            | Value read back after write                                 |
+| `device_confirmed` | `bool` or null   | Operator's confirmation, or null if skipped/not-confirmable |
+| `note`             | `str` (optional) | Context, or `not_confirmable_on_device`                     |
+
+**Key patterns:**
+
+- **`device_confirmed: false` with readback match**: the readback matches what
+  was written, but the operator saw a different value on the device display.
+  This is the signature of an enum label swap — the register value is correct
+  but our label mapping is wrong. Example: writing `TURBO` (value 2), readback
+  confirms 2, but the device displays SILENT.
+- **`device_confirmed: null`, note `not_confirmable_on_device`**: the field
+  was skipped because the device display cannot distinguish the written value
+  from the previous one (e.g., Standard vs. Silent on AC2A, which only has a
+  Turbo icon and no settings pages).
+- **Absent (`ground_truth` section has no `actuations` key)**: no writable
+  enum/bool fields were found on this device, or `--yes` mode skipped all.
+
+### Induced-check fields
+
+| Field              | Type             | Meaning                                                          |
+| ------------------ | ---------------- | ---------------------------------------------------------------- |
+| `condition`        | `str`            | Check identifier (`ac_overload`)                                 |
+| `status`           | `str`            | `captured` or `skipped`                                          |
+| `alarm_bits`       | `list[str]`      | Active alarm/fault keys from parsed HOME (e.g. `alarm.overload`) |
+| `raw_hex`          | `str` (optional) | Raw HOME block hex captured during the condition                 |
+| `device_indicator` | `str` (optional) | Operator's description of what appeared on the device screen     |
+| `note`             | `str` (optional) | Reason for skip or error                                         |
