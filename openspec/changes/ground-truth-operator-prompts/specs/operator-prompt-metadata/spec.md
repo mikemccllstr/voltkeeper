@@ -26,11 +26,11 @@ All operator-facing prompt text generated from the metadata SHALL use consistent
 
 ### Requirement: Device classes carry manual-sourced rated specs
 
-Device classes SHALL support a rated AC output attribute (watts), populated per model from the manufacturer's user manual with a citation comment, and left unset when unknown. The EL100V2 rating SHALL be 1850 W. Prompt text that references device ratings SHALL derive its numbers from this attribute and SHALL NOT hardcode per-model wattages in prose.
+Device classes SHALL support a rated AC output attribute (watts), populated per model from the manufacturer's user manual with a citation comment, and left unset when unknown. The EL100V2 rating SHALL be 1800 W (user manual V2.1 §10). Prompt text that references device ratings SHALL derive its numbers from this attribute and SHALL NOT hardcode per-model wattages in prose.
 
 #### Scenario: EL100V2 rating available to prompts
 - **WHEN** the overload prompt is built for an EL100V2
-- **THEN** the suggested load is computed from the 1850 W rating
+- **THEN** the suggested load is computed from the 1800 W rating
 
 #### Scenario: Unknown rating means no overload offer
 - **WHEN** a device class has no rated AC output declared

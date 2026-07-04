@@ -34,6 +34,7 @@ class ActuateCheck:
     wrote_raw: int | None = None  # the raw uint16 value to write — set at build time
     readback: Any = None
     device_confirmed: Optional[bool] = None
+    confirm_response: Optional[str] = None  # None=skip, "yes", "no", "unsure"
     note: Optional[str] = None
 
 
@@ -76,10 +77,17 @@ class ObservationDef:
 
 
 CORE_OBSERVATION_DEFS: list[ObservationDef] = [
-    ObservationDef("soc", "State of Charge (%)", ["packTotalSoc"], "first", "device_screen", "soc"),
+    ObservationDef(
+        "soc",
+        "State of Charge (%) shown on the Bluetti unit's main screen (digits + ring indicator)",
+        ["packTotalSoc"],
+        "first",
+        "device_screen",
+        "soc",
+    ),
     ObservationDef(
         "output_watts",
-        "Total output power (W)",
+        "Total OUTPUT watts shown on the Bluetti unit's main screen",
         ["totalACPower", "totalDCPower"],
         "sum_abs",
         "device_screen",
@@ -87,26 +95,49 @@ CORE_OBSERVATION_DEFS: list[ObservationDef] = [
     ),
     ObservationDef(
         "input_watts",
-        "Total input power (W)",
+        "Total INPUT watts shown on the Bluetti unit's main screen",
         ["totalGridPower", "totalPVPower"],
         "sum_abs",
         "device_screen",
         "watts",
     ),
-    ObservationDef("ac_output_state", "AC output (on/off)", ["ac_output"], "first", "device_screen", "exact"),
-    ObservationDef("dc_output_state", "DC output (on/off)", ["dc_output"], "first", "device_screen", "exact"),
+    ObservationDef(
+        "ac_output_state",
+        "AC output state on the Bluetti unit's main screen — look for the AC icon (on or off)",
+        ["ac_output"],
+        "first",
+        "device_screen",
+        "exact",
+    ),
+    ObservationDef(
+        "dc_output_state",
+        "DC output state on the Bluetti unit's main screen — look for the DC icon (on or off)",
+        ["dc_output"],
+        "first",
+        "device_screen",
+        "exact",
+    ),
     ObservationDef(
         "ac_output_frequency",
-        "AC output frequency (Hz)",
+        "AC output frequency on the Bluetti unit's main screen (50 Hz or 60 Hz indicator)",
         ["frequency"],
         "first",
         "device_screen",
         "frequency",
     ),
-    ObservationDef("charging_mode", "Charging mode", ["charging_mode"], "first", "device_screen", "exact"),
+    ObservationDef(
+        "charging_mode",
+        "Charging mode shown on the Bluetti unit: Turbo icon on the main screen, "
+        "or full mode on settings page P03 (Settings Mode page)",
+        ["charging_mode"],
+        "first",
+        "device_screen",
+        "exact",
+    ),
     ObservationDef(
         "firmware_display",
-        "Firmware version on device (e.g. 2186.14)",
+        "The app's device-info page lists several component versions "
+        '(ARM, DSP, BMS, IoT). Report the ARM value, shown as e.g. "2186.14"',
         ["arm_version"],
         "first",
         "device_screen",
@@ -115,7 +146,7 @@ CORE_OBSERVATION_DEFS: list[ObservationDef] = [
     ),
     ObservationDef(
         "ac_output_voltage",
-        "AC output voltage (V) — multimeter or pre/post-session app screenshot",
+        "AC output voltage (V) — use a multimeter or a pre/post-session app screenshot",
         ["acPhase[0].voltage"],
         "first",
         "multimeter",
@@ -123,7 +154,7 @@ CORE_OBSERVATION_DEFS: list[ObservationDef] = [
     ),
     ObservationDef(
         "grid_voltage",
-        "Grid voltage (V) — multimeter or pre/post-session app screenshot",
+        "Grid voltage (V) — use a multimeter or a pre/post-session app screenshot",
         ["gridPhase[0].voltage"],
         "first",
         "multimeter",
@@ -131,7 +162,7 @@ CORE_OBSERVATION_DEFS: list[ObservationDef] = [
     ),
     ObservationDef(
         "pack_voltage",
-        "Pack voltage (V) — multimeter or pre/post-session app screenshot",
+        "Pack voltage (V) — use a multimeter or a pre/post-session app screenshot",
         ["packTotalVoltage"],
         "first",
         "multimeter",
@@ -544,6 +575,7 @@ def build_actuation_items(
     "load_actuations" is not in the set, and tier-5 fields are excluded when
     "mode_actuations" is not in the set.
     """
+    from .prompt_metadata import get_field_prompt_info
     from .struct import BoolField, EnumField
 
     items: list[ActuateCheck] = []
@@ -609,15 +641,9 @@ def build_actuation_items(
             item.note = "not_confirmable_on_device"
             item.prompt = ""
         else:
-            where_lookup: dict[str, str] = {
-                "charging_mode": (
-                    "Check the device display: main screen Turbo icon, or P03 settings page for full mode."
-                ),
-            }
-            where = where_lookup.get(f.name, "")
+            meta = get_field_prompt_info(device, f.name)
             item.prompt = (
-                f"Device set to {other_label} (was {current_label}) — "
-                f"does the device display confirm this change?{f' {where}' if where else ''} (y/n)"
+                f"About to switch {meta.friendly_name} from {current_label} to {other_label} on the Bluetti unit."
             )
 
         items.append(item)
@@ -632,15 +658,20 @@ async def run_actuations(
     tier1_values: dict,
     prompt_fn: Callable[[str, str], Any],
 ) -> None:
-    """Run actuate-and-confirm checks, writing values and prompting the operator.
+    """Run actuate-and-confirm checks using the five-beat prompt script.
+
+    Five-beat script for confirmable fields:
+      1. Announce: what is about to change, naming the specific output/setting.
+      2. Watch-for: what the operator should see on the unit display / appliance.
+      3. Ready gate: Enter=proceed, s=skip (caution fields: y=proceed, Enter=skip).
+      4. Write + readback (unchanged from before).
+      5. Confirm: y / n / unsure.
 
     Write-before-confirm is deliberate per the spec: the operator confirms
     the effect of a write that has already happened.
     """
-    import struct
-
     from .commands import WriteSingleRegister
-    from .struct import BoolField, EnumField
+    from .prompt_metadata import get_field_prompt_info
     from .verify import _get_control_field, _to_raw_int
 
     for item in items:
@@ -663,7 +694,69 @@ async def run_actuations(
 
         other_raw = item.wrote_raw
 
-        # Write the other value (even for not_confirmable — spec requires wrote/readback)
+        # not_confirmable: write, readback, restore — no prompts
+        if item.note == "not_confirmable_on_device":
+            try:
+                await client.execute(WriteSingleRegister(device_field.address, other_raw))
+            except Exception as exc:
+                item.note = f"write failed: {exc}"
+                continue
+
+            readback_int = await _readback_value(client, device_field)
+            if isinstance(readback_int, int):
+                item.readback = _format_readback(device_field, readback_int)
+            else:
+                item.readback = None
+                item.note = f"readback failed: {readback_int}"
+                try:
+                    await client.execute(WriteSingleRegister(device_field.address, current_raw))
+                except Exception:
+                    pass
+                continue
+
+            try:
+                await client.execute(WriteSingleRegister(device_field.address, current_raw))
+            except Exception:
+                if item.note is None:
+                    item.note = "restore failed"
+            continue
+
+        # ── Five-beat script for confirmable fields ─────────────────
+        meta = get_field_prompt_info(device, item.field)
+
+        # Beat 1+2: announce + watch-for
+        announce_lines = [item.prompt]
+        if meta.caution:
+            announce_lines.append(f"CAUTION: {meta.caution}")
+        announce_lines.append(f"What to watch: {meta.watch_for}")
+        if meta.where:
+            announce_lines.append(f"Where to look on the Bluetti unit: {meta.where}")
+        await prompt_fn("\n".join(announce_lines), "device_screen")
+
+        # Beat 3: ready gate
+        has_caution = meta.caution is not None
+        if has_caution:
+            gate_response = await prompt_fn(
+                "Type 'y' to proceed despite the caution, or press Enter to skip:",
+                "device_screen",
+            )
+            if gate_response is None or gate_response.strip().lower() not in ("y", "yes"):
+                item.device_confirmed = None
+                item.confirm_response = None
+                item.note = "operator skipped at ready gate"
+                continue
+        else:
+            gate_response = await prompt_fn(
+                "Press Enter to proceed, or type 's' to skip:",
+                "device_screen",
+            )
+            if gate_response is not None and gate_response.strip().lower() in ("s", "skip"):
+                item.device_confirmed = None
+                item.confirm_response = None
+                item.note = "operator skipped at ready gate"
+                continue
+
+        # Beat 4: write
         try:
             await client.execute(WriteSingleRegister(device_field.address, other_raw))
         except Exception as exc:
@@ -671,46 +764,43 @@ async def run_actuations(
             continue
 
         # Read back
-        readback_int: int | None = None
-        try:
-            from .verify import _read_raw
-
-            raw = await _read_raw(client, device_field.address)
-            readback_int = struct.unpack("!H", raw)[0]
-        except Exception as exc:
+        readback_int = await _readback_value(client, device_field)
+        if not isinstance(readback_int, int):
             item.readback = None
-            item.note = f"readback failed: {exc}"
+            item.note = f"readback failed: {readback_int}"
             try:
                 await client.execute(WriteSingleRegister(device_field.address, current_raw))
             except Exception:
                 pass
             continue
 
-        if isinstance(device_field, BoolField):
-            item.readback = (readback_int & 1) == 1
-        elif isinstance(device_field, EnumField):
-            member = next((m for m in device_field.enum if m.value == readback_int), None)
-            item.readback = member.name.lower() if member else readback_int
+        item.readback = _format_readback(device_field, readback_int)
+
+        # Beat 5: confirm
+        confirm_response = await prompt_fn(
+            "Type 'y' if the Bluetti unit display confirms the change, "
+            "'n' if it does not, or 'unsure' if you cannot tell (y/n/unsure):",
+            "device_screen",
+        )
+        if confirm_response is None or confirm_response.strip() == "":
+            item.device_confirmed = None
+            item.confirm_response = None
+            if item.note is None:
+                item.note = "operator skipped"
         else:
-            item.readback = readback_int
-
-        # Ask operator
-        if item.prompt:
-            response = await prompt_fn(item.prompt, "device_screen")
-            if response is None or response.strip() == "":
+            resp = confirm_response.strip().lower()
+            if resp in ("y", "yes"):
+                item.device_confirmed = True
+                item.confirm_response = "yes"
+            elif resp in ("unsure", "u"):
                 item.device_confirmed = None
-                if item.note is None:
-                    item.note = "operator skipped"
-                try:
-                    await client.execute(WriteSingleRegister(device_field.address, current_raw))
-                except Exception:
-                    pass
-                continue
-
-            item.device_confirmed = response.strip().lower() in ("y", "yes", "true", "1")
-            if item.device_confirmed is False and readback_int == other_raw:
-                if item.note is None:
-                    item.note = "denial with readback match — possible label mapping error"
+                item.confirm_response = "unsure"
+            else:
+                item.device_confirmed = False
+                item.confirm_response = "no"
+                if readback_int == other_raw:
+                    if item.note is None:
+                        item.note = "denial with readback match — possible label mapping error"
 
         # Restore original value
         try:
@@ -720,25 +810,63 @@ async def run_actuations(
                 item.note = "restore failed"
 
 
+async def _readback_value(client: Any, device_field: Any) -> int | str:
+    """Read a single register and return the raw uint16, or an error string."""
+    import struct
+
+    from .verify import _read_raw
+
+    try:
+        raw = await _read_raw(client, device_field.address)
+        return struct.unpack("!H", raw)[0]
+    except Exception as exc:
+        return str(exc)
+
+
+def _format_readback(device_field: Any, raw_value: int) -> Any:
+    """Format a raw register value as a label or bool for the report."""
+    from .struct import BoolField, EnumField
+
+    if isinstance(device_field, BoolField):
+        return (raw_value & 1) == 1
+    elif isinstance(device_field, EnumField):
+        member = next((m for m in device_field.enum if m.value == raw_value), None)
+        return member.name.lower() if member else raw_value
+    else:
+        return raw_value
+
+
 # ── Induced-condition checks ─────────────────────────────────────────────────
 
 
-INDUCED_CHECKS: list[dict] = [
-    {
-        "condition": "ac_overload",
-        "description": (
-            "AC overload check: apply a resistive load above the device's rated AC output.\n"
-            "For the Elite 100 V2 (rated 100W) use ~150W; for the AC2A (rated 300W) use ~400W.\n"
-            "The device's designed protection will trip — this is safe and non-damaging."
-        ),
-        "confirmation_phrase": "I am applying an overload",
-        "rationale": (
-            "AC overload trips the device's designed over-current protection, which is "
-            "a non-destructive, self-resetting safety feature. The device is rated for "
-            "this response per the manufacturer's specifications."
-        ),
-    }
-]
+def build_induced_checks(device: Any) -> list[dict]:
+    """Build the list of induced-condition checks for a device.
+
+    Computes the overload suggestion from the device's declared rated AC output.
+    Omits the overload check when no rating is declared.
+    """
+    rating = getattr(device, "RATED_AC_OUTPUT_W", None)
+    if rating is None:
+        return []
+
+    suggested_watts = int(rating * 1.15)
+    return [
+        {
+            "condition": "ac_overload",
+            "description": (
+                f"AC overload check: the Bluetti unit is rated for {rating} W AC output.\n"
+                f"Apply a resistive load of roughly {suggested_watts} W — "
+                f"for example, a space heater or incandescent bulbs.\n"
+                "The device's designed protection will trip — this is safe and non-damaging."
+            ),
+            "confirmation_phrase": "I am applying an overload",
+            "rationale": (
+                "AC overload trips the device's designed over-current protection, which is "
+                "a non-destructive, self-resetting safety feature. The device is rated for "
+                "this response per the manufacturer's specifications."
+            ),
+        }
+    ]
 
 
 async def run_induced_check(
@@ -813,7 +941,8 @@ async def run_induced_checks(
     if selected_categories is not None and "induced" not in selected_categories:
         return []
     results: list[InducedCheck] = []
-    for check in INDUCED_CHECKS:
+    checks = build_induced_checks(device)
+    for check in checks:
         result = await run_induced_check(check, client, device, prompt_fn)
         results.append(result)
     return results
@@ -855,6 +984,8 @@ def ground_truth_to_report_section(result: GroundTruthResult) -> dict:
             d["readback"] = _serialize(a.readback)
         if a.device_confirmed is not None:
             d["device_confirmed"] = a.device_confirmed
+        if a.confirm_response is not None:
+            d["confirm_response"] = a.confirm_response
         if a.note:
             d["note"] = a.note
         return d

@@ -35,6 +35,7 @@ class El100V2(V2Base):
 
     SUPPORT_TIER = SupportTier.HARDWARE_TESTING
     DEFAULT_PACK_VOLTAGE_SCALE = 2  # 56 V-class LiFePO4 — raw register / 100 = physical volts
+    RATED_AC_OUTPUT_W = 1800  # Elite 100 V2 user manual V2.1 §10 "Specifications": AC Output 1,800W Max.
 
     def __init__(self, address: str, sn: str):
         super().__init__(address, "EL100V2", sn)

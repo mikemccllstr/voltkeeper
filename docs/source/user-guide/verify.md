@@ -115,6 +115,13 @@ the device's own display against parsed register values. This catches
 interpretation errors — wrong decimal scales, swapped enum labels, or
 misassigned registers — that write/readback verification alone cannot detect.
 
+All ground-truth prompts use consistent terminology:
+
+- **"the Bluetti unit"** — the power station itself
+- **"your appliance" / "the load"** — equipment plugged into the unit
+- **"the AC outlets"**, **"the DC ports"** — explicit output names, never a
+  bare "output" or "device" where the referent is ambiguous
+
 Ground-truth mode runs in two phases. **Passive observations** run immediately
 after tier 1, before any tier performs writes, so the operator's readings and
 secondary sources describe unmutated device state. **Actuate-and-confirm and
@@ -155,11 +162,29 @@ The ground-truth session has three phases:
    multimeter or a pre/post-session app screenshot, and recorded as secondary
    source observations.
 
-1. **Actuate-and-confirm**: the tool writes a different value to each writable
-   enum or bool field and asks the operator to confirm the device UI reflects
-   the change. A denial with a matching readback is the signature of an enum
-   label swap — exactly the SILENT/TURBO case. Fields the device UI cannot
-   display are recorded as `not_confirmable_on_device`.
+1. **Actuate-and-confirm**: the tool follows a five-beat script for each writable
+   field:
+
+   1. **Announce**: what is about to change, naming the specific output or
+      setting in plain language (e.g. "the AC outlets", never a bare "output").
+      If the field carries a caution (e.g. AC output frequency), it is shown
+      here.
+   1. **Watch-for**: what the operator should see on the Bluetti unit's display
+      and on any connected appliance.
+   1. **Ready gate**: the operator confirms they are watching before any write.
+      For normal fields: press Enter to proceed or type `s` to skip. For
+      **caution-gated fields** (e.g. AC output frequency): type `y` to proceed
+      despite the caution, or press Enter to skip — the default is skip.
+   1. **Actuate**: the tool writes the value and reads it back (unchanged logic).
+   1. **Confirm**: the operator reports what the device UI shows with three
+      accepted outcomes: `y` (yes, confirmed), `n` (no, denied),
+      or `unsure` (cannot tell). A denial with a matching readback is the
+      signature of an enum label swap (e.g. SILENT/TURBO). An `unsure`
+      response is recorded distinctly and does NOT count as a denial —
+      it never carries the label-mapping-error note.
+
+   Fields the device UI cannot display are recorded as
+   `not_confirmable_on_device`.
 
 1. **Induced-condition checks** (AC overload only): the operator applies a
    resistive load above the device's rated output, the tool captures alarm/fault
@@ -180,9 +205,11 @@ not intended for routine verification. Every prompt is individually skippable.
 - **Only use AC overload**: the device's over-current protection is
   non-destructive and self-resetting. Do not short outputs, bypass protections,
   or create fault conditions the device was not designed to handle.
-- **Load within safe margins**: ~150 W for the Elite 100 V2 (rated 100 W),
-  ~400 W for the AC2A (rated 300 W). Use a resistive load (incandescent bulb,
-  space heater on low).
+- **Load computed from the device's rated output**: the suggested overload
+  wattage is ~15% above the device's declared rated AC output (sourced from
+  the manufacturer's user manual), with a household example appliance
+  (space heater, incandescent bulbs). The tool derives this from the model —
+  no per-model wattages are hardcoded.
 - **Typed confirmation required**: the tool will not instruct you to create
   the condition until you type the exact confirmation phrase.
 - **Stay with the device**: induced checks are attended by design. Watch for

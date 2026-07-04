@@ -3,6 +3,7 @@
 from typing import List
 
 from ..commands import EmsCtrlMode, InvFrequency, LedColor, Pv2Type, PvType, ReadHoldingRegisters, WorkingMode
+from ..prompt_metadata import Affect, FieldPromptInfo
 from .bluetti_device import SupportTier
 from .v2_base import (
     INV_ADVANCE_SETTINGS,
@@ -21,6 +22,23 @@ class AC2A(V2Base):
     # All other documented V2 models use ÷10. If a future model also reads 10×
     # high, follow this override pattern.
     DEFAULT_PACK_VOLTAGE_SCALE = 2
+    RATED_AC_OUTPUT_W = 300  # AC2A user manual V3.0 §11 "Specifications": AC Output 300W total
+
+    # On the AC2A, only Turbo charging mode is selectable and shown on-device (P03);
+    # Standard and Silent are app-only (user manual V3.0 §9.5). The shared table's
+    # charging_mode entry assumes the EL100V2 behaviour, where Standard is also on-device.
+    FIELD_PROMPT_OVERRIDES = {
+        "charging_mode": FieldPromptInfo(
+            friendly_name="the charging speed mode",
+            affects=Affect.UNIT,
+            watch_for=(
+                "if Turbo: a Turbo icon appears on the main screen and the fan speeds up. "
+                "Standard and Silent are set from the BLUETTI app only and are not "
+                "distinguishable on the AC2A's own display"
+            ),
+            where="settings page P03 (Turbo only; Standard/Silent are app-only)",
+        ),
+    }
 
     def __init__(self, address: str, sn: str):
         super().__init__(address, "AC2A", sn)

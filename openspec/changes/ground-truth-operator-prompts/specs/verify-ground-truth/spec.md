@@ -31,7 +31,7 @@ Ground-truth mode SHALL support actuate-and-confirm checks: write a value to a w
 Each actuation SHALL follow a five-beat script built from the field's prompt metadata:
 1. **Announce** the specific change in plain language, naming the exact output or setting (e.g. "the AC outlets", never a bare "output"), including any caution text.
 2. **Describe what to watch for** on the Bluetti unit's display and, for load-affecting fields, on any connected appliance; when the main display does not distinguish the written value, the prompt SHALL say where to look (e.g. the EL100V2 shows the charging mode only on settings page P03; only Turbo has a main-display icon).
-3. **Ready gate**: wait for the operator to confirm they are watching before any write; the operator may skip here, recording `skipped`. Fields whose metadata carries a caution (e.g. AC output frequency, which the user manual warns can damage appliances at the wrong setting — appliances should be unplugged first) SHALL default to skip: proceeding requires explicit affirmative input, not a bare Enter.
+3. **Ready gate**: wait for the operator to confirm they are watching before any write; the operator may skip here, recording `skipped`. Fields whose metadata carries a caution (e.g. AC output frequency, which the user manual requires be changed only with AC output turned off) SHALL default to skip: proceeding requires explicit affirmative input, not a bare Enter.
 4. **Actuate**: write and read back as before.
 5. **Confirm** with three accepted outcomes: yes, no, or unsure. `unsure` SHALL be recorded distinctly and SHALL NOT count as a denial; the "denial with readback match — possible label mapping error" note SHALL fire only on an explicit no.
 
@@ -58,7 +58,7 @@ When the device UI cannot reflect the difference at all, the check SHALL be reco
 
 #### Scenario: Frequency change requires explicit opt-in with caution
 - **WHEN** the `inv_freq` actuation is reached
-- **THEN** the announce beat includes the manual's caution (appliance damage risk; unplug appliances first)
+- **THEN** the announce beat includes the manual's caution (turn off AC output before setting the frequency)
 - **THEN** a bare Enter at the ready gate skips the check; only explicit affirmative input proceeds
 
 #### Scenario: Effect not visible on the device UI
@@ -84,8 +84,8 @@ Induced-check instructions SHALL be computed from the device's declared rated sp
 - **THEN** the tool captures the alarm/fault registers and raw HOME hex during the event, records which alarm bits were set, and prompts the operator for which alarm indicators the device screen showed (both LCDs have overload/fault icons; the EL100V2 also keeps a fault-history page)
 
 #### Scenario: Overload suggestion derived from the device rating
-- **WHEN** the overload check is offered on an EL100V2 (rated 1850 W)
-- **THEN** the prompt states the 1850 W rating and suggests a load computed above it, with an example appliance
+- **WHEN** the overload check is offered on an EL100V2 (rated 1800 W)
+- **THEN** the prompt states the 1800 W rating and suggests a load computed above it, with an example appliance
 - **THEN** no prompt text claims a different rating for this or any other model
 
 #### Scenario: No rating, no overload offer

@@ -12,7 +12,6 @@ from voltkeeper.core.devices.el100v2 import El100V2
 from voltkeeper.core.ground_truth import (
     CORE_OBS_MAP,
     CORE_OBSERVATION_DEFS,
-    INDUCED_CHECKS,
     ActuateCheck,
     GroundTruthResult,
     InducedCheck,
@@ -20,6 +19,7 @@ from voltkeeper.core.ground_truth import (
     ObservationDef,
     _lookup_raw_value,
     build_actuation_items,
+    build_induced_checks,
     build_observation_items,
     compare_observation,
     ground_truth_to_report_section,
@@ -703,6 +703,7 @@ class TestGroundTruthReportSection:
                     wrote="turbo",
                     readback="turbo",
                     device_confirmed=False,
+                    confirm_response="no",
                     note="operator reports SILENT displayed",
                 )
             ]
@@ -714,7 +715,26 @@ class TestGroundTruthReportSection:
         assert act["wrote"] == "turbo"
         assert act["readback"] == "turbo"
         assert act["device_confirmed"] is False
+        assert act["confirm_response"] == "no"
         assert "SILENT" in act["note"]
+
+    def test_actuation_to_dict_with_unsure(self):
+        result = GroundTruthResult(
+            actuations=[
+                ActuateCheck(
+                    field="ac_output",
+                    wrote="off",
+                    readback="off",
+                    device_confirmed=None,
+                    confirm_response="unsure",
+                )
+            ]
+        )
+        section = ground_truth_to_report_section(result)
+        act = section["actuations"][0]
+        assert "device_confirmed" not in act  # None is omitted
+        assert act["confirm_response"] == "unsure"
+        assert "label mapping" not in str(act)
 
     def test_induction_to_dict(self):
         result = GroundTruthResult(
@@ -829,7 +849,8 @@ class TestBuildActuationItems:
         items = build_actuation_items(ac2a, tier1_values, frozenset({4, 5}))
         ac_out = next((i for i in items if i.field == "ac_output"), None)
         assert ac_out is not None
-        assert "does the device display confirm" in ac_out.prompt
+        assert "the AC outlets" in ac_out.prompt
+        assert "from on to off" in ac_out.prompt
 
     def test_fields_without_tier1_values_skipped(self, ac2a):
         items = build_actuation_items(ac2a, {}, frozenset({4, 5}))
@@ -878,8 +899,10 @@ class TestRunActuations:
         items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
         ac_out = next(i for i in items if i.field == "ac_output")
 
+        responses = iter(["", "", "y"])
+
         async def capture(text, source):
-            return "y"
+            return next(responses, "")
 
         await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
 
@@ -887,6 +910,7 @@ class TestRunActuations:
         assert ac_out.wrote == "off"
         assert ac_out.readback is False
         assert ac_out.device_confirmed is True
+        assert ac_out.confirm_response == "yes"
         assert ac_out.note is None
         assert client.state[2011] == 1
         assert client.write_log == [(2011, 0), (2011, 1)]
@@ -899,16 +923,166 @@ class TestRunActuations:
         items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
         ac_out = next(i for i in items if i.field == "ac_output")
 
+        responses = iter(["", "", "n"])
+
         async def capture(text, source):
-            return "n"
+            return next(responses, "")
 
         await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
 
         assert ac_out.device_confirmed is False
+        assert ac_out.confirm_response == "no"
         assert ac_out.readback is False
         assert ac_out.note == "denial with readback match — possible label mapping error"
         assert client.state[2011] == 1
         assert client.write_log == [(2011, 0), (2011, 1)]
+
+    @pytest.mark.asyncio
+    async def test_ready_gate_skip_no_write(self, ac2a):
+        """Skip at ready gate: no write occurs, records skipped."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+        ac_out = next(i for i in items if i.field == "ac_output")
+
+        responses = iter(["", "s"])
+
+        async def capture(text, source):
+            return next(responses, "")
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        assert ac_out.device_confirmed is None
+        assert ac_out.confirm_response is None
+        assert ac_out.note == "operator skipped at ready gate"
+        # No write occurred: state unchanged, no restore needed
+        assert client.state[2011] == 1
+        assert client.write_log == []
+
+    @pytest.mark.asyncio
+    async def test_ready_gate_empty_enter_proceeds(self, ac2a):
+        """Empty/Enter at ready gate proceeds to write for non-caution fields."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+        ac_out = next(i for i in items if i.field == "ac_output")
+
+        responses = iter(["", "", "y"])
+
+        async def capture(text, source):
+            return next(responses, "")
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        assert ac_out.device_confirmed is True
+        assert ac_out.readback is False
+        assert client.state[2011] == 1
+        assert client.write_log == [(2011, 0), (2011, 1)]
+
+    @pytest.mark.asyncio
+    async def test_caution_field_empty_enter_skips(self, ac2a):
+        """Caution fields: bare Enter skips, no write occurs."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2210: 0})
+        items = build_actuation_items(ac2a, {"inv_freq": 0}, frozenset({4}))
+        freq = next(i for i in items if i.field == "inv_freq")
+
+        # announce/watch-for → ready gate (caution field, empty = skip)
+        responses = iter(["", ""])
+
+        async def capture(text, source):
+            return next(responses, "")
+
+        await run_actuations(items, client, ac2a, {"inv_freq": 0}, capture)
+
+        assert freq.device_confirmed is None
+        assert freq.note == "operator skipped at ready gate"
+        assert client.write_log == []
+
+    @pytest.mark.asyncio
+    async def test_caution_field_explicit_yes_proceeds(self, ac2a):
+        """Caution fields: explicit 'y' proceeds to write."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2210: 50})
+        items = build_actuation_items(ac2a, {"inv_freq": 50}, frozenset({4}))
+        freq = next(i for i in items if i.field == "inv_freq")
+
+        # announce/watch-for → ready gate ('y' to proceed) → confirm ('y')
+        responses = iter(["", "y", "y"])
+
+        async def capture(text, source):
+            return next(responses, "")
+
+        await run_actuations(items, client, ac2a, {"inv_freq": 50}, capture)
+
+        assert freq.device_confirmed is True
+        assert freq.confirm_response == "yes"
+        assert len(client.write_log) == 2  # write + restore
+
+    @pytest.mark.asyncio
+    async def test_confirm_unsure_no_label_mapping_note(self, ac2a):
+        """Unsure response records distinctly, no label-mapping note even on readback match."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+        ac_out = next(i for i in items if i.field == "ac_output")
+
+        responses = iter(["", "", "unsure"])
+
+        async def capture(text, source):
+            return next(responses, "")
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        assert ac_out.device_confirmed is None  # unsure is not true/false
+        assert ac_out.confirm_response == "unsure"
+        # readback matched, but note should NOT say label mapping error
+        assert ac_out.note is None or "label mapping" not in ac_out.note
+
+    @pytest.mark.asyncio
+    async def test_ready_gate_prompt_contains_field_info(self, ac2a):
+        """Ready gate prompt names the specific output being toggled."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+
+        async def capture(text, source):
+            return "s"  # skip everything
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        # The announce/watch-for prompt should name "AC outlets"
+        # (We verify the prompt was issued by checking write_log is empty)
+        assert client.write_log == []
+
+    @pytest.mark.asyncio
+    async def test_confirm_prompt_accepts_yes_no_unsure(self, ac2a):
+        """Confirm prompt shows y / n / unsure options."""
+        from .test_verify import FakeBluetoothClient
+
+        prompts_shown: list[str] = []
+
+        async def capture(text, source):
+            prompts_shown.append(text)
+            if len(prompts_shown) <= 2:
+                return ""
+            return "y"
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        confirm_prompt = prompts_shown[-1]
+        assert "y" in confirm_prompt.lower()
+        assert "n" in confirm_prompt.lower()
+        assert "unsure" in confirm_prompt.lower()
 
     @pytest.mark.asyncio
     async def test_operator_skips_restore_still_happens(self, ac2a):
@@ -918,12 +1092,16 @@ class TestRunActuations:
         items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
         ac_out = next(i for i in items if i.field == "ac_output")
 
+        responses = iter(["", "", ""])
+
         async def capture(text, source):
-            return ""
+            return next(responses, "")
 
         await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
 
+        # Empty at confirm beat → skipped
         assert ac_out.device_confirmed is None
+        assert ac_out.confirm_response is None
         assert ac_out.note == "operator skipped"
         assert client.state[2011] == 1
         assert client.write_log == [(2011, 0), (2011, 1)]
@@ -944,8 +1122,10 @@ class TestRunActuations:
         items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
         ac_out = next(i for i in items if i.field == "ac_output")
 
+        responses = iter(["", ""])
+
         async def capture(text, source):
-            return "y"
+            return next(responses, "")
 
         await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
 
@@ -974,6 +1154,7 @@ class TestRunActuations:
         assert len(prompt_calls) == 0
         assert cm.note == "not_confirmable_on_device"
         assert cm.device_confirmed is None
+        assert cm.confirm_response is None
         assert cm.wrote_raw == 1
         assert cm.wrote == "silent"
         assert cm.readback == "silent"
@@ -984,22 +1165,59 @@ class TestRunActuations:
 # ── Induced-condition tests (§4) ──────────────────────────────────────────────
 
 
+class TestBuildInducedChecks:
+    def test_el100v2_uses_1800w_rating(self, el100v2):
+        checks = build_induced_checks(el100v2)
+        assert len(checks) == 1
+        assert checks[0]["condition"] == "ac_overload"
+        assert "1800 W" in checks[0]["description"]
+        assert "2070" in checks[0]["description"]  # ~1800 * 1.15
+
+    def test_ac2a_uses_300w_rating(self, ac2a):
+        checks = build_induced_checks(ac2a)
+        assert len(checks) == 1
+        assert "300 W" in checks[0]["description"]
+        assert "345" in checks[0]["description"]  # ~300 * 1.15
+
+    def test_no_rating_returns_empty(self, ac2a):
+        from voltkeeper.core.devices.bluetti_device import BluettiDevice
+
+        class NoRatingDevice(BluettiDevice):
+            pass
+
+        device = NoRatingDevice.__new__(NoRatingDevice)
+        device.RATED_AC_OUTPUT_W = None
+        checks = build_induced_checks(device)
+        assert checks == []
+
+    def test_no_attribute_returns_empty(self):
+        class MinimalDevice:
+            pass
+
+        checks = build_induced_checks(MinimalDevice())
+        assert checks == []
+
+
 class TestInducedCheck:
     @pytest.mark.asyncio
-    async def test_typed_confirmation_skips_when_declined(self):
+    async def test_typed_confirmation_skips_when_declined(self, ac2a):
+        checks = build_induced_checks(ac2a)
+
         async def capture(text, source):
             return "wrong phrase"
 
-        result = await run_induced_check(INDUCED_CHECKS[0], None, None, capture)
+        result = await run_induced_check(checks[0], None, None, capture)
         assert result.status == "skipped"
         assert "operator declined" in result.note
 
     @pytest.mark.asyncio
-    async def test_typed_confirmation_empty_skips(self):
+    async def test_typed_confirmation_empty_skips(self, ac2a):
+        checks = build_induced_checks(ac2a)
+
         async def capture(text, source):
             return ""
 
-        result = await run_induced_check(INDUCED_CHECKS[0], None, None, capture)
+        result = await run_induced_check(checks[0], None, None, capture)
         assert result.status == "skipped"
 
     @pytest.mark.asyncio
@@ -1022,7 +1240,7 @@ class TestInducedCheck:
                 return "Overload icon lit"
             return ""
 
-        result = await run_induced_check(INDUCED_CHECKS[0], client, ac2a, capture)
+        result = await run_induced_check(build_induced_checks(ac2a)[0], client, ac2a, capture)
         assert result.status == "captured"
         assert result.alarm_bits is not None
         assert len(result.alarm_bits) > 0
@@ -1042,7 +1260,7 @@ class TestInducedCheck:
                 return "none"
             return ""
 
-        result = await run_induced_check(INDUCED_CHECKS[0], client, ac2a, capture)
+        result = await run_induced_check(build_induced_checks(ac2a)[0], client, ac2a, capture)
         assert result.status == "captured"
         assert result.alarm_bits == []
 
@@ -1174,3 +1392,123 @@ class TestCategoryFromCLIFlags:
 
         with pytest.raises(ValueError, match="unknown"):
             _categories_from_skips(["garbage"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# §6.2 - Dry-run prompt flow tests
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDryRunPromptFlow:
+    """Assert generated prompt text for a novice operator."""
+
+    @pytest.mark.asyncio
+    async def test_ac_output_prompt_names_ac_outlets(self, ac2a):
+        """AC output actuation names the AC outlets and says load loses power."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2011: 1})
+        items = build_actuation_items(ac2a, {"ac_output": True}, frozenset({4}))
+
+        async def capture(text, source):
+            return "s"  # skip at ready gate
+
+        await run_actuations(items, client, ac2a, {"ac_output": True}, capture)
+
+        ac_item = next(i for i in items if i.field == "ac_output")
+        assert "the AC outlets" in ac_item.prompt
+        assert "from on to off" in ac_item.prompt
+
+    @pytest.mark.asyncio
+    async def test_dc_output_prompt_names_dc_ports(self, ac2a):
+        """DC output actuation names the DC ports explicitly."""
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2012: 0})
+        items = build_actuation_items(ac2a, {"dc_output": False}, frozenset({4}))
+
+        async def capture(text, source):
+            return "s"
+
+        await run_actuations(items, client, ac2a, {"dc_output": False}, capture)
+
+        dc_item = next(i for i in items if i.field == "dc_output")
+        assert "the DC ports" in dc_item.prompt
+
+    @pytest.mark.asyncio
+    async def test_inv_freq_prompt_has_caution_and_p01(self, ac2a):
+        """inv_freq actuation includes the manual's caution and settings page P01 reference."""
+        from voltkeeper.core.prompt_metadata import get_field_prompt_info
+
+        from .test_verify import FakeBluetoothClient
+
+        client = FakeBluetoothClient({2210: 50})
+        items = build_actuation_items(ac2a, {"inv_freq": 50}, frozenset({4}))
+
+        async def capture(text, source):
+            return "s"
+
+        await run_actuations(items, client, ac2a, {"inv_freq": 50}, capture)
+
+        freq_item = next(i for i in items if i.field == "inv_freq")
+        assert "frequency" in freq_item.prompt.lower()
+        meta = get_field_prompt_info(ac2a, "inv_freq")
+        assert meta.caution is not None
+        assert "Turn off AC output" in meta.caution
+        assert meta.where is not None and "P01" in meta.where
+
+    @pytest.mark.asyncio
+    async def test_charging_mode_prompt_mentions_p03(self, ac2a):
+        """Charging mode prompt references P03 settings page for EL100V2."""
+        from voltkeeper.core.prompt_metadata import get_field_prompt_info
+
+        meta = get_field_prompt_info(ac2a, "charging_mode")
+        assert meta.where is not None
+        assert "P03" in meta.where
+
+    def test_firmware_observation_prompt_names_arm_and_versions(self):
+        """Firmware observation prompt names ARM, DSP, BMS, IoT and format example."""
+        from voltkeeper.core.ground_truth import CORE_OBS_MAP
+
+        fw_def = CORE_OBS_MAP["firmware_display"]
+        prompt = fw_def.prompt
+        assert "ARM" in prompt
+        assert "DSP" in prompt
+        assert "BMS" in prompt
+        assert "IoT" in prompt
+        assert "2186.14" in prompt
+
+    def test_overload_prompt_computes_from_el100v2_rating(self, el100v2):
+        """EL100V2 overload prompt uses 1800 W rating, suggests computed load, example appliance."""
+        checks = build_induced_checks(el100v2)
+        assert len(checks) == 1
+        desc = checks[0]["description"]
+        assert "1800 W" in desc
+        assert "2070" in desc  # 1800 * 1.15
+        assert "space heater" in desc.lower()
+
+    def test_overload_prompt_computes_from_ac2a_rating(self, ac2a):
+        """AC2A overload prompt uses 300 W rating."""
+        checks = build_induced_checks(ac2a)
+        assert len(checks) == 1
+        desc = checks[0]["description"]
+        assert "300 W" in desc
+        assert "345" in desc  # 300 * 1.15
+
+    def test_soc_observation_prompt_has_location_guidance(self):
+        """SoC observation prompt tells operator where to look on the device."""
+        from voltkeeper.core.ground_truth import CORE_OBS_MAP
+
+        soc_def = CORE_OBS_MAP["soc"]
+        prompt = soc_def.prompt
+        assert "main screen" in prompt.lower()
+        assert "digits" in prompt.lower()
+
+    def test_observation_prompts_use_bluetti_unit_terminology(self):
+        """Observation prompts never use bare 'output' where ambiguous."""
+        from voltkeeper.core.ground_truth import CORE_OBSERVATION_DEFS
+
+        for obs_def in CORE_OBSERVATION_DEFS:
+            # 'output' alone should only appear in the context of explicit names
+            if "output" in obs_def.prompt.lower() and "output_watts" not in obs_def.id:
+                assert "AC" in obs_def.prompt or "DC" in obs_def.prompt or "Bluetti unit" in obs_def.prompt

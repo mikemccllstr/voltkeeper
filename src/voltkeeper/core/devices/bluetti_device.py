@@ -19,6 +19,11 @@ class BluettiDevice:
     has_sub_devices: bool = False
     SUPPORT_TIER: SupportTier = SupportTier.APK_DERIVED
 
+    # Rated AC output in watts, sourced from the manufacturer's user manual.
+    # Set per model with a citation comment; None means unknown — prompts that
+    # need a rating (e.g. overload suggestion) are omitted when unset.
+    RATED_AC_OUTPUT_W: int | None = None
+
     def __init__(self, address: str, type: str, sn: str):
         self.address = address
         self.type = type
