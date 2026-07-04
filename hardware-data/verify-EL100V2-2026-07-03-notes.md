@@ -19,7 +19,18 @@ App observations from screenshots taken before/after the AC run.
 - DC/PV supply: physically connected, device not drawing from it
 - Grid draw observed at both ~46 W (matching AC load) and ~60 W (matching
   AC + DC load) at different times: DC load appears battery-supplied, with the
-  grid draw jumping when the battery tops back up.
+  grid draw jumping when the battery tops back up. This is real device
+  behavior, not observation noise — the two readings differ by almost exactly
+  the DC load (46 + 14 ≈ 60). Working theory: the DC bus runs from the
+  battery, which the device periodically recharges from grid, so grid draw
+  alternates between AC-only and AC+DC totals. Testable predictions:
+  (1) with the DC load unplugged, grid draw stays flat at the AC load;
+  (2) during the higher-draw phase the battery-power/current register shows
+  charging, during the lower phase it shows ~14 W discharge;
+  (3) the SoC dip-and-recover cycle (100 → 99 → recharge) correlates with
+  the grid-draw steps. Ground-truth implication: grid/load-watt prompts must
+  allow a "value alternates between levels" answer rather than widening
+  tolerances.
 
 ## App cross-checks (Bluetti app, before/after run)
 

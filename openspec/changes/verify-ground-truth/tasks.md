@@ -1,13 +1,13 @@
-# Tasks: Verify Ground Truth Mode (sketch)
+# Tasks: Verify Ground Truth Mode
 
-> **Status: sketch.** Group 0 gates everything else; do not start groups 1+ until it is done and the change has been re-evaluated against its findings.
+> Group 0 (the re-evaluation gate) is complete; groups 1+ are cleared for implementation.
 
 ## 0. Re-evaluation gate (bench findings first)
 
 - [x] 0.1 During the next bench session, test whether the vendor app can display live device data (cloud/IoT path) while voltkeeper holds the BLE connection; record the answer in design.md (no — BLE is exclusive and cloud path was inactive; recorded in design.md open questions)
-- [ ] 0.2 Inventory what the EL100V2 and AC2A on-device screens display; mark which core-list observation fields are anchorable; record in design.md
-- [ ] 0.3 Run one manual ground-truth session using notes (the `el100v2-improvements` hardware session is the natural opportunity) and use it to refine the prompt list and tolerances in this change's spec
-- [ ] 0.4 Decide flag vs. standalone subcommand based on how the induce-and-capture flow fit the manual session; revise proposal/design/spec accordingly and get Mike's sign-off to proceed
+- [x] 0.2 Inventory what the EL100V2 and AC2A on-device screens display; mark which core-list observation fields are anchorable; record in design.md (done from official user manuals in `bluetti-files/manuals/` — see "Device-screen inventory" in design.md)
+- [x] 0.3 Run one manual ground-truth session using notes (the `el100v2-improvements` hardware session is the natural opportunity) and use it to refine the prompt list and tolerances in this change's spec (session: 2026-07-03 EL100V2 bench, `hardware-data/verify-EL100V2-2026-07-03-notes.md`; spec refined: totals-vs-sums, alternating-values answer, secondary-source voltage class, display-format firmware comparison, `not_confirmable_on_device` outcome)
+- [x] 0.4 Decide flag vs. standalone subcommand based on how the induce-and-capture flow fit the manual session; revise proposal/design/spec accordingly and get Mike's sign-off to proceed (decided: `verify --ground-truth` flag, design decision 6; Mike sign-off 2026-07-04)
 
 ## 1. Passive observations
 
