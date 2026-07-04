@@ -115,6 +115,18 @@ The EL100V2 device class SHALL support ctrl_event bitmask decoding using the sta
 - **WHEN** ctrl_event value is 0
 - **THEN** all 11 capability flags are False
 
+### Requirement: EL100V2 pack voltage uses centivolt scaling
+
+`El100V2` SHALL override `DEFAULT_PACK_VOLTAGE_SCALE = 2` so `packTotalVoltage` is parsed as raw ÷ 100, matching AC2A/EL10V2/EL30V2. Evidence: the 2026-07-03 captures hold raw 5350 (0x14E6) at 100% SoC and 5333 at 99% — 53.50 V / 53.33 V for a 56 V-class LiFePO4 pack, while the inherited ÷10 default reported a physically impossible 530.5 V.
+
+#### Scenario: captured AC-run pack voltage parses to physical volts
+- **WHEN** the grid-connected HOME fixture bytes are parsed
+- **THEN** `packTotalVoltage` is 53.50
+
+#### Scenario: captured DC-run pack voltage parses to physical volts
+- **WHEN** the on-battery HOME fixture bytes are parsed
+- **THEN** `packTotalVoltage` is 53.33
+
 ### Requirement: EL100V2 parse behavior verified against captured register data
 
 The test suite SHALL include register-block fixtures promoted from the 2026-07-03 bench captures, documented with the device state at capture time (per `hardware-data/verify-EL100V2-2026-07-03-notes.md`), and parse tests exercising `El100V2.parse()` against them — mirroring the AC2A fixture approach in `tests/conftest.py`.
