@@ -46,8 +46,8 @@ def _show_field_help(field_name: str, address: str) -> None:
 
 @cli.command()
 @click.argument("address")
-@click.argument("field")
-@click.argument("value")
+@click.argument("field", required=False)
+@click.argument("value", required=False)
 @click.option(
     "--daemon",
     type=str,
@@ -73,19 +73,22 @@ def write(address, field, value, daemon, help_field):
 
     \b
     Use --help-field <field> to see valid values for any writable field:
-      voltkeeper write --help-field charging_mode
+      voltkeeper write AA:BB:CC:DD:EE:FF --help-field charging_mode
 
-      voltkeeper write --help-field inv_freq
+      voltkeeper write AA:BB:CC:DD:EE:FF --help-field inv_freq
     """
-    if daemon:
-        _write_via_daemon(daemon, address, field, value)
-        return
-
     address = address.upper()
 
-    # --help-field mode: show type and valid values without connecting
+    # --help-field mode: show type and valid values without writing
     if help_field:
         _show_field_help(help_field, address)
+        return
+
+    if field is None or value is None:
+        raise click.UsageError("Missing arguments FIELD and VALUE (or use --help-field FIELD).")
+
+    if daemon:
+        _write_via_daemon(daemon, address, field, value)
         return
 
     loop = asyncio.new_event_loop()

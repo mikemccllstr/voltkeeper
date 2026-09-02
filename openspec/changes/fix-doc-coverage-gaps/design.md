@@ -24,7 +24,7 @@ missing flag/feature documentation in existing user-guide pages.
 - Rewrite or restructure existing docs
 - Add Python API reference (still deferred per api/index.md note)
 - Add new documentation pages beyond the HTTP API reference section
-- Change CLI behavior or flags
+- Change CLI behavior or flags, except the `write --help-field` argument fix below
 - Fix the load-test hardcoded AC2A filename (separate concern)
 
 ## Decisions
@@ -41,6 +41,15 @@ two files for a topic that is still relatively small (~8 endpoints).
 ### Man page structure for new commands
 **Decision:** Follow the existing pattern -- each command gets a ### subsection
 with a synopsis line, brief description, and an options table.
+
+### `write --help-field` takes only an address
+**Decision:** Make `FIELD` and `VALUE` optional arguments on `voltkeeper write`,
+and raise a usage error when they are missing without `--help-field`.
+
+**Rationale:** `--help-field` describes a field instead of writing one, but the
+command required `FIELD` and `VALUE` anyway, so every documented invocation
+failed with `Missing argument 'FIELD'`. Documenting a filler field and value
+would have been worse than a five-line CLI fix.
 
 ### Issue template format
 **Decision:** Use the standard GitHub YAML issue form format matching the

@@ -58,3 +58,27 @@ voltkeeper write AA:BB:CC:DD:EE:FF ups_mode off  # Standby UPS (transfer-on-loss
 - **Standby (`off`)** — the inverter idles and starts on grid loss. Switchover takes ~20 ms or more. Battery drain is lower.
 
 Use `voltkeeper status --verbose` to see current values of all writable fields before changing them.
+
+## Inspecting writable fields
+
+Before writing a field, inspect what values it accepts without touching the
+device:
+
+```bash
+voltkeeper write AA:BB:CC:DD:EE:FF --help-field charging_mode
+# charging_mode: [standard|silent|turbo]
+
+voltkeeper write AA:BB:CC:DD:EE:FF --help-field sys_low_power
+# sys_low_power: [0-100]
+
+voltkeeper write AA:BB:CC:DD:EE:FF --help-field ac_output
+# ac_output: [on|off]
+```
+
+`--help-field` prints the field's type and its valid values: the enum options
+for `on`/`off` and mode fields, or the numeric range (with the unit, where the
+field defines one) for adjustable fields. `FIELD` and `VALUE` are not needed in
+this mode, but the address is: voltkeeper does a BLE scan lookup to identify the
+model before reading its field definitions, so the device must be powered on and
+in range. No write is performed and no data connection is opened. Running it
+against an unknown field prints the list of writable fields for that model.

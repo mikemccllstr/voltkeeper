@@ -105,6 +105,11 @@ POST /api/midpfilec/file/v1/upload/multi
 GET  /api/midpfilec/vod/v1/play-url
 ```
 
+APK v3.0.10 additionally references a bare `/file/v1/getFile` path. It is not
+catalogued separately here: the gateway route is the
+`/api/midpfilec/file/v1/getFile` entry above, and the short form was seen only
+as a path variant.
+
 ### Master Data / App Config (`midpmdata`)
 
 ```
@@ -174,7 +179,6 @@ POST /api/blusmartprod/device/accessories/v1/removeDeviceAccessories
 POST /api/blusmartprod/user/space/v1/createSpace
 GET  /api/blusmartprod/user/space/v1/getSpaceDeviceList
 POST /api/blusmartprod/user/space/v1/spaceAddDevice
-POST /api/blusmartprod/user/space/v1/shareSpace
 GET  /api/blusmartprod/aecc/workMode/v1/getWorkMode
 POST /api/blusmartprod/aecc/workMode/v1/setWorkMode
 POST /api/blusmartprod/aecc/workMode/v1/addCustomPlan
@@ -186,6 +190,17 @@ GET  /api/blusmartprod/vpp/v1/programs
 POST /api/blusmartprod/vpp/v1/enrollment
 GET  /api/blusmartprod/vpp/v1/dispatches
 POST /api/blusmartprod/vpp/site/v1/create
+GET  /api/blusmartprod/user/space/v1/getUserSpaceList
+GET  /api/blusmartprod/user/space/v1/getSpaceInfoBySpaceId
+POST /api/blusmartprod/user/space/v1/addShareSpace
+POST /api/blusmartprod/user/space/v1/delShareSpaceMember
+GET  /api/blusmartprod/user/space/v1/shareSpaceMemberList
+GET  /api/blusmartprod/user/space/v1/getSpaceQrCodeEncrypt
+POST /api/blusmartprod/user/space/v1/setSpaceMeter
+GET  /api/blusmartprod/user/space/v1/getSupportJoinSpaceModelList
+GET  /api/blusmartprod/user/space/v1/getSupportJoinBalcotransModelList
+POST /api/blusmartprod/device/basic/v1/deviceRestoreFactorySettings
+POST /api/blusmartprod/device/accessories/v1/checkDeviceAllowedToBeAdded
 ```
 
 ### IoT Telemetry Data (`bluiotdata`)
@@ -208,6 +223,8 @@ GET  /api/bluiotdata/device/iotData/v1/blackout/stats
 POST /api/bluiotdata/device/iotData/v1/blackout/clear
 GET  /api/bluiotdata/device/openWeatherAlert/v1/queryDeviceWeatherNoticePage
 GET  /api/bluiotdata/device/openWeatherAlert/v1/queryDisasterDeviceBackupPowerPage
+GET  /api/bluiotdata/dashboard/v1/getSpaceDeviceEnergyStatistics
+GET  /api/bluiotdata/dashboard/v1/getSpaceDevicePowerStatistics
 ```
 
 ### Dynamic Electricity Pricing / VPP (`bluiotvpp`)
@@ -219,6 +236,9 @@ GET  /api/bluiotvpp/dynamicElectricityPrice/user/v1/costStatistics
 GET  /api/bluiotvpp/dynamicElectricityPrice/user/v1/aiCostStatistics
 GET  /api/bluiotvpp/dynamicElectricityPrice/user/v1/policyInformationDownApp
 POST /api/bluiotvpp/dynamicElectricityPrice/user/v1/policyInformationUp
+GET  /api/bluiotvpp/dynamicElectricityPrice/user/v1/queryPvForecastedEnergy
+GET  /api/bluiotvpp/user/ai/vip/v1/checkUserAiVip
+POST /api/bluiotvpp/user/ai/vip/v1/userJoinAiVip
 ```
 
 ### User Center (`bluuc`)
@@ -274,6 +294,10 @@ GET  /api/blushopc/app/coupon/v1/page
 POST /api/blushopc/app/coupon/v1/exchange
 GET  /api/blushopc/app/customer/v1/level
 POST /api/blushopc/app/birthday/gift/v1/claim
+POST /api/blushopc/app/order/v1/message/add
+GET  /api/blushopc/app/order/v1/message/list
+GET  /api/blushopc/app/order/v1/pendingSigning/getDutyFreeFile
+POST /api/blushopc/app/order/v1/submit/dutyFreeFile
 ```
 
 ### After-Sales (`bluas`)
