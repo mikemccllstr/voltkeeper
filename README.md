@@ -71,6 +71,8 @@ If this works, you know it's fundamentally working. If you run into an error wit
 | `scan`                 | Discover nearby Bluetti devices and show exact connect commands       |
 | `status`               | Read battery SOC, pack voltage, load, and charging status             |
 | `write`                | Toggle AC/DC output, change charging mode, adjust device settings     |
+| `verify`               | Run a tiered integration test against a device and produce a report   |
+| `config`               | Read and write daemon configuration without hand-editing YAML         |
 | `mqtt-publish`         | Stream device telemetry to MQTT with Home Assistant auto-discovery    |
 | `mqtt-listen`          | Watch battery SOC over MQTT and shut down host on low battery         |
 | `load-test`            | Run a controlled battery discharge test with CSV logging              |

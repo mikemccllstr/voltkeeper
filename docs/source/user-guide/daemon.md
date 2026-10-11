@@ -121,6 +121,220 @@ Pass a hostname or full URL; `localhost` expands to `http://localhost:8080`.
 Open `http://localhost:8080` in a browser (or the LAN address if using `--lan`).
 Enter your API key when prompted.
 
+The Web UI is a single-page interface served by the daemon itself at `/` (the
+only unauthenticated route). It reads device state through the REST API and
+subscribes to the WebSocket for live updates, so the page reflects changes as
+they happen without refreshing. The API key is kept in the browser tab's
+`sessionStorage` and is sent as an `Authorization: Bearer` header on REST calls
+and as the `token` query parameter on the WebSocket connection.
+
+## HTTP API Reference
+
+The daemon exposes a small REST API plus a WebSocket stream, all served from
+the daemon's HTTP port (default `8080`). Responses are JSON.
+
+### Endpoint overview
+
+| Method | Path                            | Auth | Description                                        |
+| ------ | ------------------------------- | ---- | -------------------------------------------------- |
+| GET    | `/`                             | No   | Web UI (single-page HTML interface)                |
+| GET    | `/api/devices`                  | Yes  | List configured devices and their status           |
+| GET    | `/api/device/{address}`         | Yes  | Latest state for one device                        |
+| GET    | `/api/device/{address}/fields`  | Yes  | Writable fields and their allowed values           |
+| POST   | `/api/device/{address}/command` | Yes  | Send a write command to a device                   |
+| POST   | `/api/shutdown`                 | Yes  | Gracefully stop the daemon                         |
+| POST   | `/api/reload`                   | Yes  | Reload config; hot-applies where possible          |
+| GET    | `/ws`                           | Yes  | WebSocket: device status + real-time state updates |
+
+`{address}` is a device BLE address in uppercase MAC form (e.g.
+`AA:BB:CC:DD:EE:FF`).
+
+### Authentication
+
+Every endpoint except `/` requires the API key. It is the `server.api_key`
+value from `~/.config/voltkeeper/config.yaml`, and the same key the Web UI
+prompts for.
+
+Two mechanisms are accepted:
+
+- **`Authorization: Bearer <token>` header** — used by the REST clients
+  (and by `voltkeeper status --daemon` / `voltkeeper write --daemon`):
+
+  ```bash
+  curl -H "Authorization: Bearer $VK_API_KEY" http://localhost:8080/api/devices
+  ```
+
+- **`?token=<token>` query parameter** — needed for the WebSocket, since
+  browsers cannot set headers on a `WebSocket` handshake:
+
+  ```
+  ws://localhost:8080/ws?token=your-api-key
+  ```
+
+Requests without a valid key receive `401 {"error": "Unauthorized"}`.
+
+### Rate limiting
+
+The daemon enforces a limit of **60 requests per 60 seconds per client IP**.
+Exceeding it returns `429 {"error": "Too Many Requests"}`. Rate limiting is
+applied before authentication, and the `/` (Web UI) route is also subject to
+it. Requests from disallowed networks never reach the auth layer — see
+[Network access control](#network-access-control).
+
+### List devices
+
+`GET /api/devices`
+
+Returns an array of every device in the daemon configuration, with a status
+and a summary of the latest readings:
+
+```json
+[
+  {
+    "address": "AA:BB:CC:DD:EE:FF",
+    "name": "Living Room",
+    "type": "AC2A",
+    "status": "online",
+    "encrypted": true,
+    "sn": "2305000123456",
+    "summary": {"soc": 87, "voltage": 26.3},
+    "last_heard": "2026-09-02T10:15:00+00:00"
+  }
+]
+```
+
+`status` is `online`, `missing`, or `new` (configured but not yet seen).
+`last_heard` is an ISO-8601 timestamp of the most recent poll, or `null`.
+
+### Get device state
+
+`GET /api/device/{address}`
+
+Returns the device's identity fields plus its latest parsed state. Device
+registers are merged into the top-level object as `key: value` entries
+(power, SOC, voltage, alarms, and so on), so the response shape is not fixed.
+
+```json
+{
+  "address": "AA:BB:CC:DD:EE:FF",
+  "name": "Living Room",
+  "type": "AC2A",
+  "status": "online",
+  "_status": "online",
+  "last_heard": "2026-09-02T10:15:00+00:00",
+  "packTotalSoc": 87.0,
+  "packTotalVoltage": 26.3
+}
+```
+
+Unknown devices return `404 {"error": "Device not found"}`. The CLI equivalent
+is `voltkeeper status AA:BB:CC:DD:EE:FF --daemon localhost`.
+
+### Introspect writable fields
+
+`GET /api/device/{address}/fields`
+
+Returns the writable fields for the device together with what each accepts, so
+clients can render a control without hardcoding field metadata:
+
+```json
+{
+  "fields": [
+    {"name": "ac_output", "type": "bool"},
+    {"name": "charging_mode", "type": "enum", "values": ["standard", "silent", "turbo"]},
+    {"name": "sys_low_power", "type": "int", "range": [0, 100]}
+  ]
+}
+```
+
+`type` is `bool` (values `on`/`off`), `enum` (see `values`), `int` (see
+`range`), or `any`.
+
+### Send a command
+
+`POST /api/device/{address}/command`
+
+Writes a field value. The request body is JSON:
+
+```json
+{"field": "ac_output", "value": "on"}
+```
+
+`value` accepts the same forms as the CLI (`on`/`off`, enum names, or numbers;
+`"toggle"` flips a boolean). A successful write is queued to the device and
+returns immediately:
+
+```json
+{"accepted": true}
+```
+
+Errors use HTTP status codes with a JSON error body:
+
+| Status | Meaning                                                          |
+| ------ | ---------------------------------------------------------------- |
+| 400    | Invalid JSON body, unknown field, or invalid value for the field |
+| 404    | Device not in configuration                                      |
+| 503    | Device not currently online                                      |
+
+The CLI equivalent is `voltkeeper write AA:BB:CC:DD:EE:FF ac_output on --daemon localhost`.
+
+### Shut down the daemon
+
+`POST /api/shutdown`
+
+Gracefully stops the daemon. Returns `202 {"accepted": true}` and the process
+exits once in-flight work completes.
+
+### Reload configuration
+
+`POST /api/reload`
+
+Re-reads the config file. Scan interval, scan timeout, and the device list are
+applied live; `server.host`, `server.port`, and `server.api_key` cannot be
+applied to a running process.
+
+A successful hot reload returns:
+
+```json
+{"reloaded": true, "restart_required": false}
+```
+
+If `server.host` or `server.port` changed, the daemon applies nothing and
+returns `restart_required` with the reason:
+
+```json
+{"reloaded": false, "restart_required": true, "reason": "server.host changed"}
+```
+
+A changed `server.api_key` is not detected here: the endpoint reports
+`{"reloaded": true, "restart_required": false}` while the running daemon keeps
+serving with the old key. Restart the daemon after rotating the key.
+
+### WebSocket stream
+
+`GET /ws`
+
+Upgrade endpoint for real-time updates. Authenticate with the `token` query
+parameter (see [Authentication](#authentication)):
+
+```
+ws://localhost:8080/ws?token=your-api-key
+```
+
+On connect the daemon sends one message per device — a `device_status` message
+with the current connection state — each followed by a cached `state_update`
+carrying that device's latest readings, if any have been cached yet:
+
+```json
+{"type": "device_status", "device": "AA:BB:CC:DD:EE:FF", "status": "online", "name": "Living Room", "device_type": "AC2A"}
+{"type": "state_update", "device": "AA:BB:CC:DD:EE:FF", "state": {"packTotalSoc": 87.0}}
+```
+
+After that, a `state_update` is pushed whenever a device reports fresh data,
+so clients (like the Web UI) always see the current state without polling.
+Every message is a JSON object with a `type` field (`device_status` or
+`state_update`).
+
 ## BLE exclusivity conflict
 
 Bluetooth Low Energy allows only one active connection per device. If
